@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <windows.h>
+#include "dllinjector/process.h"
 
 namespace utils {
     struct ProcessInfo {
@@ -26,7 +27,7 @@ namespace utils {
     DWORD GetProcessIdByName(const std::wstring& processName);
     std::wstring SelectFile(const wchar_t* filter);
 
-    enum class ProcessArchitecture { Unknown, X86, X64, Arm64 };
+    using ProcessArchitecture = dllinjector::Architecture;
 
     struct ArchitectureResult {
         ProcessArchitecture architecture = ProcessArchitecture::Unknown;

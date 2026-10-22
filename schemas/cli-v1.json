@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DLLInjector read-only CLI response v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tool_version", "command", "status", "target", "execution", "data", "findings", "evidence", "errors", "duration_ms"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "tool_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"},
+    "command": {"enum": ["unknown", "help", "version", "process.list", "process.inspect"]},
+    "status": {"enum": ["success", "error"]},
+    "target": {
+      "type": "object", "additionalProperties": false, "required": ["pid"],
+      "properties": {"pid": {"anyOf": [{"$ref": "#/$defs/pid"}, {"type": "null"}]}}
+    },
+    "execution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command_accepted", "operation_completed", "outcome_verified"],
+      "properties": {
+        "command_accepted": {"type": "boolean"},
+        "operation_completed": {"type": "boolean"},
+        "outcome_verified": {"type": "boolean"}
+      }
+    },
+    "data": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/info"}, {"$ref": "#/$defs/list"}, {"$ref": "#/$defs/process"}]},
+    "findings": {"type": "array", "maxItems": 0},
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["source", "description"],
+        "properties": {
+          "source": {"const": "runtime_observation"},
+          "description": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "errors": {"type": "array", "items": {"$ref": "#/$defs/error"}},
+    "duration_ms": {"type": "integer", "minimum": 0}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "success"}}},
+      "then": {
+        "properties": {
+          "command": {"not": {"const": "unknown"}},
+          "data": {"not": {"type": "null"}}, "errors": {"maxItems": 0},
+          "execution": {"properties": {"command_accepted": {"const": true}, "operation_completed": {"const": true}, "outcome_verified": {"const": true}}}
+        }
+      },
+      "else": {
+        "properties": {
+          "data": {"type": "null"}, "errors": {"minItems": 1}, "evidence": {"maxItems": 0},
+          "execution": {"properties": {"operation_completed": {"const": false}, "outcome_verified": {"const": false}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"command": {"const": "process.inspect"}}},
+      "then": {"properties": {"target": {"properties": {"pid": {"$ref": "#/$defs/pid"}}}}},
+      "else": {"properties": {"target": {"properties": {"pid": {"type": "null"}}}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "success"}, "command": {"const": "process.inspect"}}},
+      "then": {"properties": {"data": {"$ref": "#/$defs/process"}, "evidence": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "success"}, "command": {"const": "process.list"}}},
+      "then": {"properties": {"data": {"$ref": "#/$defs/list"}, "evidence": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "success"}, "command": {"enum": ["help", "version"]}}},
+      "then": {"properties": {"data": {"$ref": "#/$defs/info"}, "evidence": {"maxItems": 0}}}
+    }
+  ],
+  "$defs": {
+    "pid": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "filetime": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,19})$"},
+    "error": {
+      "type": "object", "additionalProperties": false,
+      "required": ["category", "stage", "message", "win32", "ntstatus", "verified"],
+      "properties": {
+        "category": {"enum": ["invalid_argument", "access_denied", "not_found", "unsupported", "system", "timeout", "io"]},
+        "stage": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1},
+        "win32": {"type": ["integer", "null"], "minimum": 0, "maximum": 4294967295},
+        "ntstatus": {"type": ["integer", "null"], "minimum": -2147483648, "maximum": 2147483647},
+        "verified": {"type": "boolean"}
+      }
+    },
+    "info": {
+      "type": "object", "additionalProperties": false, "required": ["text"],
+      "properties": {"text": {"type": "string"}}
+    },
+    "summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pid", "name", "creation_time_filetime", "errors"],
+      "properties": {
+        "pid": {"$ref": "#/$defs/pid"}, "name": {"type": "string"},
+        "creation_time_filetime": {"anyOf": [{"$ref": "#/$defs/filetime"}, {"type": "null"}]},
+        "errors": {"type": "array", "items": {"$ref": "#/$defs/error"}}
+      }
+    },
+    "list": {
+      "type": "object", "additionalProperties": false, "required": ["processes"],
+      "properties": {"processes": {"type": "array", "items": {"$ref": "#/$defs/summary"}}}
+    },
+    "process": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pid", "name", "image_path", "creation_time_filetime", "architecture", "architecture_source"],
+      "properties": {
+        "pid": {"$ref": "#/$defs/pid"}, "name": {"type": "string"}, "image_path": {"type": "string"},
+        "creation_time_filetime": {"$ref": "#/$defs/filetime"},
+        "architecture": {"enum": ["x86", "x64", "arm64"]},
+        "architecture_source": {"enum": ["IsWow64Process2", "IsWow64Process"]}
+      }
+    }
+  }
+}

@@ -1,5 +1,6 @@
 """Run the real CLI, validate JSON and observable behavior; no privileged targets."""
 import json
+import copy
 import os
 from pathlib import Path
 import shutil
@@ -40,8 +41,24 @@ def run(*args, code=0, json_mode=True):
     return obj, err
 
 
-for fixture in sorted((root / "tests/fixtures/json").glob("*.json")):
+fixtures = sorted((root / "tests/fixtures/json").glob("*.json"))
+assert len(fixtures) >= 3, "fixed schema fixtures must be present"
+for fixture in fixtures:
     validator.validate(json.loads(fixture.read_text(encoding="utf-8")))
+
+valid = json.loads((root / "tests/fixtures/json/inspect.json").read_text(encoding="utf-8"))
+invalid = copy.deepcopy(valid)
+del invalid["schema_version"]
+assert not validator.is_valid(invalid)
+invalid = copy.deepcopy(valid)
+invalid["data"]["creation_time_filetime"] = 134370000000000001
+assert not validator.is_valid(invalid), "FILETIME must not lose precision in JS"
+invalid = copy.deepcopy(valid)
+invalid["execution"]["outcome_verified"] = False
+assert not validator.is_valid(invalid), "success and execution flags must agree"
+invalid = copy.deepcopy(valid)
+invalid["data"]["architecture"] = "unknown"
+assert not validator.is_valid(invalid), "unknown architecture cannot be inspect success"
 
 version, _ = run("--version")
 assert version["tool_version"] == "2.0.0-dev.1"
@@ -101,6 +118,9 @@ with tempfile.TemporaryDirectory(prefix="dllinjector-p1-") as tmp:
     run("--version", "--output", folder / "missing" / "out.json", code=4)
     run("bad-command", "--output", folder / "invalid.json", code=2)
     assert not (folder / "invalid.json").exists()
+    human = folder / "version.txt"
+    text, _ = run("--version", "--output", human, json_mode=False)
+    assert human.read_bytes().decode("utf-8") == text
     failure_path = folder / "error.json"
     failed, _ = run("process", "inspect", "--pid", "4294967295", "--output", failure_path, code=3)
     assert json.loads(failure_path.read_text(encoding="utf-8")) == failed

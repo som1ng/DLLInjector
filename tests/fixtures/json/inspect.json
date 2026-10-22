@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0", "tool_version": "2.0.0-dev.1", "command": "process.inspect",
+  "status": "success", "target": {"pid": 4242},
+  "execution": {"command_accepted": true, "operation_completed": true, "outcome_verified": true},
+  "data": {"pid": 4242, "name": "测试 🚀.exe", "image_path": "C:\\测试 space\\测试 🚀.exe", "creation_time_filetime": "134370000000000001", "architecture": "x64", "architecture_source": "IsWow64Process2"},
+  "findings": [], "evidence": [{"source": "runtime_observation", "description": "Fixed fixture; not a live process."}],
+  "errors": [], "duration_ms": 1
+}
