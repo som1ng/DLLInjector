@@ -1,0 +1,2 @@
+# Test-only JSON Schema validator; the CLI has no Python runtime dependency.
+jsonschema==4.23.0
