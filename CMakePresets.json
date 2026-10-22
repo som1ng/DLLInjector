@@ -1,0 +1,41 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "msvc-base",
+      "hidden": true,
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "BUILD_TESTING": "ON" }
+    },
+    { "name": "msvc-x64", "inherits": "msvc-base", "architecture": "x64" },
+    { "name": "msvc-x86", "inherits": "msvc-base", "architecture": "Win32" },
+    {
+      "name": "mingw-x64",
+      "displayName": "Optional MinGW-w64 x64 from PATH",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "msvc-x64-debug", "configurePreset": "msvc-x64", "configuration": "Debug" },
+    { "name": "msvc-x64-release", "configurePreset": "msvc-x64", "configuration": "Release" },
+    { "name": "msvc-x86-debug", "configurePreset": "msvc-x86", "configuration": "Debug" },
+    { "name": "msvc-x86-release", "configurePreset": "msvc-x86", "configuration": "Release" },
+    { "name": "mingw-x64", "configurePreset": "mingw-x64" }
+  ],
+  "testPresets": [
+    { "name": "msvc-x64-debug", "configurePreset": "msvc-x64", "configuration": "Debug", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } },
+    { "name": "msvc-x64-release", "configurePreset": "msvc-x64", "configuration": "Release", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } },
+    { "name": "msvc-x86-debug", "configurePreset": "msvc-x86", "configuration": "Debug", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } },
+    { "name": "msvc-x86-release", "configurePreset": "msvc-x86", "configuration": "Release", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } },
+    { "name": "mingw-x64", "configurePreset": "mingw-x64", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } }
+  ]
+}

@@ -1,11 +1,11 @@
 /**
  * 文件名: src/methods/method_syscall.cpp
- * 作用: 直接 Syscall 注入 — 绕过 ETW / API Hook / 用户态事件追踪
+ * 作用: 直接 Syscall 注入实验（未纳入当前验证构建）
  *
  * 实现: 纯汇编 stub (.asm) + C++ 包装
  *   · x64 syscall stub 由汇编文件 (syscall_stubs_x64.asm) 提供
  *   · 包含: sys_alloc_wrapper, sys_write_wrapper, sys_create_thread_wrapper
- *   · syscall 指令直接跳转内核，绕过 ntdll.dll Hook
+ *   · 不承诺规避 ETW、API Hook 或其他监控；ABI 与结果语义尚未验证
  *   · SSN 从本地 ntdll.dll 动态解析
  */
 

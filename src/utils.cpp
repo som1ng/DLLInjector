@@ -4,6 +4,7 @@
  */
 
 #include "utils.h"
+#include "utils_detail.h"
 #include <iostream>
 #include <vector>
 #include <algorithm>
@@ -19,18 +20,31 @@ namespace utils {
         else         std::cout << "[+] " << msg << std::endl;
     }
 
-    bool EnableDebugPrivilege() {
-        HANDLE hToken;
-        LUID luid;
-        TOKEN_PRIVILEGES tkp;
-        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) return false;
-        if (!LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &luid)) { CloseHandle(hToken); return false; }
+    bool detail::EnableDebugPrivilege(const Win32Api& api) {
+        HANDLE hToken = nullptr;
+        LUID luid = {};
+        TOKEN_PRIVILEGES tkp = {};
+        if (!api.openProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) return false;
+        const auto finish = [&](DWORD error) {
+            api.closeHandle(hToken);
+            SetLastError(error);
+            return error == ERROR_SUCCESS;
+        };
+        if (!api.lookupPrivilegeValue(nullptr, SE_DEBUG_NAME, &luid)) return finish(GetLastError());
         tkp.PrivilegeCount = 1;
         tkp.Privileges[0].Luid = luid;
         tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-        bool res = AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(tkp), NULL, NULL);
-        CloseHandle(hToken);
-        return res;
+        SetLastError(ERROR_SUCCESS);
+        const BOOL adjusted = api.adjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(tkp), nullptr, nullptr);
+        const DWORD error = GetLastError();
+        // TRUE with ERROR_NOT_ALL_ASSIGNED is not successful assignment.
+        const bool success = adjusted != FALSE && error == ERROR_SUCCESS;
+        finish(error);
+        return success;
+    }
+
+    bool EnableDebugPrivilege() {
+        return detail::EnableDebugPrivilege(detail::Win32Api{});
     }
 
     std::vector<unsigned char> ReadFileToBuffer(const std::wstring& filepath) {
@@ -89,34 +103,72 @@ namespace utils {
         return 0;
     }
 
-    std::wstring SelectFile(const wchar_t* filter) {
+    std::wstring detail::SelectFile(const wchar_t* filter, const Win32Api& api) {
         OPENFILENAMEW ofn;
         wchar_t szFile[260] = { 0 };
         ZeroMemory(&ofn, sizeof(ofn));
         ofn.lStructSize = sizeof(ofn);
         ofn.hwndOwner = NULL;
         ofn.lpstrFile = szFile;
-        ofn.nMaxFile = sizeof(szFile);
+        ofn.nMaxFile = static_cast<DWORD>(sizeof(szFile) / sizeof(szFile[0]));
         ofn.lpstrFilter = filter;
         ofn.nFilterIndex = 1;
         ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-        if (GetOpenFileNameW(&ofn) == TRUE) return std::wstring(ofn.lpstrFile);
+        if (api.getOpenFileName(&ofn) == TRUE) return std::wstring(ofn.lpstrFile);
         return L"";
     }
 
-    // [新增] 实现 IsProcess64Bit
-    bool IsProcess64Bit(DWORD pid) {
-        HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-        if (!hProcess) return false;
-        BOOL isWow64 = FALSE;
-        // 如果是 64 位系统：
-        // 32 位进程 -> IsWow64 = TRUE
-        // 64 位进程 -> IsWow64 = FALSE
-        if (IsWow64Process(hProcess, &isWow64)) {
-            CloseHandle(hProcess);
-            return (isWow64 == FALSE);
+    std::wstring SelectFile(const wchar_t* filter) {
+        return detail::SelectFile(filter, detail::Win32Api{});
+    }
+
+    ArchitectureResult detail::QueryProcessArchitecture(DWORD pid, const Win32Api& api) {
+        HANDLE hProcess = api.openProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (!hProcess) return {ProcessArchitecture::Unknown, GetLastError(), L"OpenProcess"};
+        struct ProcessHandle {
+            HANDLE handle;
+            decltype(&::CloseHandle) close;
+            ~ProcessHandle() { close(handle); }
+        } owned{hProcess, api.closeHandle};
+
+        if (api.isWow64Process2) {
+            USHORT processMachine = IMAGE_FILE_MACHINE_UNKNOWN;
+            USHORT nativeMachine = IMAGE_FILE_MACHINE_UNKNOWN;
+            if (!api.isWow64Process2(hProcess, &processMachine, &nativeMachine)) {
+                return {ProcessArchitecture::Unknown, GetLastError(), L"IsWow64Process2"};
+            }
+            const USHORT machine = processMachine == IMAGE_FILE_MACHINE_UNKNOWN ? nativeMachine : processMachine;
+            switch (machine) {
+            case IMAGE_FILE_MACHINE_I386: return {ProcessArchitecture::X86, ERROR_SUCCESS, L"IsWow64Process2"};
+            case IMAGE_FILE_MACHINE_AMD64: return {ProcessArchitecture::X64, ERROR_SUCCESS, L"IsWow64Process2"};
+            case IMAGE_FILE_MACHINE_ARM64: return {ProcessArchitecture::Arm64, ERROR_SUCCESS, L"IsWow64Process2"};
+            default: return {ProcessArchitecture::Unknown, ERROR_NOT_SUPPORTED, L"IsWow64Process2"};
+            }
         }
-        CloseHandle(hProcess);
-        return false;
+
+        // A FALSE WOW64 flag alone cannot distinguish native x86 from native x64.
+        SYSTEM_INFO native = {};
+        api.getNativeSystemInfo(&native);
+        if (native.wProcessorArchitecture != PROCESSOR_ARCHITECTURE_INTEL &&
+            native.wProcessorArchitecture != PROCESSOR_ARCHITECTURE_AMD64) {
+            return {ProcessArchitecture::Unknown, ERROR_NOT_SUPPORTED, L"GetNativeSystemInfo"};
+        }
+        BOOL isWow64 = FALSE;
+        if (!api.isWow64Process(hProcess, &isWow64)) {
+            return {ProcessArchitecture::Unknown, GetLastError(), L"IsWow64Process"};
+        }
+        const auto architecture = native.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL || isWow64
+            ? ProcessArchitecture::X86 : ProcessArchitecture::X64;
+        return {architecture, ERROR_SUCCESS, L"IsWow64Process"};
+    }
+
+    ArchitectureResult QueryProcessArchitecture(DWORD pid) {
+        detail::Win32Api api;
+        const HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+        if (kernel32) {
+            api.isWow64Process2 = reinterpret_cast<detail::Win32Api::IsWow64Process2Fn>(
+                GetProcAddress(kernel32, "IsWow64Process2"));
+        }
+        return detail::QueryProcessArchitecture(pid, api);
     }
 }

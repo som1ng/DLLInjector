@@ -1,83 +1,96 @@
-<div align="center">
-
 # DLLInjector
 
-基于 C++ 的 Windows DLL 注入与 Shellcode 注入工具，支持多种注入技术，便于安全测试、逆向分析与自动化开发。项目包含 GUI 及丰富的注释与源代码结构，适合学习与实际运用。
+Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。
 
-[![License](https://img.shields.io/github/license/som1ng/DLLInjector)](./LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/som1ng/DLLInjector.svg)](https://github.com/som1ng/DLLInjector/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/som1ng/DLLInjector.svg)](https://github.com/som1ng/DLLInjector/issues)
+当前分支完成的是 **P0 基线修复与构建基础设施**。现有 Win32 GUI 保留；诊断 CLI、Doctor、Skill、MCP 和一行安装器尚未实现。详细结果见 [基线报告](docs/BASELINE.md) 和 [本轮交付](docs/P0_DELIVERY.md)。
 
----
+## 当前能力与验证边界
 
-</div>
+| 项目 | 状态 |
+| --- | --- |
+| Win32 GUI、进程列表、文件选择 | 可从源码构建；具备隐藏窗口启动/关闭测试 |
+| 架构查询 | x86/x64/ARM64/Unknown 明确区分；查询失败携带错误与阶段；GUI 当前仅接受匹配的 x86/x64 目标 |
+| 原有远程线程、APC、消息钩子、反射式与 DLL 部署方法 | 保留源代码和 GUI 入口；本轮仅验证构建，没有验证这些方法的运行效果 |
+| Direct Syscall | GNU x64 实验源码保留；未纳入当前 CMake 构建；GUI 标注不可用 |
+| CMake / CTest | MSVC x64/x86 Debug、Release；可选 MinGW-w64 x64 |
+| Windows CI | 已配置构建、测试和审查产物上传；是否通过以实际 workflow 运行结果为准 |
+| CLI / JSON / PE Doctor / Agent 集成 | 路线图，尚不可调用 |
 
-## 功能简介
+GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
 
-**DLLInjector** 主要实现多种主流进程注入方式，包括但不限于：
+## 构建与测试
 
-- **远程线程注入**（CreateRemoteThread）：经典注入技术，支持 DLL 和 Shellcode。
-- **APC 注入**（QueueUserAPC）：将 DLL/Shellcode 挂载到目标进程的线程队列中执行。
-- **消息钩子注入**（SetWindowsHookEx）：依赖目标进程 UI，适合特定类型注入需求。
-- **反射式 DLL 注入**（Reflective DLL Injection）：无需将 DLL 文件落盘，提升隐蔽性。
-- **DLL 劫持/劫持部署**（DLL Hijacking）：支持对指定可执行文件的 DLL 劫持操作。
+需要 Windows、CMake 3.21+、Visual Studio 2022 的“使用 C++ 的桌面开发”工具与 Windows SDK。构建不下载第三方测试框架。
 
-详细注入原理分析可见：[进阶原理博客](https://www.s0m1ng.xyz/2025/10/15/REVERSE/pe%E9%80%86%E5%90%91/dll%E4%B8%93%E9%A2%98/)
-
-## 主要特性
-
-- 丰富的注入方式，兼容 x86/x64 架构
-- 代码全中文注释，助于理解与二次开发
-- 可注入 DLL 或直接输入 Shellcode
-- 自带简易 GUI 界面
-- DLL 劫持等高级功能预留
-- 便捷的进程遍历与辅助工具函数
-
-## 项目结构
-
-```
-DLLInjector/
-├── src/              # 主体源码（包含各注入方法/核心逻辑）
-│   ├── methods/      # 不同注入方式实现
-│   ├── utils.cpp     # 工具与辅助函数
-│   └── main_gui.cpp  # 界面/主逻辑
-├── dll_test/         # DEMO 及测试用目标进程
-```
-
-## 安装与编译
-
-- **环境要求**：Windows（建议 Win10+）、g++, clang 或 MSVC（需支持 C++11）
-- **依赖库**：Windows API，无需第三方库
-
-### 编译示例
-
-```sh
+```powershell
 git clone https://github.com/som1ng/DLLInjector.git
 cd DLLInjector
-# VS 环境可直接编译 src/main_gui.cpp ，GCC 可用 Makefile（如有）
-# 示例：
-g++ src/main_gui.cpp src/utils.cpp src/methods/*.cpp -o DLLInjector.exe -lgdi32 -lshlwapi -static
+cmake --preset msvc-x64
+cmake --build --preset msvc-x64-debug --parallel
+ctest --preset msvc-x64-debug
 ```
 
-## 使用说明
+GUI 位于 `build/msvc-x64/Debug/DLLInjector.exe`。需要手工查看界面时运行该文件。
 
-1. 运行示例目标程序（见 `dll_test/demo.c`）
-2. 启动 `DLLInjector.exe`，选取目标进程
-3. 选择注入方式（支持 DLL 文件路径或 Shellcode 直接注入）
-4. 等待“注入成功”提示
+其他已配置组合：
 
-### 主要命令行参数（如适用）
+```powershell
+cmake --build --preset msvc-x64-release --parallel
+ctest --preset msvc-x64-release
 
-- `-t <pid>`      指定目标进程
-- `-m <method>`   选择注入方式（CRT/APC/HOOK/REFLECTIVE/HIJACK）
-- `-d <dll>`      待注入 DLL 路径
-- `-s <shellcode>` 直接注入 Shellcode（16进制/文件）
+cmake --preset msvc-x86
+cmake --build --preset msvc-x86-debug --parallel
+ctest --preset msvc-x86-debug
+cmake --build --preset msvc-x86-release --parallel
+ctest --preset msvc-x86-release
+```
 
-## 贡献/交流
+可选 MinGW-w64 x64：确保 `gcc`、`g++`、`ninja` 在 PATH，然后运行 `cmake --preset mingw-x64`、`cmake --build --preset mingw-x64`、`ctest --preset mingw-x64`。不提供 MinGW x86 或 ARM64 构建的验证声明。
 
-欢迎提交 Issue 与 PR，或访问 [作者博客](https://www.s0m1ng.xyz/) 进行交流。
+VS Code 的默认构建任务使用 CMake x64 Debug；F5 使用同一构建产物，需要 Microsoft C/C++ 扩展。
 
-## License
+## 测试内容
 
-[MIT License](./LICENSE)。仅供安全学习与研究用途，禁止用于非法用途，风险自负。
+- 文件对话框字符容量、边界、取消与中文路径。
+- 现代/旧版架构查询、未知架构、访问失败、资源关闭与原始错误保留。
+- 权限 API 部分分配与失败：使用替身，不改变测试者的真实权限。
+- 实际当前进程的只读查询与枚举、中文路径文件读取。
+- GUI 隐藏启动/关闭且不自动启用 Debug Privilege、原有控制台 Demo 启动。
+- 测试程序在自身进程加载新建的无副作用 DLL，并检查显式导出返回值。
 
+CTest 不运行对第三方进程的注入或目录部署，也不运行仓库内已有的反射式二进制。`demo_dll` 是保留的旧弹窗样例，只参与构建；它与新建的无副作用 `noop_fixture` 不同。
+
+## 目录
+
+```text
+src/                   原 Win32 GUI、工具函数与方法实现
+dll_test/              原 Demo 与第三方反射式样例
+tests/                 Win32 回归测试、启动测试与无副作用 fixture
+docs/                  基线、契约、验证记录与第三方声明
+CMakeLists.txt         构建入口
+CMakePresets.json       MSVC / 可选 MinGW 配置
+.github/workflows/     Windows 构建与测试
+```
+
+## 后续路线
+
+1. P1：Core 的 Result/Error、只读进程 CLI、版本化 JSON 契约。
+2. P2：具备边界检查的 PE 解析、DLL Doctor、报告与单一权威 Skill。
+3. P3/P4：本地 stdio MCP、实测的 Agent 适配和可回滚安装器。
+4. P5：自有测试程序的 DLL 生命周期实验与结果对比。
+
+旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。
+
+## English quick start
+
+This Windows C++ project currently ships a legacy Win32 GUI and a tested build
+foundation. The diagnostic CLI, PE Doctor and Agent integrations are planned,
+not available yet. Install Visual Studio 2022 C++ tools and CMake 3.21+, then
+run the x64 configure/build/test commands above. CTest uses read-only queries,
+hidden startup checks, mocked privilege APIs and a self-owned inert DLL fixture.
+
+## 来源与许可
+
+仓库目前没有项目级 `LICENSE` 文件，因此不再使用 MIT 徽章或声明整个仓库采用 MIT。第三方 ReflectiveLoader 文件中的原始版权与许可头完整保留，见 [第三方声明](docs/THIRD_PARTY_NOTICES.md)。其他代码的来源核实及项目级许可是后续发布前的待办。
+
+问题与建议可通过 [GitHub Issues](https://github.com/som1ng/DLLInjector/issues) 反馈。

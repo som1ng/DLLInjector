@@ -3,7 +3,14 @@
 #endif 
 
 // [新] 必须定义这个宏才能使用 QueryFullProcessImageName
-#define _WIN32_WINNT 0x0600 
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
+
+// The validated build retains but does not link the GNU x64 syscall experiment.
+#ifndef DLLINJECTOR_HAS_SYSCALL
+#define DLLINJECTOR_HAS_SYSCALL 0
+#endif
 
 #include <windows.h>
 #include <commctrl.h>
@@ -98,7 +105,7 @@ void UpdateMethodCombo(bool isDll) {
     SendMessage(hComboMethod, CB_SETITEMDATA, idx, M_CRT);
 
     // 2. QueueUserAPC (通用)
-    idx = SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)L"2. QueueUserAPC (隐蔽)");
+    idx = SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)L"2. QueueUserAPC (异步请求)");
     SendMessage(hComboMethod, CB_SETITEMDATA, idx, M_APC);
 
     if (isDll) {
@@ -116,12 +123,14 @@ void UpdateMethodCombo(bool isDll) {
         idx = SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)L"5. DLL Hijacking (劫持)");
         SendMessage(hComboMethod, CB_SETITEMDATA, idx, M_HIJACK);
 
-        // 6. Direct Syscall (最高隐蔽性，绕过 ETW/API Hook)
-        idx = SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)L"6. Direct Syscall (内联汇编 bypass)");
+        // Retain the experimental entry, with its build availability stated.
+        idx = SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)(DLLINJECTOR_HAS_SYSCALL
+            ? L"6. Direct Syscall (实验性)" : L"6. Direct Syscall (本构建不可用)"));
         SendMessage(hComboMethod, CB_SETITEMDATA, idx, M_SYSCALL);
     } else {
         // Shellcode 模式也支持 Syscall
-        idx = SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)L"3. Direct Syscall (内联汇编 bypass)");
+        idx = SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)(DLLINJECTOR_HAS_SYSCALL
+            ? L"3. Direct Syscall (实验性)" : L"3. Direct Syscall (本构建不可用)"));
         SendMessage(hComboMethod, CB_SETITEMDATA, idx, M_SYSCALL);
     }
 
@@ -148,7 +157,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         hLabelTip = CreateWindow(L"STATIC", L"提示: 请选择目标 .dll 文件路径", WS_CHILD | WS_VISIBLE, 340, 250, 230, 20, hwnd, (HMENU)IDC_STATIC_TIP, NULL, NULL);
         CreateWindow(L"BUTTON", L"开始注入", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 340, 280, 220, 50, hwnd, (HMENU)IDC_BTN_INJECT, NULL, NULL);
 
-        utils::EnableDebugPrivilege();
         RefreshProcessList();
         UpdateMethodCombo(true); // 默认初始化为 DLL 列表
         break;
@@ -187,13 +195,32 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             int selIdx = SendMessage(hComboMethod, CB_GETCURSEL, 0, 0);
             int methodID = (int)SendMessage(hComboMethod, CB_GETITEMDATA, selIdx, 0);
 
+            #if !DLLINJECTOR_HAS_SYSCALL
+            if (methodID == M_SYSCALL) {
+                MessageBox(hwnd, L"Direct Syscall 源码已保留，但未纳入本构建的验证范围。",
+                    L"功能不可用", MB_ICONINFORMATION);
+                break;
+            }
+            #endif
+
             // 架构检查
             #if defined(_WIN64)
                 bool amI64 = true;
             #else
                 bool amI64 = false;
             #endif
-            bool targetIs64 = utils::IsProcess64Bit(pid);
+            const auto target = utils::QueryProcessArchitecture(pid);
+            if (target.architecture == utils::ProcessArchitecture::Unknown) {
+                const std::wstring msg = L"无法确认目标进程架构，已停止操作。\n阶段: " +
+                    std::wstring(target.stage) + L"\nWin32 错误: " + std::to_wstring(target.error);
+                MessageBox(hwnd, msg.c_str(), L"架构查询失败", MB_ICONERROR);
+                break;
+            }
+            if (target.architecture == utils::ProcessArchitecture::Arm64) {
+                MessageBox(hwnd, L"当前 GUI 尚不支持 ARM64 目标。", L"不支持的架构", MB_ICONERROR);
+                break;
+            }
+            bool targetIs64 = target.architecture == utils::ProcessArchitecture::X64;
             if (amI64 != targetIs64) {
                 std::wstring msg = L"架构不匹配！\n\n注入器: " + std::wstring(amI64 ? L"64位" : L"32位") + 
                                    L"\n目标: " + std::wstring(targetIs64 ? L"64位" : L"32位");
@@ -225,9 +252,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                             result = methods::Deploy_Hijack(targetPath, inputStr);
                         }
                         break;
+                    #if DLLINJECTOR_HAS_SYSCALL
                     case M_SYSCALL:
                         result = methods::Inject_Syscall_DLL(pid, inputStr);
                         break;
+                    #endif
                     default: MessageBox(hwnd, L"未知方法 ID", L"Err", MB_OK); break;
                 }
             } else { 
@@ -248,12 +277,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 switch (methodID) {
                     case M_CRT: result = methods::Inject_CRT_Shellcode(pid, rawData); break;
                     case M_APC: result = methods::Inject_APC_Shellcode(pid, rawData); break;
+                    #if DLLINJECTOR_HAS_SYSCALL
                     case M_SYSCALL: result = methods::Inject_Syscall_Shellcode(pid, rawData); break;
+                    #endif
                     default: MessageBox(hwnd, L"该方法不支持 Shellcode 模式", L"错误", MB_OK); break;
                 }
             }
 
-            if (result) MessageBox(hwnd, L"注入指令已发送！", L"成功", MB_ICONINFORMATION);
+            if (result) MessageBox(hwnd, L"请求已提交，预期效果尚未验证。", L"请求已提交", MB_ICONINFORMATION);
             else MessageBox(hwnd, L"注入失败！", L"失败", MB_ICONERROR);
         }
         break;

@@ -1,18 +1,21 @@
 {
+  "version": 4,
   "configurations": [
     {
-      "name": "windows-gcc-x64",
+      "name": "Windows MSVC x64",
+      "compilerPath": "cl.exe",
       "includePath": [
-        "${workspaceFolder}/**"
+        "${workspaceFolder}/src"
       ],
-      "compilerPath": "C:/vscode environment/mingw64/bin/gcc.exe",
-      "cStandard": "${default}",
-      "cppStandard": "${default}",
-      "intelliSenseMode": "windows-gcc-x64",
-      "compilerArgs": [
-        ""
-      ]
+      "defines": [
+        "UNICODE",
+        "_UNICODE",
+        "NOMINMAX",
+        "_WIN32_WINNT=0x0600",
+        "DLLINJECTOR_HAS_SYSCALL=0"
+      ],
+      "cppStandard": "c++17",
+      "intelliSenseMode": "windows-msvc-x64"
     }
-  ],
-  "version": 4
+  ]
 }
