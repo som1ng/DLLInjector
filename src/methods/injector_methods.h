@@ -28,7 +28,7 @@ namespace methods {
     bool Deploy_Hijack(const std::wstring& targetExeDir, const std::wstring& myDllPath);
 
     // 6. Direct Syscall Injection (实现在 method_syscall.cpp)
-    // 使用内联汇编直接发起 syscall，绕过 ETW / API Hook / 用户态事件追踪
+    // GNU x64 汇编实验；不属于当前验证构建，不承诺规避任何监控。
     bool Inject_Syscall_DLL(DWORD pid, const std::wstring& dllPath);
     bool Inject_Syscall_Shellcode(DWORD pid, const std::vector<unsigned char>& shellcode);
 }

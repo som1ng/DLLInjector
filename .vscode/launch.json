@@ -2,35 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug: My Injector",
+      "name": "Debug: DLLInjector x64",
       "type": "cppvsdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/bin/Injector.exe",
+      "program": "${workspaceFolder}/build/msvc-x64/Debug/DLLInjector.exe",
       "args": [],
       "stopAtEntry": false,
-      "cwd": "${workspaceFolder}/bin",
+      "cwd": "${workspaceFolder}",
       "environment": [],
-      "console": "externalTerminal",
-      "preLaunchTask": "Build: My Injector Tool (EXE)"
-    },
-    {
-      "name": "C/C++ Runner: Debug Session",
-      "type": "cppdbg",
-      "request": "launch",
-      "args": [],
-      "stopAtEntry": false,
-      "externalConsole": true,
-      "cwd": "c:/Users/Lenovo/OneDrive/Desktop/dll-injector/src",
-      "program": "c:/Users/Lenovo/OneDrive/Desktop/dll-injector/src/build/Debug/outDebug",
-      "MIMode": "gdb",
-      "miDebuggerPath": "gdb",
-      "setupCommands": [
-        {
-          "description": "Enable pretty-printing for gdb",
-          "text": "-enable-pretty-printing",
-          "ignoreFailures": true
-        }
-      ]
+      "console": "integratedTerminal",
+      "preLaunchTask": "Build: DLLInjector x64 Debug"
     }
   ]
 }

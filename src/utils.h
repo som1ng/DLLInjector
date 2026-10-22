@@ -26,6 +26,14 @@ namespace utils {
     DWORD GetProcessIdByName(const std::wstring& processName);
     std::wstring SelectFile(const wchar_t* filter);
 
-    // [新增] 检查目标进程是否为 64 位
-    bool IsProcess64Bit(DWORD pid);
+    enum class ProcessArchitecture { Unknown, X86, X64, Arm64 };
+
+    struct ArchitectureResult {
+        ProcessArchitecture architecture = ProcessArchitecture::Unknown;
+        DWORD error = ERROR_SUCCESS;
+        const wchar_t* stage = L"";
+    };
+
+    // Query failures stay Unknown; they must not be treated as x86.
+    ArchitectureResult QueryProcessArchitecture(DWORD pid);
 }

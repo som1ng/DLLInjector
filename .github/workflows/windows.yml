@@ -1,0 +1,47 @@
+name: Windows build and tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Match the VS 2022 presets rather than relying on a moving VS version.
+    runs-on: windows-2022
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [msvc-x64, msvc-x86]
+        configuration: [debug, release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake --preset ${{ matrix.architecture }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.architecture }}-${{ matrix.configuration }} --parallel
+      - name: Test
+        run: ctest --preset ${{ matrix.architecture }}-${{ matrix.configuration }}
+      - name: Upload review artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.architecture }}-${{ matrix.configuration }}
+          if-no-files-found: error
+          path: |
+            build/${{ matrix.architecture }}/${{ matrix.configuration }}/DLLInjector.exe
+            build/${{ matrix.architecture }}/${{ matrix.configuration }}/demo_target.exe
+            build/${{ matrix.architecture }}/${{ matrix.configuration }}/demo_dll.dll
+            docs/BASELINE.md
+            docs/THIRD_PARTY_NOTICES.md
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-${{ matrix.architecture }}-${{ matrix.configuration }}
+          if-no-files-found: ignore
+          path: build/${{ matrix.architecture }}/Testing/Temporary/LastTest.log

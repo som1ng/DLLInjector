@@ -82,11 +82,33 @@ at link time. Local output is retained in `build/baseline/` (not versioned).
 ## Verification record
 
 Initial state: the two existing build recipes failed as described above.
-Post-change verification will be added after execution; no pass is implied by
-the presence of test or workflow files.
+
+After the P0 changes, all of these local Windows configurations built and
+passed all 10 registered CTest cases on 2026-10-22:
+
+| Configuration | Configure/build | CTest |
+| --- | --- | --- |
+| MSVC x64 Debug | PASS | 10/10 PASS |
+| MSVC x64 Release | PASS | 10/10 PASS |
+| MSVC Win32 Debug | PASS | 10/10 PASS |
+| MSVC Win32 Release | PASS | 10/10 PASS |
+| MinGW-w64 x64 Release | PASS | 10/10 PASS |
+
+The same 10 tests were run in five configurations (50 case executions, not
+50 independent test cases). Commands and limitations are recorded in
+[P0 delivery](P0_DELIVERY.md). The legacy GUI startup was actually exercised
+hidden, including its process list and inherited debug-privilege state. The
+original console demo was started and stopped by its owning smoke test. A
+new inert fixture was loaded and unloaded in the smoke-test process; the
+old message-box and reflective DLLs were not executed.
+
+B01-B05 have been addressed within this scope. B08 is isolated from the
+validated build, not repaired. B06-B07 and B09-B10 remain documented legacy
+limitations. Repository-wide licensing/provenance is not resolved by this audit.
 
 Injection into another process, DLL-copy deployment, reflective payload
-execution, direct syscalls, ARM64 execution and remote GitHub Actions are
+execution, direct syscalls, ARM64 execution, actual legacy 32-bit Windows
+execution, manual VS Code F5 operation and remote GitHub Actions are
 `NOT_RUN` in this baseline. No existing binary has been treated as trusted
 verification evidence.
 
