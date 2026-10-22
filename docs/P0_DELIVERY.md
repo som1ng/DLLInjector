@@ -3,7 +3,11 @@
 日期：2026-10-22。分支：`codex/p0-build-baseline`。
 
 本轮遵循本地《重构升级计划》第 12 节，只完成 P0 与 PR-01 的可执行部分，
-在 P1 前保留人工 Review 节点。没有发布 Release、推送分支或修改 Agent 配置。
+在 P1 前保留人工 Review 节点。没有发布 Release。
+
+按用户补充的分支约定，本轮使用本地及远端同名分支 `codex/p0-build-baseline`，
+通过 PR 合入 `main`。后续每个新功能均先创建本地及远端分支，再开始实现。
+这项约定已记录到本地项目 `AGENTS.md`；该文件仍遵循用户现有的忽略规则。
 
 ## 方案审查结论
 
@@ -57,7 +61,9 @@ ctest --preset mingw-x64
 ```
 
 全部构建成功；每个配置 10/10 测试通过，合计 50 次测试执行。
-这些是本机 Windows 的结果，不代表干净 GitHub Runner 已通过。
+这些是本机 Windows 的结果。远端分支已推送，GitHub Runner 的实际结果和日志见
+[Windows build and tests](https://github.com/som1ng/DLLInjector/actions/workflows/windows.yml?query=branch%3Acodex%2Fp0-build-baseline)。
+合入前须确认远端 MSVC x86/x64 的 Debug/Release 四组构建和测试均通过。
 
 测试确认：文件框实际容量是 260 个宽字符；259 字符 Unicode 路径与取消/失败分支；
 Unknown 与 x86 分离；现代 API 失败不静默回退；旧 API 在模拟的原生 x86 系统上
@@ -77,7 +83,6 @@ Unknown 与 x86 分离；现代 API 失败不静默回退；旧 API 在模拟的
 
 ## NOT_RUN 与仍存限制
 
-- 远端 GitHub Actions：仅已配置，未推送/触发。
 - ARM64 实机、真正的旧版/32 位 Windows：没有硬件/系统验证，相关分支仅替身测试。
 - 第三方进程注入、DLL 部署、反射式和 Direct Syscall：未运行，不宣称有效。
 - 原始反射式及部署 PE 读取器仍欠缺严格长度检查；后续 Doctor 必须使用新解析器。
