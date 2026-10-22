@@ -2,7 +2,7 @@
 
 Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。
 
-当前分支完成的是 **P0 基线修复与构建基础设施**。现有 Win32 GUI 保留；诊断 CLI、Doctor、Skill、MCP 和一行安装器尚未实现。详细结果见 [基线报告](docs/BASELINE.md) 和 [本轮交付](docs/P0_DELIVERY.md)。
+已具备 **只读进程 Core / CLI、版本化 JSON 和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.1`，尚未发布正式 V2.0；PE Doctor、模块枚举、Skill、MCP 和一行安装器继续按路线推进。参见 [CLI 契约](docs/P1_CONTRACT.md)、[P1 交付](docs/P1_DELIVERY.md) 和 [原始基线](docs/BASELINE.md)。
 
 ## 当前能力与验证边界
 
@@ -14,23 +14,49 @@ Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析�
 | Direct Syscall | GNU x64 实验源码保留；未纳入当前 CMake 构建；GUI 标注不可用 |
 | CMake / CTest | MSVC x64/x86 Debug、Release；可选 MinGW-w64 x64 |
 | Windows CI | 已配置构建、测试和审查产物上传；是否通过以实际 workflow 运行结果为准 |
-| CLI / JSON / PE Doctor / Agent 集成 | 路线图，尚不可调用 |
+| CLI / Core / JSON | `process list`、`process inspect`、帮助/版本、JSON、超时、输出文件、stderr 日志；GUI 与 CLI 复用进程查询 |
+| 模块枚举 / PE Doctor / Agent 集成 | 路线图，尚不可调用 |
 
 GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
 
 ## 构建与测试
 
-需要 Windows、CMake 3.21+、Visual Studio 2022 的“使用 C++ 的桌面开发”工具与 Windows SDK。构建不下载第三方测试框架。
+需要 Windows、CMake 3.21+、Visual Studio 2022 的“使用 C++ 的桌面开发”工具与 Windows SDK。
+测试还需要 Python 3.9+ 和 `jsonschema`；CLI 本身不依赖 Python，也不会下载依赖。
 
 ```powershell
 git clone https://github.com/som1ng/DLLInjector.git
 cd DLLInjector
+python -m pip install -r tests/requirements.txt
 cmake --preset msvc-x64
 cmake --build --preset msvc-x64-debug --parallel
 ctest --preset msvc-x64-debug
 ```
 
-GUI 位于 `build/msvc-x64/Debug/DLLInjector.exe`。需要手工查看界面时运行该文件。
+GUI 位于 `build/msvc-x64/Debug/DLLInjector.exe`；CLI 位于
+`build/msvc-x64/Debug/cli/dllinjector.exe`。Windows 文件名不区分大小写，因此二者分目录存放。
+只构建、不运行测试时，可在配置命令后加 `-DBUILD_TESTING=OFF`，无需 Python。
+
+## CLI 快速开始
+
+```powershell
+& .\build\msvc-x64\Debug\cli\dllinjector.exe --help
+& .\build\msvc-x64\Debug\cli\dllinjector.exe --version --json
+& .\build\msvc-x64\Debug\cli\dllinjector.exe process list --json
+# 查询当前 PowerShell 的 PID；不修改目标进程，不自动提权。
+& .\build\msvc-x64\Debug\cli\dllinjector.exe process inspect --pid $PID --json
+& .\build\msvc-x64\Debug\cli\dllinjector.exe process inspect --pid $PID --json --timeout-ms 5000 --output .\process-report.json
+```
+
+stdout 为结果，stderr 为错误与 `--verbose` 日志。重定向及输出文件使用无 BOM UTF-8；
+`--output` 要求文件不存在，防止覆盖已有报告。JSON Schema 在 [schemas/cli-v1.json](schemas/cli-v1.json)。
+创建时间以十进制 FILETIME **字符串**提供，避免 JavaScript 数字精度丢失；列表中无法读取的创建时间为 `null`，原因在该条目的 `errors` 中。
+
+退出码：`0` 成功，`1` 保留给后续诊断发现，`2` 参数错误，`3` 目标不可访问，
+`4` 内部/不支持/输出失败，`5` 查询超时。`--timeout-ms 0` 会立即返回查询超时。
+超时在 Win32 调用之间检查，不能打断正在执行的系统调用或阻塞的输出；需要严格墙钟限制的调用方也应设置子进程超时。
+
+## 其他构建组合
 
 其他已配置组合：
 
@@ -55,6 +81,8 @@ VS Code 的默认构建任务使用 CMake x64 Debug；F5 使用同一构建产�
 - 现代/旧版架构查询、未知架构、访问失败、资源关闭与原始错误保留。
 - 权限 API 部分分配与失败：使用替身，不改变测试者的真实权限。
 - 实际当前进程的只读查询与枚举、中文路径文件读取。
+- Core 的快照创建/遍历失败、权限不足、同一句柄查询、超时与错误保留。
+- CLI 子进程契约、JSON Schema 与固定样例、中文/空格/emoji 路径、输出文件保护、stdout/stderr 分离。
 - GUI 隐藏启动/关闭且不自动启用 Debug Privilege、原有控制台 Demo 启动。
 - 测试程序在自身进程加载新建的无副作用 DLL，并检查显式导出返回值。
 
@@ -64,6 +92,10 @@ CTest 不运行对第三方进程的注入或目录部署，也不运行仓库�
 
 ```text
 src/                   原 Win32 GUI、工具函数与方法实现
+include/dllinjector/    UI 无关的 Result/Error、进程类型与公共接口
+core/                  只读 Windows 进程查询、RAII、Unicode 转换
+apps/cli/              参数解析、文本/JSON 输出与命令行入口
+schemas/               版本化 JSON Schema
 dll_test/              原 Demo 与第三方反射式样例
 tests/                 Win32 回归测试、启动测试与无副作用 fixture
 docs/                  基线、契约、验证记录与第三方声明
@@ -74,7 +106,7 @@ CMakePresets.json       MSVC / 可选 MinGW 配置
 
 ## 后续路线
 
-1. P1：Core 的 Result/Error、只读进程 CLI、版本化 JSON 契约。
+1. P1 后续：只读模块枚举；当前已完成 Result/Error、进程 list/inspect 与版本化 JSON 契约。
 2. P2：具备边界检查的 PE 解析、DLL Doctor、报告与单一权威 Skill。
 3. P3/P4：本地 stdio MCP、实测的 Agent 适配和可回滚安装器。
 4. P5：自有测试程序的 DLL 生命周期实验与结果对比。
@@ -83,11 +115,15 @@ CMakePresets.json       MSVC / 可选 MinGW 配置
 
 ## English quick start
 
-This Windows C++ project currently ships a legacy Win32 GUI and a tested build
-foundation. The diagnostic CLI, PE Doctor and Agent integrations are planned,
-not available yet. Install Visual Studio 2022 C++ tools and CMake 3.21+, then
-run the x64 configure/build/test commands above. CTest uses read-only queries,
-hidden startup checks, mocked privilege APIs and a self-owned inert DLL fixture.
+This Windows C++ project includes the legacy GUI and a read-only process CLI
+(`2.0.0-dev.1`). Install Visual Studio 2022 C++ tools and CMake 3.21+, plus Python
+3.9+ and `python -m pip install -r tests/requirements.txt` for tests. Build with the
+presets above, then run `build/msvc-x64/Debug/cli/dllinjector.exe process list --json`
+or `process inspect --pid <PID> --json`. The CLI has no Python runtime dependency.
+JSON uses schema 1.0, UTF-8 and explicit error/exit codes; `--output` refuses existing
+files, `--verbose` logs to stderr, and `--timeout-ms` is a cooperative query deadline.
+Module enumeration, PE Doctor and Agent adapters are not available yet. CTest uses
+read-only queries, hidden startup checks, mocks and self-owned fixtures.
 
 ## 来源与许可
 
