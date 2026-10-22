@@ -106,14 +106,14 @@ void Errors() {
     openError = 0; pathError = ERROR_PARTIAL_COPY;
     const auto failedPath = detail::InspectProcess(42, {}, api);
     Check(!failedPath && failedPath.error().stage == "QueryFullProcessImageNameW" &&
-          failedPath.error().win32 == ERROR_PARTIAL_COPY && closes == 1, "path failure survives cleanup");
+          failedPath.error().win32 == std::uint32_t{ERROR_PARTIAL_COPY} && closes == 1, "path failure survives cleanup");
     pathError = 0; timeError = ERROR_ACCESS_DENIED;
     const auto failedTime = detail::InspectProcess(42, {}, api);
     Check(!failedTime && failedTime.error().stage == "GetProcessTimes" && closes == 2, "time failure is explicit");
     timeError = 0; architectureError = ERROR_BAD_LENGTH;
     const auto failedArch = detail::InspectProcess(42, {}, api);
     Check(!failedArch && failedArch.error().stage == "IsWow64Process2" &&
-          failedArch.error().win32 == ERROR_BAD_LENGTH && closes == 3, "architecture failure survives cleanup");
+          failedArch.error().win32 == std::uint32_t{ERROR_BAD_LENGTH} && closes == 3, "architecture failure survives cleanup");
 }
 void Enumeration() {
     const auto api = Api();
@@ -122,7 +122,7 @@ void Enumeration() {
     Check(!noSnapshot && noSnapshot.error().stage == "CreateToolhelp32Snapshot" && closes == 0, "snapshot creation failure");
     snapshotError = 0; firstError = ERROR_BAD_LENGTH;
     const auto noFirst = detail::ListProcesses({}, api);
-    Check(!noFirst && noFirst.error().win32 == ERROR_BAD_LENGTH && closes == 1, "first-entry failure, cleanup");
+    Check(!noFirst && noFirst.error().win32 == std::uint32_t{ERROR_BAD_LENGTH} && closes == 1, "first-entry failure, cleanup");
     firstError = ERROR_NO_MORE_FILES;
     const auto empty = detail::ListProcesses({}, api);
     Check(empty && empty.value().empty() && closes == 2, "empty snapshot differs from error");
@@ -136,7 +136,7 @@ void Enumeration() {
     Check(closes == 4, "close snapshot and each opened process");
     nextError = ERROR_PARTIAL_COPY;
     const auto partial = detail::ListProcesses({}, api);
-    Check(!partial && partial.error().stage == "Process32NextW" && partial.error().win32 == ERROR_PARTIAL_COPY,
+    Check(!partial && partial.error().stage == "Process32NextW" && partial.error().win32 == std::uint32_t{ERROR_PARTIAL_COPY},
           "failed enumeration cannot be reported as successful partial list");
     nextError = ERROR_NO_MORE_FILES; denyOne = false; timeError = ERROR_INVALID_PARAMETER;
     const auto noTimes = detail::ListProcesses({}, api);
@@ -166,7 +166,7 @@ void TextJson() {
     const auto text = ToUtf8(L"中文 🚀");
     Check(text && text.value() == u8"中文 🚀", "UTF-16 supplementary characters become UTF-8");
     const auto invalid = ToUtf8(std::wstring(1, wchar_t{0xd800}));
-    Check(!invalid && invalid.error().win32 == ERROR_NO_UNICODE_TRANSLATION, "reject unpaired surrogate");
+    Check(!invalid && invalid.error().win32 == std::uint32_t{ERROR_NO_UNICODE_TRANSLATION}, "reject unpaired surrogate");
     cli::Report report;
     report.command = "process.list"; report.accepted = true;
     report.data = std::vector<ProcessSummary>{{42, std::wstring(L"中\"\\\n\t\0", 6), {}, {}}};
