@@ -20,6 +20,11 @@ jobs:
         configuration: [debug, release]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install schema test dependency
+        run: python -m pip install -r tests/requirements.txt
       - name: Configure
         run: cmake --preset ${{ matrix.architecture }}
       - name: Build
@@ -34,10 +39,13 @@ jobs:
           if-no-files-found: error
           path: |
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/DLLInjector.exe
+            build/${{ matrix.architecture }}/${{ matrix.configuration }}/cli/dllinjector.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/demo_target.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/demo_dll.dll
             docs/BASELINE.md
             docs/THIRD_PARTY_NOTICES.md
+            docs/P1_CONTRACT.md
+            schemas/cli-v1.json
       - name: Upload test log
         if: always()
         uses: actions/upload-artifact@v4

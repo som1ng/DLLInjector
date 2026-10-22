@@ -2,18 +2,13 @@
 
 #include "utils.h"
 #include <commdlg.h>
+#include "process/process_detail.h"
 
 // Internal Win32 boundary, shared by production wrappers and deterministic tests.
 // Not a public Core/CLI API. Tests substitute functions instead of changing tokens
 // or opening interactive file dialogs.
 namespace utils::detail {
-    struct Win32Api {
-        using IsWow64Process2Fn = BOOL (WINAPI*)(HANDLE, USHORT*, USHORT*);
-        decltype(&::OpenProcess) openProcess = ::OpenProcess;
-        decltype(&::CloseHandle) closeHandle = ::CloseHandle;
-        IsWow64Process2Fn isWow64Process2 = nullptr;
-        decltype(&::IsWow64Process) isWow64Process = ::IsWow64Process;
-        decltype(&::GetNativeSystemInfo) getNativeSystemInfo = ::GetNativeSystemInfo;
+    struct Win32Api : dllinjector::detail::ProcessApi {
         decltype(&::OpenProcessToken) openProcessToken = ::OpenProcessToken;
         decltype(&::LookupPrivilegeValueW) lookupPrivilegeValue = ::LookupPrivilegeValueW;
         decltype(&::AdjustTokenPrivileges) adjustTokenPrivileges = ::AdjustTokenPrivileges;

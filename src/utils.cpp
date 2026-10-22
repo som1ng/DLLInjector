@@ -9,7 +9,6 @@
 #include <vector>
 #include <algorithm>
 #include <cstdio>
-#include <tlhelp32.h>
 #include <commdlg.h>
 
 namespace utils {
@@ -63,30 +62,15 @@ namespace utils {
 
     std::vector<ProcessInfo> GetAllProcesses() {
         std::vector<ProcessInfo> list;
-        HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if (hSnapshot == INVALID_HANDLE_VALUE) return list;
-        PROCESSENTRY32W pe32;
-        pe32.dwSize = sizeof(PROCESSENTRY32W);
-        if (Process32FirstW(hSnapshot, &pe32)) {
-            do {
-                if (pe32.th32ProcessID != 0) {
-                    unsigned long long time = 0;
-                    HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe32.th32ProcessID);
-                    if (hProcess) {
-                        FILETIME ftCreate, ftExit, ftKernel, ftUser;
-                        if (GetProcessTimes(hProcess, &ftCreate, &ftExit, &ftKernel, &ftUser)) {
-                            ULARGE_INTEGER ul;
-                            ul.LowPart = ftCreate.dwLowDateTime;
-                            ul.HighPart = ftCreate.dwHighDateTime;
-                            time = ul.QuadPart;
-                        }
-                        CloseHandle(hProcess);
-                    }
-                    list.push_back({ pe32.th32ProcessID, pe32.szExeFile, time });
-                }
-            } while (Process32NextW(hSnapshot, &pe32));
+        const auto result = dllinjector::ListProcesses();
+        if (!result) {
+            SetLastError(result.error().win32.value_or(
+                result.error().category == dllinjector::ErrorCategory::Timeout ? ERROR_TIMEOUT : ERROR_GEN_FAILURE));
+            return list;
         }
-        CloseHandle(hSnapshot);
+        for (const auto& process : result.value()) {
+            list.push_back({process.pid, process.name, process.creation_time.value_or(0)});
+        }
         std::sort(list.begin(), list.end(), [](const ProcessInfo& a, const ProcessInfo& b){
             if (a.creationTime != 0 && b.creationTime != 0) return a.creationTime < b.creationTime;
             if (a.creationTime == 0 && b.creationTime == 0) return a.pid < b.pid;
@@ -122,53 +106,25 @@ namespace utils {
         return detail::SelectFile(filter, detail::Win32Api{});
     }
 
+    namespace {
+    ArchitectureResult AdaptArchitecture(const dllinjector::Result<dllinjector::ArchitectureInfo>& result) {
+        const auto& stage = result ? result.value().source : result.error().stage;
+        const wchar_t* legacyStage = L"Core.QueryProcessArchitecture";
+        if (stage == "OpenProcess") legacyStage = L"OpenProcess";
+        else if (stage == "IsWow64Process2") legacyStage = L"IsWow64Process2";
+        else if (stage == "IsWow64Process") legacyStage = L"IsWow64Process";
+        else if (stage == "GetNativeSystemInfo") legacyStage = L"GetNativeSystemInfo";
+        if (result) return {result.value().architecture, ERROR_SUCCESS, legacyStage};
+        return {ProcessArchitecture::Unknown, result.error().win32.value_or(
+            result.error().category == dllinjector::ErrorCategory::Timeout ? ERROR_TIMEOUT : ERROR_GEN_FAILURE), legacyStage};
+    }
+    }
+
     ArchitectureResult detail::QueryProcessArchitecture(DWORD pid, const Win32Api& api) {
-        HANDLE hProcess = api.openProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-        if (!hProcess) return {ProcessArchitecture::Unknown, GetLastError(), L"OpenProcess"};
-        struct ProcessHandle {
-            HANDLE handle;
-            decltype(&::CloseHandle) close;
-            ~ProcessHandle() { close(handle); }
-        } owned{hProcess, api.closeHandle};
-
-        if (api.isWow64Process2) {
-            USHORT processMachine = IMAGE_FILE_MACHINE_UNKNOWN;
-            USHORT nativeMachine = IMAGE_FILE_MACHINE_UNKNOWN;
-            if (!api.isWow64Process2(hProcess, &processMachine, &nativeMachine)) {
-                return {ProcessArchitecture::Unknown, GetLastError(), L"IsWow64Process2"};
-            }
-            const USHORT machine = processMachine == IMAGE_FILE_MACHINE_UNKNOWN ? nativeMachine : processMachine;
-            switch (machine) {
-            case IMAGE_FILE_MACHINE_I386: return {ProcessArchitecture::X86, ERROR_SUCCESS, L"IsWow64Process2"};
-            case IMAGE_FILE_MACHINE_AMD64: return {ProcessArchitecture::X64, ERROR_SUCCESS, L"IsWow64Process2"};
-            case IMAGE_FILE_MACHINE_ARM64: return {ProcessArchitecture::Arm64, ERROR_SUCCESS, L"IsWow64Process2"};
-            default: return {ProcessArchitecture::Unknown, ERROR_NOT_SUPPORTED, L"IsWow64Process2"};
-            }
-        }
-
-        // A FALSE WOW64 flag alone cannot distinguish native x86 from native x64.
-        SYSTEM_INFO native = {};
-        api.getNativeSystemInfo(&native);
-        if (native.wProcessorArchitecture != PROCESSOR_ARCHITECTURE_INTEL &&
-            native.wProcessorArchitecture != PROCESSOR_ARCHITECTURE_AMD64) {
-            return {ProcessArchitecture::Unknown, ERROR_NOT_SUPPORTED, L"GetNativeSystemInfo"};
-        }
-        BOOL isWow64 = FALSE;
-        if (!api.isWow64Process(hProcess, &isWow64)) {
-            return {ProcessArchitecture::Unknown, GetLastError(), L"IsWow64Process"};
-        }
-        const auto architecture = native.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL || isWow64
-            ? ProcessArchitecture::X86 : ProcessArchitecture::X64;
-        return {architecture, ERROR_SUCCESS, L"IsWow64Process"};
+        return AdaptArchitecture(dllinjector::detail::QueryProcessArchitecture(pid, {}, api));
     }
 
     ArchitectureResult QueryProcessArchitecture(DWORD pid) {
-        detail::Win32Api api;
-        const HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
-        if (kernel32) {
-            api.isWow64Process2 = reinterpret_cast<detail::Win32Api::IsWow64Process2Fn>(
-                GetProcAddress(kernel32, "IsWow64Process2"));
-        }
-        return detail::QueryProcessArchitecture(pid, api);
+        return AdaptArchitecture(dllinjector::QueryProcessArchitecture(pid));
     }
 }
