@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.0-dev.3 — PE header inspection milestone (2026-10-23)
+
+- Add read-only `pe inspect <path>` and reusable Core byte/file APIs for PE32/PE32+
+  headers, sections and directory locations, independent of CLI bitness.
+- Check lengths, offsets, alignments and raw/virtual ranges before use; distinguish
+  malformed bytes (exit 1), unsupported limits, file IO errors and timeouts.
+- Add Schema 1.2 with `target.path`, static-analysis evidence and exact hexadecimal
+  addresses; keep historical schemas and fixed fixtures unchanged.
+- Add truncated/malformed fixtures, deterministic mutation/deadline tests and CLI
+  checks against actual compiler-produced DLL/EXE files and Unicode paths.
+
+Directory contents, dependency resolution, signatures and loadability are not
+validated in this milestone. Doctor and Agent integration remain follow-up work.
+
 ## 2.0.0-dev.2 — module enumeration milestone (2026-10-23)
 
 - Add read-only `process modules --pid`: module names, reported paths, base addresses

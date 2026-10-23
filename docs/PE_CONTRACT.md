@@ -20,7 +20,8 @@ subsequent features. A successful parse is not a Windows loader or trust verdict
   beyond available bytes, inconsistent ranges and malformed headers are errors.
 - Directories preserve their index, address and size. Index 4 (certificate table)
   is a file offset, all others use RVA. A nullable `file_offset` is provided only
-  when the entire range has contiguous file backing; virtual zero-fill has none.
+  when the entire range fits in one file-backed header/section region. Zero-fill,
+  image gaps and ranges crossing regions yield null; null is not a content verdict.
   Directory contents and certificate signatures are **not** validated.
 - Section names have eight raw bytes (`name_bytes`, lowercase hex); `name` is a
   display string with non-ASCII/control/backslash bytes escaped as `\xNN`.
@@ -28,6 +29,8 @@ subsequent features. A successful parse is not a Windows loader or trust verdict
 - Files are opened with read sharing only, so incompatible writers cause an IO
   error. Parsing describes bytes read through that handle, not permanent path
   identity or a guarantee against writes through pre-existing memory mappings.
+  Explicit UNC/device/extended paths and mapped remote drives are unsupported;
+  normal filesystem links are resolved by Windows, not treated as a sandbox.
 - The cooperative deadline covers open/read/parse. Zero expires before file IO;
   synchronous OS calls and result output cannot be interrupted. Input allocation
   is bounded and the read loop checks its deadline between 1 MiB chunks.
