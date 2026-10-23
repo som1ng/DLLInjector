@@ -16,6 +16,9 @@ struct ProcessApi {
     decltype(&::CreateToolhelp32Snapshot) snapshot = ::CreateToolhelp32Snapshot;
     decltype(&::Process32FirstW) first = ::Process32FirstW;
     decltype(&::Process32NextW) next = ::Process32NextW;
+    decltype(&::Module32FirstW) moduleFirst = ::Module32FirstW;
+    decltype(&::Module32NextW) moduleNext = ::Module32NextW;
+    decltype(&::Sleep) sleep = ::Sleep;
     decltype(&::GetProcessTimes) times = ::GetProcessTimes;
     decltype(&::QueryFullProcessImageNameW) imageName = ::QueryFullProcessImageNameW;
     decltype(&::GetTickCount64) tick = ::GetTickCount64;
@@ -24,4 +27,5 @@ ProcessApi NativeProcessApi();
 Result<ArchitectureInfo> QueryProcessArchitecture(std::uint32_t pid, QueryOptions options, const ProcessApi& api);
 Result<std::vector<ProcessSummary>> ListProcesses(QueryOptions options, const ProcessApi& api);
 Result<ProcessDetails> InspectProcess(std::uint32_t pid, QueryOptions options, const ProcessApi& api);
+Result<ModuleSnapshot> ListModules(std::uint32_t pid, QueryOptions options, const ProcessApi& api);
 }

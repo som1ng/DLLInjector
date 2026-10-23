@@ -45,7 +45,19 @@ jobs:
             docs/BASELINE.md
             docs/THIRD_PARTY_NOTICES.md
             docs/P1_CONTRACT.md
+            docs/MODULES_CONTRACT.md
             schemas/cli-v1.json
+            schemas/cli-v1.1.json
+      - name: Upload cross-bitness fixtures
+        if: success() && matrix.configuration == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: module-fixtures-${{ matrix.architecture }}
+          if-no-files-found: error
+          path: |
+            build/${{ matrix.architecture }}/Release/cli/dllinjector.exe
+            build/${{ matrix.architecture }}/Release/module_host.exe
+            build/${{ matrix.architecture }}/Release/noop_fixture.dll
       - name: Upload test log
         if: always()
         uses: actions/upload-artifact@v4
@@ -53,3 +65,27 @@ jobs:
           name: test-log-${{ matrix.architecture }}-${{ matrix.configuration }}
           if-no-files-found: ignore
           path: build/${{ matrix.architecture }}/Testing/Temporary/LastTest.log
+
+  cross-bitness:
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install schema test dependency
+        run: python -m pip install -r tests/requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: module-fixtures-msvc-x64
+          path: build/cross/x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: module-fixtures-msvc-x86
+          path: build/cross/x86
+      - name: x64 caller enumerates x86 host
+        run: python tests/modules_contract.py build/cross/x86/cli/dllinjector.exe build/cross/x86/module_host.exe build/cross/x86/noop_fixture.dll . build/cross/x64/cli/dllinjector.exe 0
+      - name: x86 caller rejects x64 host
+        run: python tests/modules_contract.py build/cross/x64/cli/dllinjector.exe build/cross/x64/module_host.exe build/cross/x64/noop_fixture.dll . build/cross/x86/cli/dllinjector.exe 4
