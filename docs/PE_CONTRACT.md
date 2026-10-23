@@ -1,5 +1,9 @@
 # PE inspection contract — schema 1.2
 
+This document records the dev.3 milestone. Current dev.4 / Schema 1.3 also parses
+import/export/delay tables; see [table contract](PE_TABLES_CONTRACT.md). Its stricter
+content checks can reject files whose headers alone were accepted by dev.3.
+
 Development version: `2.0.0-dev.3`. Command: `pe inspect <path> [options]`.
 This is the first PE vertical slice: headers, sections and directory locations.
 Import/export/delay-import contents, dependency resolution and Doctor rules are
