@@ -2,7 +2,7 @@
 
 Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。
 
-已具备 **只读进程/模块查询、PE 头部及导入/导出/延迟导入解析、版本化 JSON 和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.4`，尚未发布正式 V2.0；DLL Doctor、Skill、MCP 和一行安装器继续按路线推进。参见 [CLI 基础契约](docs/P1_CONTRACT.md)、[模块契约](docs/MODULES_CONTRACT.md)、[PE 头部契约](docs/PE_CONTRACT.md)、[PE 表解析契约](docs/PE_TABLES_CONTRACT.md)、[本轮交付](docs/PE_TABLES_DELIVERY.md) 和 [原始基线](docs/BASELINE.md)。
+已具备 **只读进程/模块查询、PE 解析、DLL Doctor 首批静态诊断规则、版本化 JSON 和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.5`，尚未发布正式 V2.0；依赖诊断、报告导出、Skill、MCP 和一行安装器继续按路线推进。参见 [CLI 基础契约](docs/P1_CONTRACT.md)、[模块契约](docs/MODULES_CONTRACT.md)、[PE 头部契约](docs/PE_CONTRACT.md)、[PE 表解析契约](docs/PE_TABLES_CONTRACT.md)、[Doctor 契约](docs/DOCTOR_CONTRACT.md)、[本轮交付](docs/DOCTOR_DELIVERY.md) 和 [原始基线](docs/BASELINE.md)。
 
 ## 当前能力与验证边界
 
@@ -17,7 +17,8 @@ Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析�
 | CLI / Core / JSON | `process list`、`process inspect`、`process modules`、帮助/版本、JSON、超时、输出文件、stderr 日志；GUI 与 CLI 复用进程查询 |
 | 模块枚举 | 模块名、报告路径、基址、大小及文本限制标记；x64 CLI 可查询 x86/x64，x86 CLI 仅查询 x86，ARM64 目标暂不支持 |
 | PE 静态检查 | `pe inspect <path>`：PE32/PE32+ 头部、节表、目录范围、导入/导出/延迟导入；支持名称/序号、导出别名与转发；不加载文件，不判断依赖是否存在、签名或可加载性 |
-| PE Doctor / Agent 集成 | 路线图，尚不可调用 |
+| DLL Doctor | `doctor <path> [--target-arch x86\|x64]`：损坏 PE、DLL 标记、原生 x86/x64 不匹配与证据不足；每条诊断含证据、置信度、下一步和官方资料 |
+| Agent 集成 | Skill / MCP / 安装器继续按路线推进 |
 
 GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
 
@@ -51,11 +52,13 @@ GUI 位于 `build/msvc-x64/Debug/DLLInjector.exe`；CLI 位于
 & .\build\msvc-x64\Debug\cli\dllinjector.exe process inspect --pid $PID --json --timeout-ms 5000 --output .\process-report.json
 # 读取本次构建的测试 DLL；不会加载或执行该文件。
 & .\build\msvc-x64\Debug\cli\dllinjector.exe pe inspect .\build\msvc-x64\Debug\noop_fixture.dll --json
+# 为打算加载到 x64 进程的 DLL 生成诊断；目标架构是显式声明，不是运行时观察。
+& .\build\msvc-x64\Debug\cli\dllinjector.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --target-arch x64 --json
 ```
 
 stdout 为结果，stderr 为错误与 `--verbose` 日志。重定向及输出文件使用无 BOM UTF-8；
-`--output` 要求文件不存在，防止覆盖已有报告。当前 JSON Schema 为 [1.3](schemas/cli-v1.3.json)；
-[1.0](schemas/cli-v1.json) / [1.1](schemas/cli-v1.1.json) / [1.2](schemas/cli-v1.2.json) 保留用于旧版结果。调用方按 `schema_version` 选择验证器；dev.4 的所有命令均输出 1.3，PE 结果增加 `imports`、`delay_imports`、`exports`。
+`--output` 要求文件不存在，防止覆盖已有报告。当前 JSON Schema 为 [1.4](schemas/cli-v1.4.json)；
+[1.0](schemas/cli-v1.json) / [1.1](schemas/cli-v1.1.json) / [1.2](schemas/cli-v1.2.json) / [1.3](schemas/cli-v1.3.json) 保留用于旧版结果。调用方按 `schema_version` 选择验证器；dev.5 的所有命令均输出 1.4，增加 Doctor 结果及非空 findings。
 创建时间以十进制 FILETIME **字符串**提供，避免 JavaScript 数字精度丢失；列表中无法读取的创建时间为 `null`，原因在该条目的 `errors` 中。
 
 模块基址使用十六进制字符串。模块列表是 Toolhelp 加载器快照，不包含按数据文件方式加载的模块，也不能证明 DLL 初始化成功。
@@ -70,7 +73,11 @@ ImageBase / RVA 用十六进制字符串表示；证书目录按文件偏移处�
 延迟导入支持现代 RVA 描述符。缺失原始查找表的绑定 IAT、旧 VA 延迟格式和不支持的名称编码会明确报错。
 库数、符号数和文本量均设上限，详见表解析契约。解析成功不能证明 DLL 能加载、依赖存在或签名可信。
 
-退出码：`0` 成功，`1` PE 内容损坏，`2` 参数错误，`3` 目标不可访问，
+Doctor 的 `status=success` 表示诊断完成，有 error 级 finding 时仍返回 `1`；`outcome_verified` 始终为 false。
+没有阻断发现也不能证明可加载。托管/混合模式、ARM 等未支持的架构判断会明确提示证据不足；
+首版不搜索依赖目录，不把 API Set、Known DLL、SxS 或动态加载推测成缺失 DLL。详见 [Doctor 契约](docs/DOCTOR_CONTRACT.md)。
+
+退出码：`0` 命令完成且无阻断发现，`1` PE 内容损坏或 Doctor 阻断发现，`2` 参数错误，`3` 目标不可访问，
 `4` 内部/不支持/输出失败，`5` 查询超时。`--timeout-ms 0` 会立即返回查询超时。
 超时在 Win32 调用之间检查，不能打断正在执行的系统调用或阻塞的输出；需要严格墙钟限制的调用方也应设置子进程超时。
 

@@ -12,17 +12,22 @@ constexpr char Help[] =
     "  dllinjector process inspect --pid <PID> [options]\n"
     "  dllinjector process modules --pid <PID> [options]\n"
     "  dllinjector pe inspect <path> [options]\n"
+    "  dllinjector doctor <path> [--target-arch x86|x64] [options]\n"
     "Options (before or after command):\n"
     "  --json                   One versioned JSON result on stdout\n"
     "  --timeout-ms <0..600000>  Query deadline; default 5000, zero expires immediately\n"
     "  --output <path>          Also save result as UTF-8; existing files are refused\n"
     "  --verbose                Debug diagnostics on stderr\n"
-    "Exit codes: 0 success, 1 malformed PE, 2 usage, 3 unavailable/access denied,\n"
+    "  --target-arch <x86|x64>   Doctor only: declared target process architecture\n"
+    "Exit codes: 0 no blocking findings, 1 malformed PE/Doctor blocking finding,\n"
+    "            2 usage, 3 unavailable/access denied,\n"
     "            4 internal/unsupported/output failure, 5 query timeout.\n"
     "Timeout is cooperative; it cannot interrupt an in-flight Win32 call or output sink.\n"
     "Modules: use the x64 CLI for x64 targets. Loader snapshots can change and exclude data-file loads.\n"
     "PE: inspect headers, sections, imports, exports and delay imports; never load the input. Limit: 256 MiB.\n"
-    "PE inspection does not resolve dependencies or validate signatures and loadability.\n";
+    "PE inspection does not resolve dependencies or validate signatures and loadability.\n"
+    "Doctor: static rules with evidence and next steps; outcome_verified is always false.\n"
+    "Doctor status=success means diagnosis completed; error findings still exit 1.\n";
 
 std::string Utf8(const std::wstring& text) {
     auto result = ToUtf8(text);
@@ -87,14 +92,42 @@ std::string ExportTable(const std::optional<PeExports>& table) {
     }
     return out + "]}";
 }
+std::string ErrorJson(const Error& error) {
+    return "{\"category\":" + Quote(CategoryName(error.category)) +
+        ",\"stage\":" + Quote(error.stage) + ",\"message\":" + Quote(error.message) +
+        ",\"win32\":" + Number(error.win32) + ",\"ntstatus\":" + Number(error.ntstatus) +
+        ",\"verified\":" + Bool(error.verified) + "}";
+}
 std::string Errors(const std::vector<Error>& errors) {
     std::string out = "[";
     for (const auto& error : errors) {
         if (out.size() > 1) out += ',';
-        out += "{\"category\":" + Quote(CategoryName(error.category)) +
-            ",\"stage\":" + Quote(error.stage) + ",\"message\":" + Quote(error.message) +
-            ",\"win32\":" + Number(error.win32) + ",\"ntstatus\":" + Number(error.ntstatus) +
-            ",\"verified\":" + Bool(error.verified) + "}";
+        out += ErrorJson(error);
+    }
+    return out + ']';
+}
+std::string Findings(const Report& report) {
+    const auto* doctor = std::get_if<DoctorReport>(&report.data);
+    if (!report.errors.empty() || !doctor) return "[]";
+    std::string out = "[";
+    for (const auto& f : doctor->findings) {
+        if (out.size() > 1) out += ',';
+        out += "{\"rule_id\":" + Quote(f.rule_id) + ",\"severity\":" + Quote(SeverityName(f.severity)) +
+            ",\"message\":" + Quote(f.message) + ",\"confidence\":" + Quote(f.confidence) +
+            ",\"recommended_next_step\":" + Quote(f.recommended_next_step) + ",\"evidence\":[";
+        bool first = true;
+        for (const auto& evidence : f.evidence) {
+            if (!first) out += ',';
+            first = false;
+            out += "{\"source\":" + Quote(evidence.source) + ",\"description\":" + Quote(evidence.description) + "}";
+        }
+        out += "],\"documentation\":[";
+        first = true;
+        for (const auto& url : f.documentation) {
+            if (!first) out += ',';
+            first = false; out += Quote(url);
+        }
+        out += "]}";
     }
     return out + ']';
 }
@@ -102,6 +135,19 @@ std::string Data(const Report& report) {
     if (!report.errors.empty()) return "null";
     if (const auto* info = std::get_if<std::string>(&report.data))
         return "{\"text\":" + Quote(*info) + "}";
+    if (const auto* doctor = std::get_if<DoctorReport>(&report.data)) {
+        std::string out = "{\"scope\":\"static_dll_preflight\",\"target_architecture\":" +
+            (doctor->target_architecture ? Quote(ArchitectureName(*doctor->target_architecture)) : "null") + ",\"image\":";
+        if (!doctor->image) out += "null";
+        else {
+            const auto& p = *doctor->image;
+            out += "{\"machine\":" + std::to_string(p.machine) + ",\"characteristics\":" + std::to_string(p.characteristics) +
+                ",\"format\":" + Quote(p.pe32_plus ? "PE32+" : "PE32") + ",\"has_clr_header\":" + Bool(p.has_clr_header) +
+                ",\"import_library_count\":" + std::to_string(p.import_library_count) +
+                ",\"delay_import_library_count\":" + std::to_string(p.delay_import_library_count) + "}";
+        }
+        return out + ",\"inspection_error\":" + (doctor->inspection_error ? ErrorJson(*doctor->inspection_error) : "null") + "}";
+    }
     if (const auto* rows = std::get_if<std::vector<ProcessSummary>>(&report.data)) {
         std::string out = "{\"processes\":[";
         bool first = true;
@@ -211,8 +257,21 @@ Report Execute(const Options& options) {
         else report.errors.push_back(result.error());
         break;
     }
+    case Command::Doctor: {
+        report.command = "doctor";
+        auto result = DiagnosePe(InspectPeFile(*options.path, options.query.timeout_ms), options.target_architecture);
+        if (result) report.data = std::move(result.value());
+        else report.errors.push_back(result.error());
+        break;
+    }
     }
     return report;
+}
+
+int ReportExitCode(const Report& report) {
+    if (!report.errors.empty()) return ExitCode(report.errors.front().category);
+    const auto* doctor = std::get_if<DoctorReport>(&report.data);
+    return doctor && HasBlockingFindings(*doctor) ? 1 : 0;
 }
 
 Result<std::string> Render(const Report& report, bool json) {
@@ -221,7 +280,10 @@ Result<std::string> Render(const Report& report, bool json) {
             const bool success = report.errors.empty();
             const bool observed = success && (report.command == "process.list" || report.command == "process.inspect" || report.command == "process.modules");
             const bool staticPe = success && report.command == "pe.inspect";
-            const auto description = staticPe
+            const bool doctor = success && report.command == "doctor";
+            const auto description = doctor
+                ? "Static DLL preflight only; declared target architecture is not observed. Dependencies, runtime loading and initialization remain unverified."
+                : staticPe
                 ? "Static headers, sections, imports, exports and delay imports; no loading, dependency resolution, signature or loadability verification."
                 : report.command == "process.modules"
                 ? "Toolhelp loader snapshot; may change, excludes data-file loads, may contain truncated/lossy text, and does not verify DLL initialization."
@@ -231,9 +293,9 @@ Result<std::string> Render(const Report& report, bool json) {
                 ",\"target\":{\"pid\":" + Number(report.pid) + ",\"path\":" +
                 (report.path ? Quote(Utf8(*report.path)) : "null") + "},\"execution\":{\"command_accepted\":" +
                 Bool(report.accepted) + ",\"operation_completed\":" + Bool(success) +
-                ",\"outcome_verified\":" + Bool(success) + "},\"data\":" + Data(report) +
-                ",\"findings\":[],\"evidence\":" + (observed || staticPe ?
-                    "[{\"source\":" + Quote(staticPe ? "static_analysis" : "runtime_observation") +
+                ",\"outcome_verified\":" + Bool(success && !doctor) + "},\"data\":" + Data(report) +
+                ",\"findings\":" + Findings(report) + ",\"evidence\":" + (observed || staticPe || doctor ?
+                    "[{\"source\":" + Quote(staticPe || doctor ? "static_analysis" : "runtime_observation") +
                     ",\"description\":" + Quote(description) + "}]" : "[]") +
                 ",\"errors\":" + Errors(report.errors) + ",\"duration_ms\":" + std::to_string(report.duration_ms) + "}\n";
         }
@@ -242,6 +304,18 @@ Result<std::string> Render(const Report& report, bool json) {
             for (const auto& error : report.errors)
                 out << CategoryName(error.category) << " at " << error.stage << ": " << error.message << '\n';
         } else if (const auto* info = std::get_if<std::string>(&report.data)) out << *info << '\n';
+        else if (const auto* doctor = std::get_if<DoctorReport>(&report.data)) {
+            out << "DLL Doctor: static diagnosis completed; runtime loading remains unverified.\n"
+                << "File: " << (report.path ? Utf8(*report.path) : "(inspection)") << '\n'
+                << "Declared target architecture: " << (doctor->target_architecture ? ArchitectureName(*doctor->target_architecture) : "not supplied") << '\n';
+            for (const auto& f : doctor->findings) {
+                out << '[' << SeverityName(f.severity) << "] " << f.rule_id << ": " << f.message << '\n';
+                for (const auto& evidence : f.evidence)
+                    out << "  Evidence (" << evidence.source << "): " << evidence.description << '\n';
+                out << "  Confidence: " << f.confidence << "\n  Next: " << f.recommended_next_step << '\n';
+                for (const auto& url : f.documentation) out << "  Docs: " << url << '\n';
+            }
+        }
         else if (const auto* rows = std::get_if<std::vector<ProcessSummary>>(&report.data)) {
             out << "PID\tNAME\tCREATION_FILETIME\tMETADATA\n";
             for (const auto& row : *rows)

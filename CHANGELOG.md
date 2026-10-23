@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.0-dev.5 — DLL Doctor static rules milestone (2026-10-23)
+
+- Add `doctor <path> [--target-arch x86|x64]` with reusable Core rules for malformed
+  PE, missing DLL flag, native x86/x64 mismatch and explicit evidence gaps.
+- Attach source-labelled evidence, confidence, next steps and official links to
+  each finding. Keep CLR/AnyCPU, ARM variants and unknown formats outside native
+  compatibility conclusions; never infer dependency presence from import names.
+- Add Schema 1.4 and a fixed diagnostic report. Completed diagnosis can contain
+  blocking findings (exit 1); runtime loading remains unverified in every Doctor
+  response. Preserve operational errors and historical CLI schemas.
+- Add rule tests and end-to-end diagnostics over inert bytes and compiled DLL/EXE
+  fixtures, including Unicode paths, output failures and schema negative cases.
+
+Dependency search, Markdown/HTML reports and Agent integration remain follow-up work.
+
 ## 2.0.0-dev.4 — PE table inspection milestone (2026-10-23)
 
 - Extend `pe inspect` with import DLLs and named/ordinal symbols, export aliases,

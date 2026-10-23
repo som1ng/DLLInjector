@@ -98,7 +98,7 @@ int wmain(int argc, wchar_t** argv) {
             WriteStream(STD_ERROR_HANDLE, "[error] " + error->message + "\n");
             return ExitCode(error->category);
         }
-        return report.errors.empty() ? 0 : ExitCode(report.errors.front().category);
+        return cli::ReportExitCode(report);
     } catch (const std::exception&) {
         report.data = std::monostate{};
         report.errors = {{ErrorCategory::System, "cli.internal", "Unexpected internal failure.", {}, {}}};

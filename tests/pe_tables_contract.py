@@ -11,7 +11,7 @@ from jsonschema import Draft202012Validator
 
 cli, dll, root = map(Path, sys.argv[1:4])
 delay_dll = Path(sys.argv[4]) if len(sys.argv) > 4 else None
-schema = json.loads((root / 'schemas/cli-v1.3.json').read_text(encoding='utf-8'))
+schema = json.loads((root / 'schemas/cli-v1.4.json').read_text(encoding='utf-8'))
 Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
 
