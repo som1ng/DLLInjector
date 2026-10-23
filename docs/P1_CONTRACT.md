@@ -1,6 +1,6 @@
 # P1 process CLI contract — schema 1.0
 
-For current dev.3 / Schema 1.2 additions, see [PE contract](PE_CONTRACT.md).
+For current dev.4 / Schema 1.3 additions, see [PE table contract](PE_TABLES_CONTRACT.md).
 Existing process queries retain their behavior; `target.path` is null for them.
 
 This document records the dev.1 baseline. For dev.2, the process commands and common

@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.3",
+  "tool_version": "2.0.0-dev.4",
+  "command": "pe.inspect",
+  "status": "success",
+  "target": {
+    "pid": null,
+    "path": "sample.dll"
+  },
+  "execution": {
+    "command_accepted": true,
+    "operation_completed": true,
+    "outcome_verified": true
+  },
+  "data": {
+    "scope": "headers_sections_imports_exports_delay_imports",
+    "file_size": 1024,
+    "format": "PE32+",
+    "machine": 34404,
+    "characteristics": 8194,
+    "subsystem": 3,
+    "dll_characteristics": 320,
+    "entry_point_rva": "0x1000",
+    "image_base": "0x20000000010000",
+    "size_of_image": 8192,
+    "size_of_headers": 512,
+    "section_alignment": 4096,
+    "file_alignment": 512,
+    "sections": [
+      {
+        "name": ".text",
+        "name_bytes": "2e74657874000000",
+        "virtual_address": "0x1000",
+        "virtual_size": 384,
+        "raw_offset": 512,
+        "raw_size": 512,
+        "characteristics": 1610612768
+      }
+    ],
+    "directories": [],
+    "imports": [],
+    "delay_imports": [],
+    "exports": null
+  },
+  "findings": [],
+  "evidence": [
+    {
+      "source": "static_analysis",
+      "description": "Static PE headers and import/export/delay tables; does not resolve dependencies or prove loadability."
+    }
+  ],
+  "errors": [],
+  "duration_ms": 0
+}

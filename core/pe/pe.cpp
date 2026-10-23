@@ -1,6 +1,7 @@
 #include "pe_detail.h"
 #include "common/win32.h"
 #include <algorithm>
+#include <array>
 #include <new>
 
 namespace dllinjector {
@@ -48,6 +49,190 @@ private:
     const std::vector<std::uint8_t>& bytes_;
 };
 std::uint32_t Span(const PeSection& section) { return (std::max)(section.virtual_size, section.raw_size); }
+class Tables {
+public:
+    Tables(const std::vector<std::uint8_t>& bytes, PeInfo& info, const Deadline& deadline)
+        : reader_(bytes), info_(info), deadline_(deadline) {}
+    void Parse() {
+        Imports(1, false, info_.imports);
+        Imports(13, true, info_.delay_imports);
+        Exports();
+    }
+private:
+    struct Chunk { std::uint32_t offset, size; };
+    Chunk Map(std::uint64_t rva, const char* stage) const {
+        deadline_.Check();
+        Require(rva != 0 && rva < info_.size_of_image, stage, "Metadata RVA is outside the image.");
+        if (rva < info_.size_of_headers)
+            return {static_cast<std::uint32_t>(rva), info_.size_of_headers - static_cast<std::uint32_t>(rva)};
+        for (const auto& s : info_.sections) {
+            if (rva >= s.virtual_address && rva - s.virtual_address < s.raw_size) {
+                const auto delta = static_cast<std::uint32_t>(rva - s.virtual_address);
+                return {s.raw_offset + delta, s.raw_size - delta};
+            }
+        }
+        Fail(ErrorCategory::MalformedPe, stage, "Metadata points into an image gap or a zero-filled section tail.");
+    }
+    void Range(std::uint64_t rva, std::uint64_t size, const char* stage) const {
+        if (!size) return;
+        Require(Contains(info_.size_of_image, rva, size), stage, "Metadata range exceeds the image.");
+        while (size) {
+            const auto chunk = Map(rva, stage);
+            const auto count = (std::min)(size, std::uint64_t{chunk.size});
+            rva += count; size -= count;
+        }
+    }
+    std::uint64_t Integer(std::uint64_t rva, unsigned width, const char* stage) const {
+        std::uint64_t value = 0;
+        for (unsigned read = 0; read < width;) {
+            const auto chunk = Map(rva + read, stage);
+            const auto count = (std::min)(width - read, chunk.size);
+            value |= reader_.Get(chunk.offset, count, stage) << (read * 8);
+            read += count;
+        }
+        return value;
+    }
+    std::uint32_t U32(std::uint64_t rva, const char* stage) const {
+        return static_cast<std::uint32_t>(Integer(rva, 4, stage));
+    }
+    std::string String(std::uint64_t rva, const char* stage, std::uint64_t end = 0) {
+        if (!end) end = info_.size_of_image;
+        std::string text;
+        while (rva < end) {
+            const auto chunk = Map(rva, stage);
+            const auto length = (std::min)(std::uint64_t{chunk.size}, end - rva);
+            for (std::uint64_t i = 0; i < length; ++i) {
+                const auto ch = reader_.Get(chunk.offset + static_cast<std::size_t>(i), 1, stage);
+                if (!ch) {
+                    Require(!text.empty(), stage, "Metadata name must not be empty.");
+                    return text;
+                }
+                if (ch < 0x20 || ch > 0x7e)
+                    Fail(ErrorCategory::Unsupported, stage, "Only printable ASCII table names are supported.");
+                if (text.size() == 4096 || text_bytes_ == 1024 * 1024)
+                    Fail(ErrorCategory::Unsupported, stage, "PE table text exceeds the 4096-byte string or 1 MiB total limit.");
+                text += static_cast<char>(ch); ++text_bytes_;
+            }
+            rva += length;
+        }
+        Fail(ErrorCategory::MalformedPe, stage, "Metadata string has no terminator within its allowed range.");
+    }
+    void Entries(std::uint32_t count, const char* stage) {
+        if (count > 65536 - entries_)
+            Fail(ErrorCategory::Unsupported, stage, "PE tables exceed the combined 65536-entry inspection limit.");
+        entries_ += count;
+    }
+    const PeDirectory* Directory(unsigned index) const {
+        return index < info_.directories.size() && info_.directories[index].address ? &info_.directories[index] : nullptr;
+    }
+    std::vector<PeImportSymbol> Symbols(std::uint32_t lookup, const char* stage) {
+        Require(lookup != 0, stage, "Import lookup/name table is missing.");
+        const unsigned width = info_.pe32_plus ? 8 : 4;
+        const std::uint64_t flag = std::uint64_t{1} << (width * 8 - 1);
+        std::vector<PeImportSymbol> symbols;
+        for (std::uint64_t at = lookup;; at += width) {
+            const auto value = Integer(at, width, stage);
+            if (!value) return symbols;
+            Entries(1, stage);
+            PeImportSymbol symbol;
+            if (value & flag) {
+                Require((value & ~(flag | 0xffffull)) == 0, stage, "Ordinal thunk contains reserved bits.");
+                symbol.ordinal = static_cast<std::uint16_t>(value & 0xffff);
+            } else {
+                Require(value <= 0x7fffffff, stage, "Named import thunk is not a 31-bit Hint/Name RVA.");
+                symbol.hint = static_cast<std::uint16_t>(Integer(value, 2, stage));
+                symbol.name = String(value + 2, stage);
+            }
+            symbols.push_back(std::move(symbol));
+        }
+    }
+    void Imports(unsigned index, bool delay, std::vector<PeImportLibrary>& output) {
+        const auto* d = Directory(index);
+        if (!d) return;
+        const auto stage = delay ? "pe.delay_imports" : "pe.imports";
+        const unsigned descriptorSize = delay ? 32 : 20;
+        for (std::uint64_t at = 0; at + descriptorSize <= d->size_bytes; at += descriptorSize) {
+            std::array<std::uint32_t, 8> fields{};
+            bool empty = true;
+            for (unsigned i = 0; i < descriptorSize / 4; ++i) {
+                fields[i] = U32(std::uint64_t{d->address} + at + i * 4, stage);
+                empty = empty && fields[i] == 0;
+            }
+            if (empty) return;
+            if (libraries_ == 1024) Fail(ErrorCategory::Unsupported, stage, "PE tables exceed the combined 1024-library limit.");
+            ++libraries_;
+            if (delay && fields[0] != 1)
+                Fail(ErrorCategory::Unsupported, stage, "Only modern RVA-based delay import descriptors (attributes=1) are supported.");
+            PeImportLibrary lib;
+            lib.timestamp = fields[delay ? 7 : 1];
+            lib.name = String(fields[delay ? 1 : 3], stage);
+            const auto iat = fields[delay ? 3 : 4];
+            auto lookup = fields[delay ? 4 : 0];
+            Require(iat != 0, stage, "Import address table is missing.");
+            lib.lookup_source = delay ? "delay_import_name_table" : "import_lookup_table";
+            if (!lookup && !delay) {
+                if (lib.timestamp) Fail(ErrorCategory::Unsupported, stage, "A bound IAT without the original lookup table cannot reliably provide symbol names.");
+                lookup = iat; lib.lookup_source = "unbound_iat";
+            }
+            lib.symbols = Symbols(lookup, stage);
+            const std::uint64_t tableBytes = (lib.symbols.size() + 1ull) * (info_.pe32_plus ? 8 : 4);
+            Range(iat, tableBytes, stage);
+            if (delay) {
+                if (fields[2]) Require(Contains(info_.size_of_image, fields[2], info_.pe32_plus ? 8 : 4),
+                    stage, "Delay module-handle slot exceeds the image.");
+                if (fields[5]) Range(fields[5], tableBytes, stage);
+                if (fields[6]) Range(fields[6], tableBytes, stage);
+            }
+            output.push_back(std::move(lib));
+        }
+        Fail(ErrorCategory::MalformedPe, stage, "Import descriptors lack a terminator inside the declared directory.");
+    }
+    void Exports() {
+        const auto* d = Directory(0);
+        if (!d) return;
+        constexpr auto stage = "pe.exports";
+        Require(d->size_bytes >= 40, stage, "Export directory is shorter than its header.");
+        Range(d->address, 40, stage);
+        PeExports table;
+        table.dll_name = String(U32(std::uint64_t{d->address} + 12, stage), stage);
+        table.ordinal_base = U32(std::uint64_t{d->address} + 16, stage);
+        table.address_table_entries = U32(std::uint64_t{d->address} + 20, stage);
+        const auto names = U32(std::uint64_t{d->address} + 24, stage);
+        Entries(table.address_table_entries, stage); Entries(names, stage);
+        Require(!table.address_table_entries || std::uint64_t{table.ordinal_base} + table.address_table_entries - 1 <= 0xffffffffull,
+            stage, "Biased export ordinal exceeds uint32.");
+        const auto addresses = U32(std::uint64_t{d->address} + 28, stage);
+        const auto namePointers = U32(std::uint64_t{d->address} + 32, stage);
+        const auto ordinals = U32(std::uint64_t{d->address} + 36, stage);
+        Range(addresses, std::uint64_t{table.address_table_entries} * 4, stage);
+        Range(namePointers, std::uint64_t{names} * 4, stage);
+        Range(ordinals, std::uint64_t{names} * 2, stage);
+        // Index by EAT slot so aliases cost linear time, including sparse tables.
+        std::vector<std::optional<std::size_t>> slots(table.address_table_entries);
+        for (std::uint32_t i = 0; i < table.address_table_entries; ++i) {
+            const auto rva = U32(std::uint64_t{addresses} + std::uint64_t{i} * 4, stage);
+            if (!rva) continue;
+            Require(rva < info_.size_of_image, stage, "Export RVA exceeds the image.");
+            PeExportSymbol symbol{table.ordinal_base + i, rva, {}, {}};
+            if (rva >= d->address && std::uint64_t{rva} - d->address < d->size_bytes)
+                symbol.forwarder = String(rva, stage, std::uint64_t{d->address} + d->size_bytes);
+            slots[i] = table.symbols.size();
+            table.symbols.push_back(std::move(symbol));
+        }
+        for (std::uint32_t i = 0; i < names; ++i) {
+            const auto slot = Integer(std::uint64_t{ordinals} + std::uint64_t{i} * 2, 2, stage);
+            Require(slot < slots.size() && slots[static_cast<std::size_t>(slot)].has_value(),
+                stage, "Export name ordinal is outside the EAT or references an empty slot.");
+            auto name = String(U32(std::uint64_t{namePointers} + std::uint64_t{i} * 4, stage), stage);
+            table.symbols[*slots[static_cast<std::size_t>(slot)]].names.push_back(std::move(name));
+        }
+        info_.exports = std::move(table);
+    }
+    const Reader reader_;
+    PeInfo& info_;
+    const Deadline& deadline_;
+    std::uint32_t libraries_ = 0, entries_ = 0, text_bytes_ = 0;
+};
 PeInfo Parse(const std::vector<std::uint8_t>& bytes, const Deadline& deadline) {
     deadline.Check();
     if (bytes.size() > MaxPeFileBytes)
@@ -149,6 +334,7 @@ PeInfo Parse(const std::vector<std::uint8_t>& bytes, const Deadline& deadline) {
         }
         p.directories.push_back(d);
     }
+    Tables(bytes, p, deadline).Parse();
     deadline.Check();
     return p;
 }

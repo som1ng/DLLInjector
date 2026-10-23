@@ -11,7 +11,7 @@ import tempfile
 from jsonschema import Draft202012Validator
 
 cli, demo, root = map(Path, sys.argv[1:])
-schema = json.loads((root / "schemas/cli-v1.2.json").read_text(encoding="utf-8"))
+schema = json.loads((root / "schemas/cli-v1.3.json").read_text(encoding="utf-8"))
 Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
 
@@ -30,7 +30,7 @@ def run(*args, code=0, json_mode=True):
     obj = json.loads(out)  # Rejects log prefixes and multiple documents.
     validator.validate(obj)
     assert obj["duration_ms"] >= 0
-    assert obj["schema_version"] == "1.2"
+    assert obj["schema_version"] == "1.3"
     assert obj["status"] == ("success" if code == 0 else "error")
     assert obj["execution"]["outcome_verified"] == (code == 0)
     assert bool(obj["errors"]) == (code != 0)
@@ -51,7 +51,7 @@ for fixture in fixtures:
     Draft202012Validator(historical).validate(document)
 
 valid = json.loads((root / "tests/fixtures/json/inspect.json").read_text(encoding="utf-8"))
-valid["schema_version"] = "1.2"
+valid["schema_version"] = "1.3"
 valid["target"]["path"] = None
 validator.validate(valid)
 invalid = copy.deepcopy(valid)
@@ -68,9 +68,9 @@ invalid["data"]["architecture"] = "unknown"
 assert not validator.is_valid(invalid), "unknown architecture cannot be inspect success"
 
 version, _ = run("--version")
-assert version["tool_version"] == "2.0.0-dev.3"
+assert version["tool_version"] == "2.0.0-dev.4"
 assert "process inspect" in run("--help")[0]["data"]["text"]
-assert "2.0.0-dev.3" in run("--version", json_mode=False)[0]
+assert "2.0.0-dev.4" in run("--version", json_mode=False)[0]
 assert "process list" in run("--help", json_mode=False)[0]
 
 listing, _ = run("process", "list")

@@ -47,9 +47,11 @@ jobs:
             docs/P1_CONTRACT.md
             docs/MODULES_CONTRACT.md
             docs/PE_CONTRACT.md
+            docs/PE_TABLES_CONTRACT.md
             schemas/cli-v1.json
             schemas/cli-v1.1.json
             schemas/cli-v1.2.json
+            schemas/cli-v1.3.json
       - name: Upload cross-bitness fixtures
         if: success() && matrix.configuration == 'release'
         uses: actions/upload-artifact@v4

@@ -21,8 +21,8 @@ constexpr char Help[] =
     "            4 internal/unsupported/output failure, 5 query timeout.\n"
     "Timeout is cooperative; it cannot interrupt an in-flight Win32 call or output sink.\n"
     "Modules: use the x64 CLI for x64 targets. Loader snapshots can change and exclude data-file loads.\n"
-    "PE: inspect headers, sections and directory locations only; never load the input. Limit: 256 MiB.\n"
-    "PE inspection does not validate directory contents, dependencies, signatures or loadability.\n";
+    "PE: inspect headers, sections, imports, exports and delay imports; never load the input. Limit: 256 MiB.\n"
+    "PE inspection does not resolve dependencies or validate signatures and loadability.\n";
 
 std::string Utf8(const std::wstring& text) {
     auto result = ToUtf8(text);
@@ -50,6 +50,42 @@ std::string Address(std::uint64_t value) {
     std::ostringstream out;
     out << "0x" << std::hex << value;
     return out.str();
+}
+std::string ImportLibraries(const std::vector<PeImportLibrary>& libraries) {
+    std::string out = "[";
+    for (const auto& lib : libraries) {
+        if (out.size() > 1) out += ',';
+        out += "{\"name\":" + Quote(lib.name) + ",\"lookup_source\":" + Quote(lib.lookup_source) +
+            ",\"timestamp\":" + std::to_string(lib.timestamp) + ",\"symbols\":[";
+        bool first = true;
+        for (const auto& symbol : lib.symbols) {
+            if (!first) out += ',';
+            first = false;
+            out += "{\"name\":" + (symbol.name ? Quote(*symbol.name) : "null") +
+                ",\"ordinal\":" + Number(symbol.ordinal) + ",\"hint\":" + Number(symbol.hint) + "}";
+        }
+        out += "]}";
+    }
+    return out + ']';
+}
+std::string ExportTable(const std::optional<PeExports>& table) {
+    if (!table) return "null";
+    std::string out = "{\"dll_name\":" + Quote(table->dll_name) +
+        ",\"ordinal_base\":" + std::to_string(table->ordinal_base) +
+        ",\"address_table_entries\":" + std::to_string(table->address_table_entries) + ",\"symbols\":[";
+    bool first = true;
+    for (const auto& symbol : table->symbols) {
+        if (!first) out += ',';
+        first = false;
+        out += "{\"ordinal\":" + std::to_string(symbol.ordinal) + ",\"rva\":" + Quote(Address(symbol.rva)) + ",\"names\":[";
+        bool firstName = true;
+        for (const auto& name : symbol.names) {
+            if (!firstName) out += ',';
+            firstName = false; out += Quote(name);
+        }
+        out += "],\"forwarder\":" + (symbol.forwarder ? Quote(*symbol.forwarder) : "null") + "}";
+    }
+    return out + "]}";
 }
 std::string Errors(const std::vector<Error>& errors) {
     std::string out = "[";
@@ -105,7 +141,7 @@ std::string Data(const Report& report) {
         return out + "]}";
     }
     if (const auto* pe = std::get_if<PeInfo>(&report.data)) {
-        std::string out = "{\"scope\":\"headers_sections_directories\",\"file_size\":" + std::to_string(pe->file_size) +
+        std::string out = "{\"scope\":\"headers_sections_imports_exports_delay_imports\",\"file_size\":" + std::to_string(pe->file_size) +
             ",\"format\":" + Quote(pe->pe32_plus ? "PE32+" : "PE32") +
             ",\"machine\":" + std::to_string(pe->machine) + ",\"characteristics\":" + std::to_string(pe->characteristics) +
             ",\"subsystem\":" + std::to_string(pe->subsystem) + ",\"dll_characteristics\":" + std::to_string(pe->dll_characteristics) +
@@ -132,7 +168,8 @@ std::string Data(const Report& report) {
                 ",\"address_kind\":" + Quote(d.is_file_offset ? "file_offset" : "rva") +
                 ",\"file_offset\":" + Number(d.file_offset) + "}";
         }
-        return out + "]}";
+        return out + "],\"imports\":" + ImportLibraries(pe->imports) + ",\"delay_imports\":" +
+            ImportLibraries(pe->delay_imports) + ",\"exports\":" + ExportTable(pe->exports) + "}";
     }
     return "null";
 }
@@ -185,7 +222,7 @@ Result<std::string> Render(const Report& report, bool json) {
             const bool observed = success && (report.command == "process.list" || report.command == "process.inspect" || report.command == "process.modules");
             const bool staticPe = success && report.command == "pe.inspect";
             const auto description = staticPe
-                ? "Static headers, sections and directory ranges only; no loading, directory-content, dependency or signature validation."
+                ? "Static headers, sections, imports, exports and delay imports; no loading, dependency resolution, signature or loadability verification."
                 : report.command == "process.modules"
                 ? "Toolhelp loader snapshot; may change, excludes data-file loads, may contain truncated/lossy text, and does not verify DLL initialization."
                 : "Read-only Windows metadata; not a guarantee of continued process lifetime.";
@@ -225,7 +262,7 @@ Result<std::string> Render(const Report& report, bool json) {
                     << (module.text_may_be_lossy ? "possibly lossy" :
                         (module.name_may_be_truncated || module.path_may_be_truncated ? "possibly truncated" : "within capacity")) << '\n';
         } else if (const auto* pe = std::get_if<PeInfo>(&report.data)) {
-            out << "PE static inspection: headers, sections and directory locations only\n"
+            out << "PE static inspection: headers, sections, imports, exports and delay imports\n"
                 << "File: " << (report.path ? Utf8(*report.path) : "(bytes)") << '\n'
                 << "Format: " << (pe->pe32_plus ? "PE32+" : "PE32") << "  Machine: " << Address(pe->machine)
                 << "  Subsystem: " << pe->subsystem << "\nImageBase: " << Address(pe->image_base)
@@ -237,7 +274,28 @@ Result<std::string> Render(const Report& report, bool json) {
             for (const auto& d : pe->directories)
                 out << d.index << '\t' << (d.is_file_offset ? "file_offset" : "rva") << '\t'
                     << Address(d.address) << '\t' << d.size_bytes << '\t' << Number(d.file_offset) << '\n';
-            out << "No directory-content, dependency, signature or loadability validation.\n";
+            for (const auto& kind : {false, true}) {
+                out << (kind ? "DELAY_IMPORTS" : "IMPORTS") << "\nDLL\tNAME_OR_ORDINAL\tHINT\n";
+                for (const auto& lib : (kind ? pe->delay_imports : pe->imports)) {
+                    if (lib.symbols.empty()) out << lib.name << "\t(no symbols)\n";
+                    for (const auto& symbol : lib.symbols)
+                        out << lib.name << '\t' << (symbol.name ? *symbol.name : "#" + Number(symbol.ordinal))
+                            << '\t' << Number(symbol.hint) << '\n';
+                }
+            }
+            out << "EXPORTS\nORDINAL\tRVA\tNAME\tFORWARDER\n";
+            if (pe->exports) {
+                out << "DLL: " << pe->exports->dll_name << '\n';
+                for (const auto& symbol : pe->exports->symbols) {
+                    out << symbol.ordinal << '\t' << Address(symbol.rva) << '\t';
+                    for (std::size_t i = 0; i < symbol.names.size(); ++i) {
+                        if (i) out << ", ";
+                        out << symbol.names[i];
+                    }
+                    out << '\t' << symbol.forwarder.value_or("") << '\n';
+                }
+            }
+            out << "No dependency resolution, signature or loadability verification.\n";
         }
         return out.str();
     } catch (const Error& error) { return error; }

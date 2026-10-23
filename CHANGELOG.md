@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.0-dev.4 — PE table inspection milestone (2026-10-23)
+
+- Extend `pe inspect` with import DLLs and named/ordinal symbols, export aliases,
+  ordinal-only exports and forwarder strings, and modern RVA-based delay imports.
+- Read metadata across file-backed RVA regions; bound counts, strings and total
+  output. Reject malformed pointers/terminators and report unsupported bound-IAT
+  fallback, legacy delay descriptors and non-printable/non-ASCII names explicitly.
+- Add Schema 1.3, preserving historical schemas/fixtures; retain static-analysis
+  evidence without claiming dependency availability, signature trust or loadability.
+- Add synthetic PE32/PE32+ and mutation/boundary tests plus a compile-only MSVC
+  delay-load fixture; validate all five build configurations and PE ASan tests.
+
+Doctor rules, dependency resolution and Agent integration remain follow-up work.
+
 ## 2.0.0-dev.3 — PE header inspection milestone (2026-10-23)
 
 - Add read-only `pe inspect <path>` and reusable Core byte/file APIs for PE32/PE32+

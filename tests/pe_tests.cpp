@@ -113,24 +113,24 @@ void Ranges() {
 }
 void DirectoriesTest() {
     auto b = Fixture(); const auto d = Directories(false);
-    Put(b, d + 8, 0x1010); Put(b, d + 12, 32);
-    auto r = ParsePe(b); Check(r && r.value().directories[1].file_offset == 0x210u, "RVA translation");
-    Put(b, d + 8, 0x1100); Put(b, d + 12, 0x200); Put(b, Sections(false) + 8, 0x400);
-    r = ParsePe(b); Check(r && !r.value().directories[1].file_offset, "virtual-only tail not file backed");
-    Put(b, d + 8, 0xfffffff0); Put(b, d + 12, 32); Bad(b, "pe.directories");
+    Put(b, d + 16, 0x1010); Put(b, d + 20, 32);
+    auto r = ParsePe(b); Check(r && r.value().directories[2].file_offset == 0x210u, "RVA translation");
+    Put(b, d + 16, 0x1100); Put(b, d + 20, 0x200); Put(b, Sections(false) + 8, 0x400);
+    r = ParsePe(b); Check(r && !r.value().directories[2].file_offset, "virtual-only tail not file backed");
+    Put(b, d + 16, 0xfffffff0); Put(b, d + 20, 32); Bad(b, "pe.directories");
     b = Fixture(); Put(b, d + 4, 1); Bad(b, "pe.directories");
     b = Fixture(); b.resize(0x410); Put(b, d + 32, 0x400); Put(b, d + 36, 16);
     r = ParsePe(b); Check(r && r.value().directories[4].is_file_offset &&
         r.value().directories[4].file_offset == 0x400u, "certificate directory is file-relative");
     Put(b, d + 36, 32); Bad(b, "pe.directories");
-    b = Fixture(); Put(b, d + 8, 0x1f0); Put(b, d + 12, 8);
-    Check(ParsePe(b).value().directories[1].file_offset == 0x1f0u, "directory in headers");
+    b = Fixture(); Put(b, d + 16, 0x1f0); Put(b, d + 20, 8);
+    Check(ParsePe(b).value().directories[2].file_offset == 0x1f0u, "directory in headers");
     b = Fixture(); Put(b, d + 8 * 8, 0x1000);
     Check(bool(ParsePe(b)), "global pointer directory can have zero size");
-    b = Fixture(); Put(b, d + 8, 0x1f0); Put(b, d + 12, 0x1000);
-    r = ParsePe(b); Check(r && !r.value().directories[1].file_offset, "cross-region range has no single file mapping");
-    Put(b, d + 8, 0x800); Put(b, d + 12, 16);
-    r = ParsePe(b); Check(r && !r.value().directories[1].file_offset, "image gap is not assumed to contain file bytes");
+    b = Fixture(); Put(b, d + 16, 0x1f0); Put(b, d + 20, 0x1000);
+    r = ParsePe(b); Check(r && !r.value().directories[2].file_offset, "cross-region range has no single file mapping");
+    Put(b, d + 16, 0x800); Put(b, d + 20, 16);
+    r = ParsePe(b); Check(r && !r.value().directories[2].file_offset, "image gap is not assumed to contain file bytes");
     b = Fixture(); b.resize(0x410); Put(b, d + 32, 0x401); Put(b, d + 36, 8);
     Bad(b, "pe.directories");
 }
