@@ -1,6 +1,9 @@
 # Read-only module enumeration contract
 
 Development version: `2.0.0-dev.2`. Command: `process modules --pid <PID>`.
+
+This records the dev.2 contract. Dev.3 emits Schema 1.2 with `target.path: null`
+for module queries; the module data and behavior are unchanged. See [PE contract](PE_CONTRACT.md).
 The existing JSON, timeout, output-file and logging options apply unchanged.
 No target DLL is loaded or executed by the diagnostic command.
 

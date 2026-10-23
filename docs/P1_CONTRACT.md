@@ -1,5 +1,8 @@
 # P1 process CLI contract — schema 1.0
 
+For current dev.3 / Schema 1.2 additions, see [PE contract](PE_CONTRACT.md).
+Existing process queries retain their behavior; `target.path` is null for them.
+
 This document records the dev.1 baseline. For dev.2, the process commands and common
 options still apply; all responses now use schema 1.1 and `process modules` is added.
 See [the module contract](MODULES_CONTRACT.md) for version migration and limits.

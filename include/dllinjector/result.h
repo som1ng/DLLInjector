@@ -7,7 +7,7 @@
 #include <variant>
 
 namespace dllinjector {
-enum class ErrorCategory { InvalidArgument, AccessDenied, NotFound, Unsupported, System, Timeout, Io };
+enum class ErrorCategory { InvalidArgument, AccessDenied, NotFound, Unsupported, System, Timeout, Io, MalformedPe };
 
 struct Error {
     ErrorCategory category;

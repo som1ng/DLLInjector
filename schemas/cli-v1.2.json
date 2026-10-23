@@ -1,0 +1,888 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DLLInjector read-only CLI response v1.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool_version",
+    "command",
+    "status",
+    "target",
+    "execution",
+    "data",
+    "findings",
+    "evidence",
+    "errors",
+    "duration_ms"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.2"
+    },
+    "tool_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+    },
+    "command": {
+      "enum": [
+        "unknown",
+        "help",
+        "version",
+        "process.list",
+        "process.inspect",
+        "process.modules",
+        "pe.inspect"
+      ]
+    },
+    "status": {
+      "enum": [
+        "success",
+        "error"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "path"
+      ],
+      "properties": {
+        "pid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/pid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command_accepted",
+        "operation_completed",
+        "outcome_verified"
+      ],
+      "properties": {
+        "command_accepted": {
+          "type": "boolean"
+        },
+        "operation_completed": {
+          "type": "boolean"
+        },
+        "outcome_verified": {
+          "type": "boolean"
+        }
+      }
+    },
+    "data": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/info"
+        },
+        {
+          "$ref": "#/$defs/list"
+        },
+        {
+          "$ref": "#/$defs/process"
+        },
+        {
+          "$ref": "#/$defs/modules"
+        },
+        {
+          "$ref": "#/$defs/pe"
+        }
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "description"
+        ],
+        "properties": {
+          "source": {
+            "enum": [
+              "runtime_observation",
+              "static_analysis"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/error"
+      }
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "not": {
+              "const": "unknown"
+            }
+          },
+          "data": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "errors": {
+            "maxItems": 0
+          },
+          "execution": {
+            "properties": {
+              "command_accepted": {
+                "const": true
+              },
+              "operation_completed": {
+                "const": true
+              },
+              "outcome_verified": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "data": {
+            "type": "null"
+          },
+          "errors": {
+            "minItems": 1
+          },
+          "evidence": {
+            "maxItems": 0
+          },
+          "execution": {
+            "properties": {
+              "operation_completed": {
+                "const": false
+              },
+              "outcome_verified": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "enum": [
+              "process.inspect",
+              "process.modules"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "pid": {
+                "$ref": "#/$defs/pid"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "target": {
+            "properties": {
+              "pid": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "const": "process.inspect"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/process"
+          },
+          "evidence": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "const": "process.list"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/list"
+          },
+          "evidence": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "enum": [
+              "help",
+              "version"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/info"
+          },
+          "evidence": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "const": "process.modules"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/modules"
+          },
+          "evidence": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "pe.inspect"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "target": {
+            "properties": {
+              "path": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "const": "pe.inspect"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/pe"
+          },
+          "evidence": {
+            "minItems": 1,
+            "items": {
+              "properties": {
+                "source": {
+                  "const": "static_analysis"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "enum": [
+              "process.list",
+              "process.inspect",
+              "process.modules"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "items": {
+              "properties": {
+                "source": {
+                  "const": "runtime_observation"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "pid": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "filetime": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "stage",
+        "message",
+        "win32",
+        "ntstatus",
+        "verified"
+      ],
+      "properties": {
+        "category": {
+          "enum": [
+            "invalid_argument",
+            "access_denied",
+            "not_found",
+            "unsupported",
+            "system",
+            "timeout",
+            "io",
+            "malformed_pe"
+          ]
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "win32": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "ntstatus": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "verified": {
+          "type": "boolean"
+        }
+      }
+    },
+    "info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "name",
+        "creation_time_filetime",
+        "errors"
+      ],
+      "properties": {
+        "pid": {
+          "$ref": "#/$defs/pid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "creation_time_filetime": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/filetime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/error"
+          }
+        }
+      }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "processes"
+      ],
+      "properties": {
+        "processes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/summary"
+          }
+        }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "name",
+        "image_path",
+        "creation_time_filetime",
+        "architecture",
+        "architecture_source"
+      ],
+      "properties": {
+        "pid": {
+          "$ref": "#/$defs/pid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "image_path": {
+          "type": "string"
+        },
+        "creation_time_filetime": {
+          "$ref": "#/$defs/filetime"
+        },
+        "architecture": {
+          "enum": [
+            "x86",
+            "x64",
+            "arm64"
+          ]
+        },
+        "architecture_source": {
+          "enum": [
+            "IsWow64Process2",
+            "IsWow64Process"
+          ]
+        }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "path",
+        "base_address",
+        "size_bytes",
+        "name_may_be_truncated",
+        "path_may_be_truncated",
+        "text_may_be_lossy"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "base_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,16}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "name_may_be_truncated": {
+          "type": "boolean"
+        },
+        "path_may_be_truncated": {
+          "type": "boolean"
+        },
+        "text_may_be_lossy": {
+          "type": "boolean"
+        }
+      }
+    },
+    "modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "creation_time_filetime",
+        "architecture",
+        "architecture_source",
+        "scope",
+        "modules"
+      ],
+      "properties": {
+        "pid": {
+          "$ref": "#/$defs/pid"
+        },
+        "creation_time_filetime": {
+          "$ref": "#/$defs/filetime"
+        },
+        "architecture": {
+          "enum": [
+            "x86",
+            "x64"
+          ]
+        },
+        "architecture_source": {
+          "enum": [
+            "IsWow64Process2",
+            "IsWow64Process"
+          ]
+        },
+        "scope": {
+          "const": "toolhelp_snapshot"
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/module"
+          }
+        }
+      }
+    },
+    "pe_section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "name_bytes",
+        "virtual_address",
+        "virtual_size",
+        "raw_offset",
+        "raw_size",
+        "characteristics"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "name_bytes": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "virtual_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,8}$"
+        },
+        "virtual_size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "raw_offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "raw_size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "characteristics": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "pe_directory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "address",
+        "size_bytes",
+        "address_kind",
+        "file_offset"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15
+        },
+        "address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,8}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "address_kind": {
+          "enum": [
+            "rva",
+            "file_offset"
+          ]
+        },
+        "file_offset": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "index": {
+                "const": 4
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "address_kind": {
+                "const": "file_offset"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "address_kind": {
+                "const": "rva"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "file_size",
+        "format",
+        "machine",
+        "characteristics",
+        "subsystem",
+        "dll_characteristics",
+        "entry_point_rva",
+        "image_base",
+        "size_of_image",
+        "size_of_headers",
+        "section_alignment",
+        "file_alignment",
+        "sections",
+        "directories"
+      ],
+      "properties": {
+        "scope": {
+          "const": "headers_sections_directories"
+        },
+        "file_size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 268435456
+        },
+        "format": {
+          "enum": [
+            "PE32",
+            "PE32+"
+          ]
+        },
+        "machine": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "characteristics": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "subsystem": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "dll_characteristics": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "entry_point_rva": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,8}$"
+        },
+        "image_base": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,16}$"
+        },
+        "size_of_image": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "size_of_headers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "section_alignment": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "file_alignment": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "sections": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 96,
+          "items": {
+            "$ref": "#/$defs/pe_section"
+          }
+        },
+        "directories": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/pe_directory"
+          }
+        }
+      }
+    }
+  }
+}
