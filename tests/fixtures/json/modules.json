@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.1",
+  "tool_version": "2.0.0-dev.2",
+  "command": "process.modules",
+  "status": "success",
+  "target": {
+    "pid": 4242
+  },
+  "execution": {
+    "command_accepted": true,
+    "operation_completed": true,
+    "outcome_verified": true
+  },
+  "data": {
+    "pid": 4242,
+    "creation_time_filetime": "134370000000000001",
+    "architecture": "x64",
+    "architecture_source": "IsWow64Process2",
+    "scope": "toolhelp_snapshot",
+    "modules": [
+      {
+        "name": "示例 🚀.dll",
+        "path": "C:\\测试\\示例 🚀.dll",
+        "base_address": "0x20000000000001",
+        "size_bytes": 8192,
+        "name_may_be_truncated": false,
+        "path_may_be_truncated": false,
+        "text_may_be_lossy": false
+      }
+    ]
+  },
+  "findings": [],
+  "evidence": [
+    {
+      "source": "runtime_observation",
+      "description": "Fixed fixture; not a live process."
+    }
+  ],
+  "errors": [],
+  "duration_ms": 1
+}

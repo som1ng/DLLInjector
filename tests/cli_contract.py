@@ -11,9 +11,12 @@ import tempfile
 from jsonschema import Draft202012Validator
 
 cli, demo, root = map(Path, sys.argv[1:])
-schema = json.loads((root / "schemas/cli-v1.json").read_text(encoding="utf-8"))
+schema = json.loads((root / "schemas/cli-v1.1.json").read_text(encoding="utf-8"))
 Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
+old_schema = json.loads((root / "schemas/cli-v1.json").read_text(encoding="utf-8"))
+Draft202012Validator.check_schema(old_schema)
+old_validator = Draft202012Validator(old_schema)
 
 
 def run(*args, code=0, json_mode=True):
@@ -30,7 +33,7 @@ def run(*args, code=0, json_mode=True):
     obj = json.loads(out)  # Rejects log prefixes and multiple documents.
     validator.validate(obj)
     assert obj["duration_ms"] >= 0
-    assert obj["schema_version"] == "1.0"
+    assert obj["schema_version"] == "1.1"
     assert obj["status"] == ("success" if code == 0 else "error")
     assert obj["execution"]["outcome_verified"] == (code == 0)
     assert bool(obj["errors"]) == (code != 0)
@@ -44,9 +47,12 @@ def run(*args, code=0, json_mode=True):
 fixtures = sorted((root / "tests/fixtures/json").glob("*.json"))
 assert len(fixtures) >= 3, "fixed schema fixtures must be present"
 for fixture in fixtures:
-    validator.validate(json.loads(fixture.read_text(encoding="utf-8")))
+    document = json.loads(fixture.read_text(encoding="utf-8"))
+    (old_validator if document["schema_version"] == "1.0" else validator).validate(document)
 
 valid = json.loads((root / "tests/fixtures/json/inspect.json").read_text(encoding="utf-8"))
+valid["schema_version"] = "1.1"
+validator.validate(valid)
 invalid = copy.deepcopy(valid)
 del invalid["schema_version"]
 assert not validator.is_valid(invalid)
@@ -61,9 +67,9 @@ invalid["data"]["architecture"] = "unknown"
 assert not validator.is_valid(invalid), "unknown architecture cannot be inspect success"
 
 version, _ = run("--version")
-assert version["tool_version"] == "2.0.0-dev.1"
+assert version["tool_version"] == "2.0.0-dev.2"
 assert "process inspect" in run("--help")[0]["data"]["text"]
-assert "2.0.0-dev.1" in run("--version", json_mode=False)[0]
+assert "2.0.0-dev.2" in run("--version", json_mode=False)[0]
 assert "process list" in run("--help", json_mode=False)[0]
 
 listing, _ = run("process", "list")

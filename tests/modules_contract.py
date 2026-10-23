@@ -63,7 +63,9 @@ with tempfile.TemporaryDirectory(prefix="dllinjector-modules-") as tmp:
     try:
         ready = queue.Queue()
         threading.Thread(target=lambda: ready.put(child.stdout.readline()), daemon=True).start()
-        assert ready.get(timeout=10).strip() == b"READY", "owned host failed to load fixture"
+        handshake = ready.get(timeout=10).split()
+        assert len(handshake) == 2 and handshake[0] == b"READY", "owned host failed to load fixture"
+        fixture_address = int(handshake[1], 16)
         report_path = folder / "模块.json"
         doc = run(cli, "--verbose", "process", "modules", "--pid", child.pid, "--output", report_path)
         assert json.loads(report_path.read_text(encoding="utf-8")) == doc
@@ -74,19 +76,25 @@ with tempfile.TemporaryDirectory(prefix="dllinjector-modules-") as tmp:
         addresses = [int(row["base_address"], 16) for row in rows]
         assert addresses == sorted(addresses) and all(addresses)
         assert all(row["size_bytes"] > 0 for row in rows)
-        plugin = next(row for row in rows if row["name"] == copied_dll.name)
-        assert Path(plugin["path"]) == copied_dll
+        # The cooperative host identifies the fixture independently of loader text.
+        plugin = next(row for row in rows if int(row["base_address"], 16) == fixture_address)
+        if Path(plugin["path"]) != copied_dll or plugin["name"] != copied_dll.name:
+            assert plugin["text_may_be_lossy"] and "?" in plugin["path"] + plugin["name"], plugin
+        else:
+            assert not plugin["text_may_be_lossy"]
         assert not plugin["path_may_be_truncated"] and not plugin["name_may_be_truncated"]
-        assert any(row["name"] == copied_host.name for row in rows)
+        assert any(row["name"].startswith("host ") and row["name"].endswith(".exe") for row in rows)
         text = run(cli, "process", "modules", "--pid", child.pid, json_mode=False)
-        assert copied_dll.name in text and "BASE_ADDRESS" in text
+        assert plugin["name"] in text and "BASE_ADDRESS" in text
+        if plugin["text_may_be_lossy"]:
+            assert "possibly lossy" in text
         timeout = run(cli, "process", "modules", "--pid", child.pid, "--timeout-ms", "0", code=5)
         assert timeout["errors"][0]["category"] == "timeout"
         if other_cli:
             cross = run(other_cli, "process", "modules", "--pid", child.pid, code=other_code)
             if other_code == 0:
                 assert cross["data"]["architecture"] == "x86"
-                assert any(row["name"] == copied_dll.name for row in cross["data"]["modules"])
+                assert any(int(row["base_address"], 16) == fixture_address for row in cross["data"]["modules"])
             else:
                 error = cross["errors"][0]
                 assert error["category"] == "unsupported" and error["stage"] == "modules.architecture"

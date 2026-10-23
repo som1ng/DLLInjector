@@ -30,6 +30,7 @@ struct ModuleInfo {
     std::uint32_t size_bytes;
     bool name_may_be_truncated;
     bool path_may_be_truncated;
+    bool text_may_be_lossy;
 };
 struct ModuleSnapshot {
     std::uint32_t pid;

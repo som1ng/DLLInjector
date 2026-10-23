@@ -52,12 +52,15 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
             return Usage("Use --help or --version without a process command or PID.");
         options.command = help ? Command::Help : Command::Version;
     } else if (words == std::vector<std::wstring>{L"process", L"list"}) {
-        if (options.pid) return Usage("--pid is only supported by process inspect.");
+        if (options.pid) return Usage("--pid is only supported by process inspect/modules.");
         options.command = Command::List;
     } else if (words == std::vector<std::wstring>{L"process", L"inspect"}) {
         if (!options.pid) return Usage("process inspect requires --pid.");
         options.command = Command::Inspect;
-    } else return Usage("Expected --help, --version, process list or process inspect.");
+    } else if (words == std::vector<std::wstring>{L"process", L"modules"}) {
+        if (!options.pid) return Usage("process modules requires --pid.");
+        options.command = Command::Modules;
+    } else return Usage("Expected --help, --version, process list, process inspect or process modules.");
     return options;
 }
 }

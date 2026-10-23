@@ -10,6 +10,7 @@ constexpr char Help[] =
     "  dllinjector --help | --version\n"
     "  dllinjector process list [options]\n"
     "  dllinjector process inspect --pid <PID> [options]\n"
+    "  dllinjector process modules --pid <PID> [options]\n"
     "Options (before or after command):\n"
     "  --json                   One versioned JSON result on stdout\n"
     "  --timeout-ms <0..600000>  Query deadline; default 5000, zero expires immediately\n"
@@ -17,7 +18,8 @@ constexpr char Help[] =
     "  --verbose                Debug diagnostics on stderr\n"
     "Exit codes: 0 success, 1 reserved findings, 2 usage, 3 unavailable/access denied,\n"
     "            4 internal/unsupported/output failure, 5 query timeout.\n"
-    "Timeout is cooperative; it cannot interrupt an in-flight Win32 call or output sink.\n";
+    "Timeout is cooperative; it cannot interrupt an in-flight Win32 call or output sink.\n"
+    "Modules: use the x64 CLI for x64 targets. Loader snapshots can change and exclude data-file loads.\n";
 
 std::string Utf8(const std::wstring& text) {
     auto result = ToUtf8(text);
@@ -40,6 +42,11 @@ template<class T> std::string Number(const std::optional<T>& value) {
 }
 std::string Time(const std::optional<std::uint64_t>& value) {
     return value ? Quote(std::to_string(*value)) : "null";
+}
+std::string Address(std::uint64_t value) {
+    std::ostringstream out;
+    out << "0x" << std::hex << value;
+    return out.str();
 }
 std::string Errors(const std::vector<Error>& errors) {
     std::string out = "[";
@@ -75,6 +82,25 @@ std::string Data(const Report& report) {
             ",\"architecture\":" + Quote(ArchitectureName(process->architecture.architecture)) +
             ",\"architecture_source\":" + Quote(process->architecture.source) + "}";
     }
+    if (const auto* snapshot = std::get_if<ModuleSnapshot>(&report.data)) {
+        std::string out = "{\"pid\":" + std::to_string(snapshot->pid) +
+            ",\"creation_time_filetime\":" + Time(snapshot->creation_time) +
+            ",\"architecture\":" + Quote(ArchitectureName(snapshot->architecture.architecture)) +
+            ",\"architecture_source\":" + Quote(snapshot->architecture.source) +
+            ",\"scope\":\"toolhelp_snapshot\",\"modules\":[";
+        bool first = true;
+        for (const auto& module : snapshot->modules) {
+            if (!first) out += ',';
+            first = false;
+            out += "{\"name\":" + Quote(Utf8(module.name)) + ",\"path\":" + Quote(Utf8(module.path)) +
+                ",\"base_address\":" + Quote(Address(module.base_address)) +
+                ",\"size_bytes\":" + std::to_string(module.size_bytes) +
+                ",\"name_may_be_truncated\":" + Bool(module.name_may_be_truncated) +
+                ",\"path_may_be_truncated\":" + Bool(module.path_may_be_truncated) +
+                ",\"text_may_be_lossy\":" + Bool(module.text_may_be_lossy) + "}";
+        }
+        return out + "]}";
+    }
     return "null";
 }
 }
@@ -100,6 +126,13 @@ Report Execute(const Options& options) {
         else report.errors.push_back(result.error());
         break;
     }
+    case Command::Modules: {
+        report.command = "process.modules";
+        auto result = ListModules(*options.pid, options.query);
+        if (result) report.data = std::move(result.value());
+        else report.errors.push_back(result.error());
+        break;
+    }
     }
     return report;
 }
@@ -108,14 +141,17 @@ Result<std::string> Render(const Report& report, bool json) {
     try {
         if (json) {
             const bool success = report.errors.empty();
-            const bool observed = success && (report.command == "process.list" || report.command == "process.inspect");
+            const bool observed = success && (report.command == "process.list" || report.command == "process.inspect" || report.command == "process.modules");
+            const auto description = report.command == "process.modules"
+                ? "Toolhelp loader snapshot; may change, excludes data-file loads, may contain truncated/lossy text, and does not verify DLL initialization."
+                : "Read-only Windows metadata; not a guarantee of continued process lifetime.";
             return "{\"schema_version\":" + Quote(SchemaVersion) + ",\"tool_version\":" + Quote(ToolVersion) +
                 ",\"command\":" + Quote(report.command) + ",\"status\":" + Quote(success ? "success" : "error") +
                 ",\"target\":{\"pid\":" + Number(report.pid) + "},\"execution\":{\"command_accepted\":" +
                 Bool(report.accepted) + ",\"operation_completed\":" + Bool(success) +
                 ",\"outcome_verified\":" + Bool(success) + "},\"data\":" + Data(report) +
                 ",\"findings\":[],\"evidence\":" + (observed ?
-                    "[{\"source\":\"runtime_observation\",\"description\":\"Read-only Windows metadata; not a guarantee of continued process lifetime.\"}]" : "[]") +
+                    "[{\"source\":\"runtime_observation\",\"description\":" + Quote(description) + "}]" : "[]") +
                 ",\"errors\":" + Errors(report.errors) + ",\"duration_ms\":" + std::to_string(report.duration_ms) + "}\n";
         }
         std::ostringstream out;
@@ -134,6 +170,14 @@ Result<std::string> Render(const Report& report, bool json) {
                 << "\nImage: " << Utf8(process->image_path)
                 << "\nArchitecture: " << ArchitectureName(process->architecture.architecture)
                 << "\nCreation FILETIME: " << process->creation_time << '\n';
+        } else if (const auto* snapshot = std::get_if<ModuleSnapshot>(&report.data)) {
+            out << "PID: " << snapshot->pid << " (Toolhelp loader snapshot; excludes data-file loads)\n"
+                << "BASE_ADDRESS\tSIZE_BYTES\tNAME\tPATH\tTEXT_STATUS\n";
+            for (const auto& module : snapshot->modules)
+                out << Address(module.base_address) << '\t' << module.size_bytes << '\t'
+                    << Utf8(module.name) << '\t' << Utf8(module.path) << '\t'
+                    << (module.text_may_be_lossy ? "possibly lossy" :
+                        (module.name_may_be_truncated || module.path_may_be_truncated ? "possibly truncated" : "within capacity")) << '\n';
         }
         return out.str();
     } catch (const Error& error) { return error; }
