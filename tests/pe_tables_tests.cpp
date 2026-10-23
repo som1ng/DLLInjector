@@ -78,6 +78,26 @@ void ImportTest() {
         Put(b, 0x204, 1); ErrorAt(b, "pe.imports", ErrorCategory::Unsupported);
         Put(b, 0x200, 0x1200); Check(bool(ParsePe(b)), "bound IAT with original lookup remains readable");
     }
+    auto b = Fixture(); Imports(b); b.resize(0x5200);
+    const std::size_t s = 152 + 224;
+    Put(b, 134, 2, 2); Put(b, s + 8, 0x1000); Put(b, s + 16, 0x1000);
+    Put(b, s + 40 + 8, 0x3000); Put(b, s + 40 + 12, 0x2000);
+    Put(b, s + 40 + 16, 0x3000); Put(b, s + 40 + 20, 0x2200);
+    // Adjacent RVAs with a 4 KiB gap between the corresponding raw regions.
+    Put(b, 0x20c, 0x1ffc);
+    b[0x11fc] = 's'; b[0x11fd] = 'a'; b[0x11fe] = 'm'; b[0x11ff] = 'p';
+    Text(b, 0x2200, "le.dll");
+    auto r = ParsePe(b); Check(r && r.value().imports[0].name == "sample.dll", "string crosses noncontiguous raw regions");
+    Put(b, 0x20c, 0x1100); Put(b, 0x200, 0x1ffe); Put(b, 0x210, 0x1ffe);
+    auto across = [&](std::uint32_t rva, std::uint32_t value) {
+        for (unsigned i = 0; i < 4; ++i) {
+            const auto pos = rva + i;
+            b.at(pos < 0x2000 ? pos - 0x1000 + 0x200 : pos - 0x2000 + 0x2200) = static_cast<std::uint8_t>(value >> (8 * i));
+        }
+    };
+    across(0x1ffe, 0x1300); across(0x2002, 0x80000007); across(0x2006, 0);
+    r = ParsePe(b); Check(r && r.value().imports[0].symbols[0].name == "Function" &&
+        r.value().imports[0].symbols[1].ordinal == 7u, "thunks and IAT storage cross raw regions");
 }
 void ExportTest() {
     for (bool plus : {false, true}) {
@@ -129,6 +149,25 @@ void Limits() {
     b = Fixture(); Imports(b); Put(b, 0x20c, 0x3000);
     for (unsigned i = 0; i < 4097; ++i) b[0x2200 + i] = 'A';
     ErrorAt(b, "pe.imports", ErrorCategory::Unsupported);
+    // Repeated references still consume the shared output budget.
+    b = Fixture(); b.resize(0x10200);
+    const std::size_t s = 152 + 224;
+    Put(b, s + 8, 0x10000); Put(b, s + 16, 0x10000); Put(b, 208, 0x11000);
+    Put(b, Dir(false) + 8, 0x1000); Put(b, Dir(false) + 12, 1026 * 20);
+    for (unsigned i = 0; i < 1025; ++i) {
+        Put(b, 0x200 + i * 20, 0xc000); Put(b, 0x20c + i * 20, 0xb000); Put(b, 0x210 + i * 20, 0xc010);
+    }
+    Text(b, 0xa200, "x.dll"); ErrorAt(b, "pe.imports", ErrorCategory::Unsupported);
+    for (unsigned i = 0; i < 20; ++i) b[0x200 + 1024 * 20 + i] = 0;
+    Check(ParsePe(b).value().imports.size() == 1024, "library limit inclusive");
+    Text(b, 0xa200, std::string(4096, 'A')); ErrorAt(b, "pe.imports", ErrorCategory::Unsupported);
+    b = Fixture(); Imports(b); b.resize(0x50200);
+    Put(b, s + 8, 0x50000); Put(b, s + 16, 0x50000); Put(b, 208, 0x51000);
+    Put(b, 0x200, 0x2000); Put(b, 0x210, 0x2000);
+    for (unsigned i = 0; i < 65537; ++i) Put(b, 0x1200 + i * 4, 0x80000001);
+    ErrorAt(b, "pe.imports", ErrorCategory::Unsupported);
+    Put(b, 0x1200 + 65536 * 4, 0);
+    Check(ParsePe(b).value().imports[0].symbols.size() == 65536, "symbol limit inclusive");
 }
 std::uint64_t ticks = 0;
 std::uint64_t Tick() { return ticks++; }

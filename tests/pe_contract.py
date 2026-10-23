@@ -14,7 +14,7 @@ import tempfile
 from jsonschema import Draft202012Validator
 
 cli, dll, root = map(Path, sys.argv[1:])
-schema = json.loads((root / 'schemas/cli-v1.2.json').read_text(encoding='utf-8'))
+schema = json.loads((root / 'schemas/cli-v1.3.json').read_text(encoding='utf-8'))
 Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
 
@@ -57,7 +57,7 @@ def fixture(plus):
     return b
 
 
-fixed = json.loads((root / 'tests/fixtures/json/pe.json').read_text(encoding='utf-8'))
+fixed = json.loads((root / 'tests/fixtures/json/pe-tables-empty.json').read_text(encoding='utf-8'))
 validator.validate(fixed)
 for key, value in [('image_base', 0x20000000010000), ('entry_point_rva', '0x100000000'),
                    ('scope', 'loadability_verified'), ('sections', [])]:
@@ -102,7 +102,7 @@ with tempfile.TemporaryDirectory(prefix='dllinjector-pe-') as tmp:
         machine, sections = struct.unpack_from('<HH', raw, nt + 4)
         assert data['machine'] == machine and len(data['sections']) == sections
         assert data['file_size'] == len(raw)
-        assert data['scope'] == 'headers_sections_directories'
+        assert data['scope'] == 'headers_sections_imports_exports_delay_imports'
         assert any(s['raw_size'] > 0 for s in data['sections'])
         assert any(d['index'] == 1 and d['address'] != '0x0' for d in data['directories'])
         text = run('pe', 'inspect', path, human=True)
