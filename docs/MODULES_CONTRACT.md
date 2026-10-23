@@ -24,6 +24,12 @@ No target DLL is loaded or executed by the diagnostic command.
   is a successful observation of no entries, not proof that no code is loaded.
 - Validate the returned PID and bounds of fixed-size UTF-16 fields. Reaching a
   field's character capacity is flagged as possible truncation, not a full path.
+- Real local testing found that Toolhelp's W API can already contain `?`
+  replacements for emoji before our UTF-8 conversion. Preserve the reported text
+  and set text_may_be_lossy when either field contains `?`. This is a conservative
+  signal, not a guarantee that other best-fit character conversions are detectable.
+  Paths are observations, not canonical file identifiers; do not use flagged paths
+  as file-operation inputs. Full Unicode provided by the API is preserved.
 - Sort modules by base address, then path. JSON addresses are hexadecimal strings
   to preserve all pointer bits for JavaScript clients; sizes are integer bytes.
 - Results are a loader snapshot: transient load/unload changes and modules loaded
@@ -41,7 +47,7 @@ expected to accept 1.1. Tool version changes to `2.0.0-dev.2`.
 Module data contains pid, creation_time_filetime, architecture, architecture_source,
 scope (`toolhelp_snapshot`), and modules[]. Each module has name, path,
 base_address (`0x` + lowercase hex), size_bytes, name_may_be_truncated and
-path_may_be_truncated. Evidence describes the loader snapshot's limitations.
+path_may_be_truncated and text_may_be_lossy. Evidence describes the loader snapshot's limitations.
 
 ## Required tests
 
@@ -50,7 +56,8 @@ path_may_be_truncated. Evidence describes the loader snapshot's limitations.
   ARM64, snapshot/iteration errors, bounded retries, timeout, malformed/truncated
   strings and cleanup without losing the original error.
 - Real CLI: a self-owned host loads only the existing inert fixture from a copied
-  Unicode/space/emoji path; compare the observed DLL name/path/base/size. Test
+  Unicode/space/emoji path; match the independently reported base address and check
+  path/name equality or explicit API text-loss markers, plus size. Test
   help, missing/invalid/duplicate PID, JSON Schema, text, output and zero timeout.
 - Cross-bitness: use x86/x64 CLI and self-owned test hosts; x64 → x86 succeeds,
   x86 → x64 returns the documented error. Run these locally and in Windows CI.

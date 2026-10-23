@@ -1,5 +1,9 @@
 # P1 process CLI contract — schema 1.0
 
+This document records the dev.1 baseline. For dev.2, the process commands and common
+options still apply; all responses now use schema 1.1 and `process modules` is added.
+See [the module contract](MODULES_CONTRACT.md) for version migration and limits.
+
 This increment delivers the shared read-only process Core and `process list/inspect`.
 Module enumeration, PE/Doctor, reports and Agent adapters remain later increments.
 
