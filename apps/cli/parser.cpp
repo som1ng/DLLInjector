@@ -34,11 +34,15 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
         else if (arg == L"--verbose") options.verbose = true;
         else if (arg == L"--help") help = true;
         else if (arg == L"--version") version = true;
-        else if (arg == L"--pid" || arg == L"--timeout-ms" || arg == L"--output") {
+        else if (arg == L"--pid" || arg == L"--timeout-ms" || arg == L"--output" || arg == L"--target-arch") {
             if (++i == args.size() || args[i].empty() || args[i].rfind(L"--", 0) == 0)
                 return Usage("Missing option value; consult --help.");
             if (arg == L"--output") options.output = args[i];
-            else {
+            else if (arg == L"--target-arch") {
+                if (args[i] == L"x86") options.target_architecture = Architecture::X86;
+                else if (args[i] == L"x64") options.target_architecture = Architecture::X64;
+                else return Usage("--target-arch requires x86 or x64.");
+            } else {
                 auto number = Number(args[i], arg == L"--pid" ? 1u : 0u,
                     arg == L"--pid" ? (std::numeric_limits<std::uint32_t>::max)() : 600000u);
                 if (!number) return number.error();
@@ -64,7 +68,13 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
         if (options.pid || words[2].empty()) return Usage("pe inspect requires one nonempty file path and does not accept --pid.");
         options.command = Command::PeInspect;
         options.path = words[2];
-    } else return Usage("Expected --help, --version, process list/inspect/modules or pe inspect <path>.");
+    } else if (words.size() == 2 && words[0] == L"doctor") {
+        if (options.pid || words[1].empty()) return Usage("doctor requires one nonempty file path and does not accept --pid.");
+        options.command = Command::Doctor;
+        options.path = words[1];
+    } else return Usage("Expected --help, --version, process list/inspect/modules, pe inspect <path> or doctor <path>.");
+    if (options.target_architecture && options.command != Command::Doctor)
+        return Usage("--target-arch is only supported by doctor.");
     return options;
 }
 }

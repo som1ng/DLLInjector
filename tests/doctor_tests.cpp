@@ -70,7 +70,7 @@ void OperationalErrors() {
             ErrorCategory::Timeout, ErrorCategory::Io, ErrorCategory::System, ErrorCategory::InvalidArgument}) {
         const Error error{category, "fixture", "Operation failed.", 5, {}, false};
         const auto r = DiagnosePe(error);
-        Check(!r && r.error().category == category && r.error().stage == "fixture" && r.error().win32 == 5 && !r.error().verified,
+        Check(!r && r.error().category == category && r.error().stage == "fixture" && r.error().win32 == 5u && !r.error().verified,
               "operational errors remain unchanged");
     }
 }

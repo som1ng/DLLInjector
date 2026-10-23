@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.4",
+  "tool_version": "2.0.0-dev.5",
+  "command": "doctor",
+  "status": "success",
+  "target": {"pid": null, "path": "C:\\fixtures\\native-x86.dll"},
+  "execution": {"command_accepted": true, "operation_completed": true, "outcome_verified": false},
+  "data": {
+    "scope": "static_dll_preflight",
+    "target_architecture": "x64",
+    "image": {
+      "machine": 332,
+      "characteristics": 8194,
+      "format": "PE32",
+      "has_clr_header": false,
+      "import_library_count": 0,
+      "delay_import_library_count": 0
+    },
+    "inspection_error": null
+  },
+  "findings": [
+    {
+      "rule_id": "ARCH_MISMATCH",
+      "severity": "error",
+      "message": "The native image architecture differs from the declared target process architecture.",
+      "evidence": [
+        {"source": "static_analysis", "description": "Machine=0x14c, format=PE32."},
+        {"source": "user_supplied_option", "description": "--target-arch x64; not a process observation."}
+      ],
+      "confidence": "high",
+      "recommended_next_step": "Use a DLL build matching the intended process architecture and confirm the actual process architecture.",
+      "documentation": ["https://learn.microsoft.com/en-us/windows/win32/winprog64/process-interoperability"]
+    },
+    {
+      "rule_id": "INSUFFICIENT_EVIDENCE",
+      "severity": "info",
+      "message": "Dependency availability and runtime loading remain unverified.",
+      "evidence": [
+        {"source": "static_analysis", "description": "Static tables contain 0 import libraries and 0 delay-import libraries. No dependency search, DLL loading or initialization was performed."}
+      ],
+      "confidence": "high",
+      "recommended_next_step": "Inspect the intended application's loader errors and search configuration, including API sets, Known DLLs, SxS and dynamic loads. Empty import tables do not prove independence.",
+      "documentation": ["https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order"]
+    }
+  ],
+  "evidence": [
+    {"source": "static_analysis", "description": "Static DLL preflight only; declared target architecture is not observed. Dependencies, runtime loading and initialization remain unverified."}
+  ],
+  "errors": [],
+  "duration_ms": 0
+}
