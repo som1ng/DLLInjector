@@ -17,6 +17,25 @@ struct PeDirectory {
     // Set only when the whole declared range has contiguous backing bytes.
     std::optional<std::uint32_t> file_offset;
 };
+struct PeImportSymbol {
+    std::optional<std::string> name;
+    std::optional<std::uint16_t> ordinal, hint;
+};
+struct PeImportLibrary {
+    std::string name, lookup_source;
+    std::uint32_t timestamp;
+    std::vector<PeImportSymbol> symbols;
+};
+struct PeExportSymbol {
+    std::uint32_t ordinal, rva;
+    std::vector<std::string> names;
+    std::optional<std::string> forwarder;
+};
+struct PeExports {
+    std::string dll_name;
+    std::uint32_t ordinal_base, address_table_entries;
+    std::vector<PeExportSymbol> symbols;
+};
 struct PeInfo {
     std::uint64_t file_size;
     bool pe32_plus;
@@ -25,6 +44,8 @@ struct PeInfo {
     std::uint64_t image_base;
     std::vector<PeSection> sections;
     std::vector<PeDirectory> directories;
+    std::vector<PeImportLibrary> imports, delay_imports;
+    std::optional<PeExports> exports;
 };
 
 // Pure byte inspection: no loading, imports resolution or execution.
