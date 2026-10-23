@@ -9,11 +9,13 @@ const char* CategoryName(ErrorCategory category) {
     case ErrorCategory::Unsupported: return "unsupported";
     case ErrorCategory::Timeout: return "timeout";
     case ErrorCategory::Io: return "io";
+    case ErrorCategory::MalformedPe: return "malformed_pe";
     default: return "system";
     }
 }
 int ExitCode(ErrorCategory category) {
     switch (category) {
+    case ErrorCategory::MalformedPe: return 1;
     case ErrorCategory::InvalidArgument: return 2;
     case ErrorCategory::AccessDenied:
     case ErrorCategory::NotFound: return 3;

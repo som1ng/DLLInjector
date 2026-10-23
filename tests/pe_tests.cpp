@@ -35,8 +35,10 @@ std::vector<std::uint8_t> Fixture(bool plus = false) {
 void Bad(const std::vector<std::uint8_t>& b, const char* stage) {
     const auto r = ParsePe(b);
     Check(!r, "malformed input rejected");
-    Check(r.error().category == ErrorCategory::MalformedPe && r.error().stage == stage,
-          "malformed category and stage");
+    if (r.error().category != ErrorCategory::MalformedPe || r.error().stage != stage)
+        std::cerr << "Expected malformed at " << stage << "; got " << CategoryName(r.error().category)
+                  << " at " << r.error().stage << '\n';
+    Check(r.error().category == ErrorCategory::MalformedPe && r.error().stage == stage, "malformed category and stage");
     Check(!r.error().win32 && !r.error().ntstatus, "no invented OS error");
 }
 void Headers() {
@@ -77,6 +79,8 @@ void Truncation() {
     Check(!ParsePe(b) && ParsePe(b).error().category == ErrorCategory::Unsupported, "section resource limit");
     b = Fixture(); Put(b, Opt, 0x107, 2);
     Check(!ParsePe(b) && ParsePe(b).error().category == ErrorCategory::Unsupported, "ROM format explicit");
+    b = Fixture(); Put(b, 0x94, 232, 2); Put(b, Opt + 92, 17);
+    Check(!ParsePe(b) && ParsePe(b).error().category == ErrorCategory::Unsupported, "extended directory count limit");
 }
 void Ranges() {
     const auto s = Sections(false);
@@ -88,7 +92,7 @@ void Ranges() {
     b = Fixture(); Put(b, s + 20, 0); Bad(b, "pe.sections");
     b = Fixture(); Put(b, Opt + 60, 0x400); Bad(b, "pe.sections");
     b = Fixture(); Put(b, Opt + 60, 0); Bad(b, "pe.optional");
-    b = Fixture(); Put(b, Opt + 56, 0x1000); Bad(b, "pe.sections");
+    b = Fixture(); Put(b, Opt + 16, 0); Put(b, Opt + 56, 0x1000); Bad(b, "pe.sections");
     b = Fixture(); Put(b, Opt + 16, 0x2000); Bad(b, "pe.optional");
     for (auto offset : {Opt + 32, Opt + 36}) {
         b = Fixture(); Put(b, offset, 3); Bad(b, "pe.optional");
@@ -110,19 +114,25 @@ void Ranges() {
 void DirectoriesTest() {
     auto b = Fixture(); const auto d = Directories(false);
     Put(b, d + 8, 0x1010); Put(b, d + 12, 32);
-    auto r = ParsePe(b); Check(r && r.value().directories[1].file_offset == 0x210, "RVA translation");
+    auto r = ParsePe(b); Check(r && r.value().directories[1].file_offset == 0x210u, "RVA translation");
     Put(b, d + 8, 0x1100); Put(b, d + 12, 0x200); Put(b, Sections(false) + 8, 0x400);
     r = ParsePe(b); Check(r && !r.value().directories[1].file_offset, "virtual-only tail not file backed");
     Put(b, d + 8, 0xfffffff0); Put(b, d + 12, 32); Bad(b, "pe.directories");
     b = Fixture(); Put(b, d + 4, 1); Bad(b, "pe.directories");
     b = Fixture(); b.resize(0x410); Put(b, d + 32, 0x400); Put(b, d + 36, 16);
     r = ParsePe(b); Check(r && r.value().directories[4].is_file_offset &&
-        r.value().directories[4].file_offset == 0x400, "certificate directory is file-relative");
+        r.value().directories[4].file_offset == 0x400u, "certificate directory is file-relative");
     Put(b, d + 36, 32); Bad(b, "pe.directories");
     b = Fixture(); Put(b, d + 8, 0x1f0); Put(b, d + 12, 8);
-    Check(ParsePe(b).value().directories[1].file_offset == 0x1f0, "directory in headers");
+    Check(ParsePe(b).value().directories[1].file_offset == 0x1f0u, "directory in headers");
     b = Fixture(); Put(b, d + 8 * 8, 0x1000);
     Check(bool(ParsePe(b)), "global pointer directory can have zero size");
+    b = Fixture(); Put(b, d + 8, 0x1f0); Put(b, d + 12, 0x1000);
+    r = ParsePe(b); Check(r && !r.value().directories[1].file_offset, "cross-region range has no single file mapping");
+    Put(b, d + 8, 0x800); Put(b, d + 12, 16);
+    r = ParsePe(b); Check(r && !r.value().directories[1].file_offset, "image gap is not assumed to contain file bytes");
+    b = Fixture(); b.resize(0x410); Put(b, d + 32, 0x401); Put(b, d + 36, 8);
+    Bad(b, "pe.directories");
 }
 std::uint64_t ticks = 0, stride = 0;
 std::uint64_t Tick() { const auto current = ticks; ticks += stride; return current; }
@@ -133,6 +143,9 @@ void Timeout() {
     const auto r = detail::ParsePe(b, 5, Tick);
     Check(!r && r.error().category == ErrorCategory::Timeout, "deadline during parse discards partial data");
     stride = 0; ticks = 0; Check(bool(detail::ParsePe(b, 1, Tick)), "unexpired deadline");
+    Check(!InspectPeFile(L"") && InspectPeFile(L"").error().category == ErrorCategory::InvalidArgument, "empty file path");
+    Check(!InspectPeFile(std::wstring(L"a\0b", 3)) &&
+        InspectPeFile(std::wstring(L"a\0b", 3)).error().category == ErrorCategory::InvalidArgument, "embedded NUL rejected");
 }
 void Mutations() {
     std::mt19937 random(0x5045);

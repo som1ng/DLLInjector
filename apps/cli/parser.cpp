@@ -49,7 +49,7 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
     }
     if (help || version) {
         if ((help && version) || !words.empty() || options.pid)
-            return Usage("Use --help or --version without a process command or PID.");
+            return Usage("Use --help or --version without a command, path or PID.");
         options.command = help ? Command::Help : Command::Version;
     } else if (words == std::vector<std::wstring>{L"process", L"list"}) {
         if (options.pid) return Usage("--pid is only supported by process inspect/modules.");
@@ -60,7 +60,11 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
     } else if (words == std::vector<std::wstring>{L"process", L"modules"}) {
         if (!options.pid) return Usage("process modules requires --pid.");
         options.command = Command::Modules;
-    } else return Usage("Expected --help, --version, process list, process inspect or process modules.");
+    } else if (words.size() == 3 && words[0] == L"pe" && words[1] == L"inspect") {
+        if (options.pid || words[2].empty()) return Usage("pe inspect requires one nonempty file path and does not accept --pid.");
+        options.command = Command::PeInspect;
+        options.path = words[2];
+    } else return Usage("Expected --help, --version, process list/inspect/modules or pe inspect <path>.");
     return options;
 }
 }
