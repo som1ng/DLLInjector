@@ -15,8 +15,9 @@ contain a three-clause BSD-style redistribution notice:
 
 Their original headers are retained unchanged. The exact upstream revision and
 local modifications have not been established. The wrapper
-`dll_reflectivedemo.cpp` and prebuilt `reflective_payload.dll` are separate
-artifacts; their provenance/build correspondence remains unverified. These
+`dll_reflectivedemo.cpp` and the formerly tracked `reflective_payload.dll` are separate
+artifacts; their provenance/build correspondence remains unverified. The old binary
+is now ignored and untracked; the source and its notices remain. These
 reflective sample artifacts are not built or executed by the P0 CMake/CTest setup.
 
 The original notice follows, copied from the existing header:
@@ -53,8 +54,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 No independent provenance verification was established for `src/` or the other
 legacy demos. Their presence in this repository is not evidence that every line
-is original. Existing `dll_test/*.exe`, `dll_test/*.dll` and ignored `bin/`
-binaries were not used as build verification artifacts or modified in this round.
+is original. Legacy binaries under `dll_test/` and `bin/` are ignored and no longer
+tracked. They were not used as build verification artifacts; local copies are retained.
 Resolve project-level licensing and any remaining source attribution before
 publishing a new release.
 
