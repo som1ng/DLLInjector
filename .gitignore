@@ -26,3 +26,18 @@ Release/
 # --- VS Code 缓存 ---
 .vscode/ipch/
 .vscode/*.db
+
+# 文档
+重构升级计划.md
+AGENTS.md
+
+# --- Python 测试缓存与本地环境 ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# --- 本地诊断报告 / 预览 / 调试产物（固定测试样例仍保留） ---
+/reports/
+/artifacts/
+*.dmp

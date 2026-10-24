@@ -14,7 +14,7 @@ cli, host, fixture, root = map(Path, sys.argv[1:5])
 # Cross test reuses this test with a second-bitness CLI and expected result.
 other_cli = Path(sys.argv[5]) if len(sys.argv) > 5 else None
 other_code = int(sys.argv[6]) if len(sys.argv) > 6 else None
-schema = json.loads((root / "schemas/cli-v1.5.json").read_text(encoding="utf-8"))
+schema = json.loads((root / "schemas/cli-v1.6.json").read_text(encoding="utf-8"))
 Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
 
@@ -28,7 +28,7 @@ def run(executable, *args, code=0, json_mode=True):
         return out
     obj = json.loads(out)
     validator.validate(obj)
-    assert obj["schema_version"] == "1.5"
+    assert obj["schema_version"] == "1.6"
     assert obj["status"] == ("success" if code == 0 else "error")
     assert obj["execution"]["outcome_verified"] == (code == 0)
     assert bool(err) == (code != 0 or "--verbose" in args)
@@ -47,7 +47,7 @@ unavailable = run(cli, "process", "modules", "--pid", "4294967295", code=3)
 assert unavailable["errors"][0]["stage"] == "OpenProcess"
 
 fixture_doc = json.loads((root / "tests/fixtures/json/modules.json").read_text(encoding="utf-8"))
-fixture_doc["schema_version"] = "1.5"
+fixture_doc["schema_version"] = "1.6"
 fixture_doc["target"]["path"] = None
 validator.validate(fixture_doc)
 fixture_doc["data"]["modules"][0]["base_address"] = 9007199254740993

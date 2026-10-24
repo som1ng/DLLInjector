@@ -11,7 +11,7 @@ from jsonschema import Draft202012Validator
 from markdown_it import MarkdownIt
 
 cli, fixtures, dll, root = map(Path, sys.argv[1:5])
-validator = Draft202012Validator(json.loads((root / 'schemas/cli-v1.5.json').read_text(encoding='utf-8')))
+validator = Draft202012Validator(json.loads((root / 'schemas/cli-v1.6.json').read_text(encoding='utf-8')))
 markdown = MarkdownIt('commonmark')  # Raw HTML enabled: escaping must be done by the exporter.
 
 

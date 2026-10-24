@@ -111,6 +111,24 @@ void WriteError(Document& out, const Error& error) {
     out.Field("NTSTATUS", Number(error.ntstatus));
     out.Field("Error verified", Bool(error.verified));
 }
+void WriteFindings(Document& out, const std::vector<DoctorFinding>& findings) {
+    out.Heading(2, "Findings");
+    if (findings.empty()) out.Field("Findings", "none; this does not prove loadability");
+    for (std::size_t i = 0; i < findings.size(); ++i) {
+        const auto& f = findings[i];
+        out.Heading(3, "Finding " + std::to_string(i + 1));
+        out.Field("Rule", f.rule_id);
+        out.Field("Severity", SeverityName(f.severity));
+        out.Field("Confidence", f.confidence);
+        out.Field("Message", f.message);
+        for (const auto& evidence : f.evidence) {
+            out.Field("Evidence source", evidence.source);
+            out.Field("Evidence", evidence.description);
+        }
+        out.Field("Recommended next step", f.recommended_next_step);
+        for (const auto& url : f.documentation) out.Field("Documentation", url);
+    }
+}
 void WriteDoctor(Document& out, const DoctorReport& doctor) {
     out.Heading(2, "Static image");
     out.Field("Declared target architecture", doctor.target_architecture ? ArchitectureName(*doctor.target_architecture) : "not supplied");
@@ -124,22 +142,7 @@ void WriteDoctor(Document& out, const DoctorReport& doctor) {
         out.Field("Delay import library count", std::to_string(p.delay_import_library_count));
     } else out.Field("Image", "unavailable");
     if (doctor.inspection_error) WriteError(out, *doctor.inspection_error);
-    out.Heading(2, "Findings");
-    if (doctor.findings.empty()) out.Field("Findings", "none; this does not prove loadability");
-    for (std::size_t i = 0; i < doctor.findings.size(); ++i) {
-        const auto& f = doctor.findings[i];
-        out.Heading(3, "Finding " + std::to_string(i + 1));
-        out.Field("Rule", f.rule_id);
-        out.Field("Severity", SeverityName(f.severity));
-        out.Field("Confidence", f.confidence);
-        out.Field("Message", f.message);
-        for (const auto& evidence : f.evidence) {
-            out.Field("Evidence source", evidence.source);
-            out.Field("Evidence", evidence.description);
-        }
-        out.Field("Recommended next step", f.recommended_next_step);
-        for (const auto& url : f.documentation) out.Field("Documentation", url);
-    }
+    WriteFindings(out, doctor.findings);
     out.Heading(2, "Dependency candidates");
     if (!doctor.dependencies) { out.Field("Observation", "not performed"); return; }
     out.Field("Scope", "explicit_directories");
@@ -163,10 +166,44 @@ void WriteDoctor(Document& out, const DoctorReport& doctor) {
         }
     }
 }
+std::string WriteSavedReport(const SavedReport& saved, DocumentFormat format) {
+    Document out(format);
+    out.Field("Exporter version", ToolVersion);
+    out.Field("Export status", "conversion completed");
+    out.Field("Interpretation", "This is a supplied snapshot. Schema validation does not verify its origin or facts; source targets were not inspected. Recorded execution flags describe the source command, not this export.");
+    out.Field("Source tool version", saved.tool_version);
+    out.Field("Source schema version", saved.schema_version);
+    out.Field("Source command", saved.command);
+    out.Field("Source status", saved.status);
+    out.Field("Recorded target PID", saved.target_pid);
+    out.Field("Recorded target path", saved.target_path);
+    out.Field("Recorded duration (ms)", saved.duration_ms);
+    out.Heading(2, "Recorded execution and evidence");
+    out.Field("Recorded command accepted", Bool(saved.accepted));
+    out.Field("Recorded operation completed", Bool(saved.completed));
+    out.Field("Recorded outcome verified", Bool(saved.verified));
+    if (saved.evidence.empty()) out.Field("Evidence", "none recorded");
+    for (const auto& evidence : saved.evidence) {
+        out.Field("Source", evidence.source);
+        out.Field("Evidence", evidence.description);
+    }
+    WriteFindings(out, saved.findings);
+    out.Heading(2, "Recorded errors");
+    if (saved.errors.empty()) out.Field("Errors", "none recorded");
+    for (const auto& error : saved.errors) WriteError(out, error);
+    out.Heading(2, "Recorded data");
+    out.Code(saved.data_json, true);
+    out.Heading(2, "Complete JSON report");
+    out.Code(saved.original_json, true);
+    return out.Finish();
+}
 }
 
 Result<std::string> RenderDocument(const Report& report, DocumentFormat format) {
     try {
+        if (report.errors.empty()) {
+            if (const auto* saved = std::get_if<SavedReport>(&report.data)) return WriteSavedReport(*saved, format);
+        }
         const auto json = Render(report, true);
         if (!json) return json.error();
         Document out(format);

@@ -1,7 +1,7 @@
 # Markdown / HTML 报告契约
 
 目标版本：`2.0.0-dev.7`，JSON Schema 保持 `1.5`。本轮实现 P2.2 的直接导出；
-计划中的 `report export <saved.json>` 离线转换另行实现，当前不接受已保存的 JSON 作为输入。
+本文件记录 dev.7 的直接输出。dev.8 已实现 `report export <saved.json>`，见 [离线转换契约](SAVED_REPORTS_CONTRACT.md)。
 
 ## 命令
 

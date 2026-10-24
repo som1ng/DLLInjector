@@ -13,6 +13,7 @@ constexpr char Help[] =
     "  dllinjector process modules --pid <PID> [options]\n"
     "  dllinjector pe inspect <path> [options]\n"
     "  dllinjector doctor <path> [--target-arch x86|x64] [options]\n"
+    "  dllinjector report export <saved.json> --format markdown|html [options]\n"
     "Options (before or after command):\n"
     "  --json                   One versioned JSON result on stdout\n"
     "  --format <markdown|html> Diagnostic report document; mutually exclusive with --json\n"
@@ -30,7 +31,9 @@ constexpr char Help[] =
     "PE inspection does not resolve dependencies or validate signatures and loadability.\n"
     "Doctor: static rules with evidence and next steps; outcome_verified is always false.\n"
     "Doctor status=success means diagnosis completed; error findings still exit 1.\n"
-    "Search directories are explicit observations in the caller's filesystem view, not loader resolution.\n";
+    "Search directories are explicit observations in the caller's filesystem view, not loader resolution.\n"
+    "Report export validates a local JSON snapshot (schemas 1.0-1.6, 16 MiB max); no target is inspected.\n"
+    "Export exits 0 on conversion success, even if the supplied report records diagnostic errors.\n";
 
 std::string Utf8(const std::wstring& text) {
     auto result = ToUtf8(text);
@@ -295,6 +298,13 @@ Report Execute(const Options& options) {
         else report.errors.push_back(result.error());
         break;
     }
+    case Command::ReportExport: {
+        report.command = "report.export";
+        auto result = ReadSavedReport(*options.path, options.query.timeout_ms);
+        if (result) report.data = std::move(result.value());
+        else report.errors.push_back(result.error());
+        break;
+    }
     }
     return report;
 }
@@ -326,6 +336,10 @@ std::vector<FindingEvidence> ReportEvidence(const Report& report) {
 
 Result<std::string> Render(const Report& report, bool json) {
     try {
+        if (report.errors.empty()) {
+            if (const auto* saved = std::get_if<SavedReport>(&report.data))
+                return json ? saved->original_json : std::string("Saved report conversion completed; source targets were not inspected.\n");
+        }
         if (json) {
             const bool success = report.errors.empty();
             const bool doctor = success && report.command == "doctor";

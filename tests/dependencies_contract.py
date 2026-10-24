@@ -10,12 +10,15 @@ from jsonschema import Draft202012Validator
 
 cli, dll, root = map(Path, sys.argv[1:4])
 delay_dll = Path(sys.argv[4]) if len(sys.argv) > 4 else None
-schema = json.loads((root / 'schemas/cli-v1.5.json').read_text(encoding='utf-8'))
+schema = json.loads((root / 'schemas/cli-v1.6.json').read_text(encoding='utf-8'))
 Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
 golden = json.loads((root / 'tests/fixtures/json/doctor-dependencies.json').read_text(encoding='utf-8'))
+historical = json.loads((root / 'schemas/cli-v1.5.json').read_text(encoding='utf-8'))
+Draft202012Validator(historical).validate(golden)
+golden['schema_version'] = '1.6'
+golden['tool_version'] = '2.0.0-dev.8'
 validator.validate(golden)
-golden['tool_version'] = '2.0.0-dev.7'
 
 def invoke(args, code=0, human=False, cwd=None):
     result = subprocess.run([str(cli.resolve()), *map(str, args), *([] if human else ['--json'])],
