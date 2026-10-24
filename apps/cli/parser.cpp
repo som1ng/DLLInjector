@@ -34,10 +34,15 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
         else if (arg == L"--verbose") options.verbose = true;
         else if (arg == L"--help") help = true;
         else if (arg == L"--version") version = true;
-        else if (arg == L"--pid" || arg == L"--timeout-ms" || arg == L"--output" || arg == L"--target-arch" || arg == L"--search-dir") {
+        else if (arg == L"--pid" || arg == L"--timeout-ms" || arg == L"--output" || arg == L"--target-arch" || arg == L"--search-dir" || arg == L"--format") {
             if (++i == args.size() || args[i].empty() || args[i].rfind(L"--", 0) == 0)
                 return Usage("Missing option value; consult --help.");
             if (arg == L"--output") options.output = args[i];
+            else if (arg == L"--format") {
+                if (args[i] == L"markdown") options.document_format = DocumentFormat::Markdown;
+                else if (args[i] == L"html") options.document_format = DocumentFormat::Html;
+                else return Usage("--format requires markdown or html.");
+            }
             else if (arg == L"--search-dir") {
                 if (options.search_directories.size() == MaxDependencySearchDirectories)
                     return Usage("doctor supports at most 16 --search-dir options.");
@@ -81,6 +86,8 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
         return Usage("--target-arch is only supported by doctor.");
     if (!options.search_directories.empty() && options.command != Command::Doctor)
         return Usage("--search-dir is only supported by doctor.");
+    if (options.document_format && (options.json || options.command == Command::Help || options.command == Command::Version))
+        return Usage("--format requires a diagnostic command and cannot be combined with --json.");
     return options;
 }
 }

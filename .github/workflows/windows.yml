@@ -50,6 +50,7 @@ jobs:
             docs/PE_TABLES_CONTRACT.md
             docs/DOCTOR_CONTRACT.md
             docs/DEPENDENCIES_CONTRACT.md
+            docs/REPORTS_CONTRACT.md
             schemas/cli-v1.json
             schemas/cli-v1.1.json
             schemas/cli-v1.2.json

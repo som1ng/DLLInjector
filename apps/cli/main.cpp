@@ -63,6 +63,10 @@ int wmain(int argc, wchar_t** argv) {
     bool json = false, verbose = false;
     cli::Report report;
     std::optional<std::wstring> output;
+    std::optional<cli::DocumentFormat> documentFormat;
+    const auto render = [&]() {
+        return documentFormat ? cli::RenderDocument(report, *documentFormat) : cli::Render(report, json);
+    };
     try {
         std::vector<std::wstring> args(argv + 1, argv + argc);
         json = std::find(args.begin(), args.end(), L"--json") != args.end();
@@ -71,22 +75,23 @@ int wmain(int argc, wchar_t** argv) {
         else {
             verbose = options.value().verbose;
             output = options.value().output;
+            documentFormat = options.value().document_format;
             report = cli::Execute(options.value());
         }
         report.duration_ms = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start).count());
-        auto rendered = cli::Render(report, json);
+        auto rendered = render();
         if (!rendered) {
             report.errors.push_back(rendered.error());
             report.data = std::monostate{};
-            rendered = cli::Render(report, json);
+            rendered = render();
         }
         if (!rendered) throw std::runtime_error("Could not encode result.");
         if (output) {
             if (auto error = Save(*output, rendered.value())) {
                 report.errors.insert(report.errors.begin(), *error);
                 report.data = std::monostate{};
-                rendered = cli::Render(report, json);
+                rendered = render();
             }
         }
         for (const auto& error : report.errors)
@@ -102,7 +107,7 @@ int wmain(int argc, wchar_t** argv) {
     } catch (const std::exception&) {
         report.data = std::monostate{};
         report.errors = {{ErrorCategory::System, "cli.internal", "Unexpected internal failure.", {}, {}}};
-        const auto rendered = cli::Render(report, json);
+        const auto rendered = render();
         if (rendered) WriteStream(STD_OUTPUT_HANDLE, rendered.value());
         WriteStream(STD_ERROR_HANDLE, "[error] Unexpected internal failure.\n");
         return 4;

@@ -15,6 +15,7 @@ constexpr char Help[] =
     "  dllinjector doctor <path> [--target-arch x86|x64] [options]\n"
     "Options (before or after command):\n"
     "  --json                   One versioned JSON result on stdout\n"
+    "  --format <markdown|html> Diagnostic report document; mutually exclusive with --json\n"
     "  --timeout-ms <0..600000>  Query deadline; default 5000, zero expires immediately\n"
     "  --output <path>          Also save result as UTF-8; existing files are refused\n"
     "  --verbose                Debug diagnostics on stderr\n"
@@ -304,29 +305,36 @@ int ReportExitCode(const Report& report) {
     return doctor && HasBlockingFindings(*doctor) ? 1 : 0;
 }
 
+std::vector<FindingEvidence> ReportEvidence(const Report& report) {
+    if (!report.errors.empty()) return {};
+    if (report.command == "doctor") {
+        std::vector<FindingEvidence> evidence{{"static_analysis",
+            "Static DLL preflight only; declared target architecture is not observed. Dependencies, runtime loading and initialization remain unverified."}};
+        const auto* diagnosis = std::get_if<DoctorReport>(&report.data);
+        if (diagnosis && diagnosis->dependencies)
+            evidence.push_back({"filesystem_observation", "File attributes in explicit directories, using the caller process's filesystem view (including WOW64 redirection). No loader resolution or candidate content verification."});
+        return evidence;
+    }
+    if (report.command == "pe.inspect")
+        return {{"static_analysis", "Static headers, sections, imports, exports and delay imports; no loading, dependency resolution, signature or loadability verification."}};
+    if (report.command == "process.modules")
+        return {{"runtime_observation", "Toolhelp loader snapshot; may change, excludes data-file loads, may contain truncated/lossy text, and does not verify DLL initialization."}};
+    if (report.command == "process.list" || report.command == "process.inspect")
+        return {{"runtime_observation", "Read-only Windows metadata; not a guarantee of continued process lifetime."}};
+    return {};
+}
+
 Result<std::string> Render(const Report& report, bool json) {
     try {
         if (json) {
             const bool success = report.errors.empty();
-            const bool observed = success && (report.command == "process.list" || report.command == "process.inspect" || report.command == "process.modules");
-            const bool staticPe = success && report.command == "pe.inspect";
             const bool doctor = success && report.command == "doctor";
-            const auto description = doctor
-                ? "Static DLL preflight only; declared target architecture is not observed. Dependencies, runtime loading and initialization remain unverified."
-                : staticPe
-                ? "Static headers, sections, imports, exports and delay imports; no loading, dependency resolution, signature or loadability verification."
-                : report.command == "process.modules"
-                ? "Toolhelp loader snapshot; may change, excludes data-file loads, may contain truncated/lossy text, and does not verify DLL initialization."
-                : "Read-only Windows metadata; not a guarantee of continued process lifetime.";
-            std::string evidence = "[]";
-            if (observed || staticPe || doctor) {
-                evidence = "[{\"source\":" + Quote(staticPe || doctor ? "static_analysis" : "runtime_observation") +
-                    ",\"description\":" + Quote(description) + "}";
-                const auto* diagnosis = std::get_if<DoctorReport>(&report.data);
-                if (doctor && diagnosis && diagnosis->dependencies)
-                    evidence += ",{\"source\":\"filesystem_observation\",\"description\":\"File attributes in explicit directories, using the caller process's filesystem view (including WOW64 redirection). No loader resolution or candidate content verification.\"}";
-                evidence += ']';
+            std::string evidence = "[";
+            for (const auto& item : ReportEvidence(report)) {
+                if (evidence.size() > 1) evidence += ',';
+                evidence += "{\"source\":" + Quote(item.source) + ",\"description\":" + Quote(item.description) + "}";
             }
+            evidence += ']';
             return "{\"schema_version\":" + Quote(SchemaVersion) + ",\"tool_version\":" + Quote(ToolVersion) +
                 ",\"command\":" + Quote(report.command) + ",\"status\":" + Quote(success ? "success" : "error") +
                 ",\"target\":{\"pid\":" + Number(report.pid) + ",\"path\":" +

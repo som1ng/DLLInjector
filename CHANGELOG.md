@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0-dev.7 — Markdown / HTML reports milestone (2026-10-24)
+
+- Add `--format markdown|html` to process, PE and Doctor diagnostic commands, mutually exclusive with `--json`.
+- Present execution scope, shared evidence, Doctor findings and dependency observations, plus the complete unchanged JSON report as an appendix; schema remains 1.5.
+- Export standalone HTML with inline/print styles and no scripts or external resources; escape dynamic text and use adaptive CommonMark code delimiters.
+- Preserve diagnostic exit codes, UTF-8 output and existing-file protection, including formatted operational/output errors.
+- Add 12 fixed report cases, CommonMark/HTML structural checks and subprocess export coverage. Markdown parsing is a test-only dependency; CLI runtime remains native.
+- Direct export is implemented; conversion of previously saved JSON reports remains a separate follow-up.
+
 ## 2.0.0-dev.6 — Explicit dependency candidates milestone (2026-10-24)
 
 - Add repeatable Doctor `--search-dir` options and metadata-only observations for
