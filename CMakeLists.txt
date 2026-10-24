@@ -178,6 +178,9 @@ if(BUILD_TESTING)
     add_test(NAME cli.saved-reports COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/saved_reports_contract.py"
         "$<TARGET_FILE:dllinjector_cli>" "$<TARGET_FILE:noop_fixture>" "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(cli.saved-reports PROPERTIES TIMEOUT 90)
+    add_test(NAME skill.contract COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/skill_contract.py"
+        "$<TARGET_FILE:dllinjector_cli>" "$<TARGET_FILE:noop_fixture>" "$<TARGET_FILE:demo_target>" "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(skill.contract PROPERTIES TIMEOUT 120)
 
     foreach(case picker architecture-modern architecture-errors architecture-legacy privileges live-process unicode-file)
         add_test(NAME utils.${case} COMMAND utils_tests "${case}")

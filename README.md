@@ -2,7 +2,7 @@
 
 Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。
 
-已具备 **只读进程/模块查询、PE 解析、DLL Doctor 静态规则与依赖候选检查、JSON / Markdown / HTML 报告及离线转换和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.8`，尚未发布正式 V2.0；Skill、MCP 和一行安装器继续按路线推进。参见 [CLI 基础契约](docs/P1_CONTRACT.md)、[模块契约](docs/MODULES_CONTRACT.md)、[PE 头部契约](docs/PE_CONTRACT.md)、[PE 表解析契约](docs/PE_TABLES_CONTRACT.md)、[Doctor 契约](docs/DOCTOR_CONTRACT.md)、[依赖候选契约](docs/DEPENDENCIES_CONTRACT.md)、[直接报告](docs/REPORTS_CONTRACT.md)、[离线转换与本轮验证](docs/SAVED_REPORTS_CONTRACT.md) 和 [原始基线](docs/BASELINE.md)。
+已具备 **只读进程/模块查询、PE 解析、DLL Doctor 静态规则与依赖候选检查、JSON / Markdown / HTML 报告及离线转换和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.8`，尚未发布正式 V2.0；已提供只读诊断 Agent Skill，MCP 和一行安装器继续按路线推进。参见 [CLI 基础契约](docs/P1_CONTRACT.md)、[模块契约](docs/MODULES_CONTRACT.md)、[PE 头部契约](docs/PE_CONTRACT.md)、[PE 表解析契约](docs/PE_TABLES_CONTRACT.md)、[Doctor 契约](docs/DOCTOR_CONTRACT.md)、[依赖候选契约](docs/DEPENDENCIES_CONTRACT.md)、[直接报告](docs/REPORTS_CONTRACT.md)、[离线转换](docs/SAVED_REPORTS_CONTRACT.md)、[Skill 接入与兼容性](docs/AGENT_COMPATIBILITY.md) 和 [原始基线](docs/BASELINE.md)。
 
 ## 当前能力与验证边界
 
@@ -21,7 +21,7 @@ Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析�
 | 依赖候选检查 | Doctor 的 `--search-dir <path>` 可重复指定最多 16 个目录；报告普通/延迟导入的候选与观察错误；仅检查文件属性，不模拟加载器 |
 | 可分享报告 | 诊断命令支持 `--format markdown` / `--format html`，展示证据、发现与完整 JSON 附录；HTML 单文件离线阅读 |
 | 已保存报告转换 | `report export <saved.json> --format markdown|html` 按源版本校验并保留原报告，不重新查询其中的目标 |
-| Agent 集成 | Skill / MCP / 安装器继续按路线推进 |
+| Agent 集成 | 单一权威 Windows DLL Doctor Skill 与手动接入说明；命令示例已回归验证，客户端自动触发尚未实测；MCP / 安装器待实现 |
 
 GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
 
@@ -108,6 +108,15 @@ HTML 不需要联网或脚本；两种格式将名称和路径作为文字展示
 `4` 内部/不支持/输出失败，`5` 查询超时。`--timeout-ms 0` 会立即返回查询超时。
 超时在 Win32 调用之间检查，不能打断正在执行的系统调用或阻塞的输出；需要严格墙钟限制的调用方也应设置子进程超时。
 
+## Agent Skill
+
+[Windows DLL Doctor](integrations/skills/windows-dll-doctor/SKILL.md) 将现有 CLI 组织为只读诊断工作流，
+用于 DLL 加载失败、架构/依赖排查、模块查询和报告解释。它保留证据与不确定性，不把静态检查当作加载成功。
+
+构建 CLI 后，将整个 Skill 目录复制到 Agent 支持的项目目录，并提供 CLI 绝对路径或
+`DLLINJECTOR_CLI` 环境变量。具体步骤、官方目录与版本核验见 [接入说明](docs/AGENT_COMPATIBILITY.md)。
+此轮提供可移植指令包与 22 条评测规格，尚未验证各客户端的自动触发和模型回答质量。
+
 ## 其他构建组合
 
 其他已配置组合：
@@ -156,6 +165,7 @@ apps/cli/              参数解析、文本/JSON/Markdown/HTML 输出与命令�
 schemas/               版本化 JSON Schema
 dll_test/              原 Demo 与第三方反射式样例
 tests/                 Win32 回归测试、启动测试与无副作用 fixture
+integrations/skills/   权威 Agent Skill、相对引用与只读命令示例
 docs/                  基线、契约、验证记录与第三方声明
 CMakeLists.txt         构建入口
 CMakePresets.json       MSVC / 可选 MinGW 配置
@@ -165,7 +175,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 
 ## 后续路线
 
-1. P2：基于静态证据实现 DLL Doctor 规则、依赖分析、报告与单一权威 Skill。
+1. P2：Doctor、报告和权威 Skill 指令包已实现；补充真实客户端触发与回答评测。
 2. P3/P4：本地 stdio MCP、实测的 Agent 适配和可回滚安装器。
 3. P5：自有测试程序的 DLL 生命周期实验与结果对比。
 
@@ -196,7 +206,9 @@ JSON appendix; HTML works offline without scripts. `report export saved.json --f
 validates schemas 1.0–1.6 and preserves the source snapshot without inspecting its targets.
 Export success exits 0 independently of the source diagnosis. CMake fetches a pinned,
 hash-checked jsoncons archive on first configuration; the CLI needs no external schemas
-or network at runtime. Agent adapters remain planned. CTest uses read-only queries,
+or network at runtime. A portable [Windows DLL Doctor Skill](integrations/skills/windows-dll-doctor/SKILL.md)
+is available with tested CLI examples; client discovery/model behavior remain unverified.
+MCP and installers remain planned. CTest uses read-only queries,
 hidden startup checks, mocks and self-owned fixtures.
 
 ## 来源与许可
