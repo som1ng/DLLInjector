@@ -52,6 +52,10 @@ jobs:
             docs/DEPENDENCIES_CONTRACT.md
             docs/REPORTS_CONTRACT.md
             docs/SAVED_REPORTS_CONTRACT.md
+            docs/AGENT_COMPATIBILITY.md
+            docs/SKILL_CONTRACT.md
+            docs/SKILL_DELIVERY.md
+            integrations/skills/windows-dll-doctor/
             schemas/cli-v1.json
             schemas/cli-v1.1.json
             schemas/cli-v1.2.json

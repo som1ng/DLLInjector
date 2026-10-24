@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Windows DLL Doctor Skill (2026-10-24)
+
+- Add one portable Agent Skills package for read-only DLL/PE/process diagnosis and saved-report interpretation; native CLI remains `2.0.0-dev.8` / schema `1.6`.
+- Document evidence boundaries, explicit dependency directories, error handling and manual client setup; keep automatic skill selection enabled by default.
+- Execute the package's 11 PowerShell examples in CTest after relocating it outside the source tree; add 22 natural-language evaluation specifications. Live client discovery and model behavior are not yet evaluated.
+
 ## 2.0.0-dev.8 — Saved report conversion (2026-10-24)
 
 - Add `report export <saved.json> --format markdown|html`, with full validation against embedded schemas 1.0–1.6 and no target reinspection.
