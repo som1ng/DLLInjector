@@ -18,6 +18,15 @@ $savedHtml = 'C:\lab\reports\doctor-new.html'
 
 每个代码块是独立调用，按需求选择。宿主应分别捕获 stdout/stderr，立即保留
 `$LASTEXITCODE`，按 UTF-8 解码 JSON；不要因非零退出码而丢弃 stdout。
+在 PowerShell 中先执行以下编码设置，尤其是默认控制台编码可能不同的 Windows PowerShell 5.1。
+这只影响当前 PowerShell 进程；直接捕获子进程字节的宿主应自行按 UTF-8 解码。
+
+<!-- setup: encoding -->
+```powershell
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
+```
+
 宿主还应设子进程墙钟限制（例如 20 秒），不依赖 PowerShell 变量提供超时保证。
 父目录须存在，输出路径须是新文件。CLI 运行不需要 Python 或联网。
 

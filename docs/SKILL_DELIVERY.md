@@ -31,6 +31,8 @@
 以及用例 JSON 结构检查、YAML 元数据/长度/命名和 Codex 展示字段检查。
 接入文档的 PowerShell 复制示例已在临时项目中执行：全部文件逐字节一致，重复运行
 拒绝覆盖已有同名 Skill；本轮修改文档的相对链接也已检查。
+最终补充 PowerShell UTF-8 设置后，测试直接使用文档中的编码片段，并断言中文路径
+完整保留；重新运行 x64 Release、x86 Release、MinGW 的 `skill.contract`，各 1/1 通过。
 本轮未重复本地 Debug 全套测试或 sanitizer；没有改动原生解析/进程代码。
 远端完整矩阵和评审状态以对应 PR 的实际 Checks / Reviews 为准。
 

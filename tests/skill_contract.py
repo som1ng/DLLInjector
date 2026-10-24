@@ -29,9 +29,11 @@ with tempfile.TemporaryDirectory(prefix='dll-doctor-skill-') as tmp:
             target = (page.parent / link.split('#', 1)[0]).resolve()
             assert skill in target.parents and target.is_file(), (page, link)
 
+    commands = (skill / 'references/commands.md').read_text(encoding='utf-8')
+    encoding = re.search(r'<!-- setup: encoding -->\s*```powershell\n(.*?)\n```', commands, re.S).group(1)
     examples = dict(re.findall(
         r'<!-- example: ([a-z-]+) -->\s*```powershell\n(.*?)\n```',
-        (skill / 'references/commands.md').read_text(encoding='utf-8'), re.S))
+        commands, re.S))
     assert set(examples) == {'version', 'help', 'doctor', 'doctor-target',
         'doctor-dependencies', 'pe', 'process-list', 'process-inspect',
         'process-modules', 'doctor-save', 'report-export'}
@@ -47,15 +49,13 @@ with tempfile.TemporaryDirectory(prefix='dll-doctor-skill-') as tmp:
     [string]$savedJson, [string]$savedHtml
 )
 $ErrorActionPreference = 'Continue'
-[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-$OutputEncoding = [Console]::OutputEncoding
 '''
     # The target belongs to this test and matches the tested CLI's bitness.
     host = subprocess.Popen([str(demo)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         def run(name, *, code=0, document=False, path=sample, architecture='x64'):
             # Exercise the exact PowerShell source distributed inside the Skill.
-            script.write_text(preamble + examples[name] + '\nexit $diagnosticExit\n', encoding='utf-8-sig')
+            script.write_text(preamble + encoding + '\n' + examples[name] + '\nexit $diagnosticExit\n', encoding='utf-8-sig')
             result = subprocess.run([shell, '-NoLogo', '-NoProfile', '-NonInteractive',
                 '-ExecutionPolicy', 'Bypass', '-File', str(script),
                 '-doctorCli', str(cli), '-dllPath', str(path),
@@ -76,6 +76,7 @@ $OutputEncoding = [Console]::OutputEncoding
         pe = run('pe')
         assert pe['command'] == 'pe.inspect'
         doctor = run('doctor')
+        assert doctor['target']['path'] == str(sample), 'PowerShell must preserve UTF-8 paths'
         assert doctor['data']['target_architecture'] is None
         assert doctor['execution']['outcome_verified'] is False
         arch = 'x64' if doctor['data']['image']['machine'] == 0x8664 else 'x86'
