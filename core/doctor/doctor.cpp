@@ -85,7 +85,7 @@ Result<DoctorReport> DiagnosePe(const Result<PeInfo>& inspection, std::optional<
     report.findings.push_back(Finding("INSUFFICIENT_EVIDENCE", FindingSeverity::Info,
         "Dependency availability and runtime loading remain unverified.",
         "Static tables contain " + std::to_string(pe.imports.size()) + " import libraries and " +
-        std::to_string(pe.delay_imports.size()) + " delay-import libraries. No dependency search, DLL loading or initialization was performed.",
+        std::to_string(pe.delay_imports.size()) + " delay-import libraries. No DLL loading or initialization was performed.",
         "Inspect the intended application's loader errors and search configuration, including API sets, Known DLLs, SxS and dynamic loads. Empty import tables do not prove independence.", SearchDocs));
     return report;
 }

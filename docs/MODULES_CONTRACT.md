@@ -2,7 +2,7 @@
 
 Development version: `2.0.0-dev.2`. Command: `process modules --pid <PID>`.
 
-This records the dev.2 contract. Current dev.5 emits Schema 1.4 with `target.path: null`
+This records the dev.2 contract. Current dev.6 emits Schema 1.5 with `target.path: null`
 for module queries; the module data and behavior are unchanged. See [Doctor contract](DOCTOR_CONTRACT.md).
 The existing JSON, timeout, output-file and logging options apply unchanged.
 No target DLL is loaded or executed by the diagnostic command.

@@ -2,6 +2,8 @@
 
 目标版本 `2.0.0-dev.5`，JSON Schema `1.4`。旧 Schema 和固定样例保持不变。
 
+本文记录 dev.5 基础规则。当前 dev.6 / Schema 1.5 增加显式目录候选检查；其可选参数、dependencies 字段与额外 finding 见 [依赖候选契约](DEPENDENCIES_CONTRACT.md)。
+
 ## 命令与边界
 
 ```powershell

@@ -1,0 +1,211 @@
+{
+  "schema_version": "1.5",
+  "tool_version": "2.0.0-dev.6",
+  "command": "doctor",
+  "status": "success",
+  "target": {
+    "pid": null,
+    "path": "C:\\fixtures\\plugin.dll"
+  },
+  "execution": {
+    "command_accepted": true,
+    "operation_completed": true,
+    "outcome_verified": false
+  },
+  "data": {
+    "scope": "static_dll_preflight",
+    "target_architecture": "x64",
+    "image": {
+      "machine": 34404,
+      "characteristics": 8194,
+      "format": "PE32+",
+      "has_clr_header": false,
+      "import_library_count": 6,
+      "delay_import_library_count": 2
+    },
+    "inspection_error": null,
+    "dependencies": {
+      "scope": "explicit_directories",
+      "filesystem_view": "caller_process",
+      "search_directories": [
+        "C:\\fixtures\\first",
+        "C:\\fixtures\\second"
+      ],
+      "libraries": [
+        {
+          "name": "present.dll",
+          "kind": "import",
+          "status": "candidate_found",
+          "candidates": [
+            {
+              "directory_index": 0,
+              "status": "file",
+              "error": null
+            },
+            {
+              "directory_index": 1,
+              "status": "file",
+              "error": null
+            }
+          ]
+        },
+        {
+          "name": "missing.dll",
+          "kind": "import",
+          "status": "not_found_in_search_dirs",
+          "candidates": [
+            {
+              "directory_index": 0,
+              "status": "not_found",
+              "error": null
+            },
+            {
+              "directory_index": 1,
+              "status": "not_found",
+              "error": null
+            }
+          ]
+        },
+        {
+          "name": "API-MS-WIN-CORE-FILE-L1-1-0.DLL",
+          "kind": "import",
+          "status": "api_set_unresolved",
+          "candidates": []
+        },
+        {
+          "name": "../escape.dll",
+          "kind": "import",
+          "status": "unsupported_name",
+          "candidates": []
+        },
+        {
+          "name": "folder.dll",
+          "kind": "import",
+          "status": "not_found_in_search_dirs",
+          "candidates": [
+            {
+              "directory_index": 0,
+              "status": "not_file",
+              "error": null
+            },
+            {
+              "directory_index": 1,
+              "status": "not_found",
+              "error": null
+            }
+          ]
+        },
+        {
+          "name": "NUL.dll",
+          "kind": "import",
+          "status": "unsupported_name",
+          "candidates": []
+        },
+        {
+          "name": "later.dll",
+          "kind": "delay_import",
+          "status": "candidate_found",
+          "candidates": [
+            {
+              "directory_index": 0,
+              "status": "not_found",
+              "error": null
+            },
+            {
+              "directory_index": 1,
+              "status": "file",
+              "error": null
+            }
+          ]
+        },
+        {
+          "name": "missing-delay.dll",
+          "kind": "delay_import",
+          "status": "not_found_in_search_dirs",
+          "candidates": [
+            {
+              "directory_index": 0,
+              "status": "not_found",
+              "error": null
+            },
+            {
+              "directory_index": 1,
+              "status": "not_found",
+              "error": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "findings": [
+    {
+      "rule_id": "INSUFFICIENT_EVIDENCE",
+      "severity": "info",
+      "message": "Dependency availability and runtime loading remain unverified.",
+      "evidence": [
+        {
+          "source": "static_analysis",
+          "description": "Static tables contain 6 import libraries and 2 delay-import libraries. No DLL loading or initialization was performed."
+        }
+      ],
+      "confidence": "high",
+      "recommended_next_step": "Inspect the intended application's loader errors and search configuration, including API sets, Known DLLs, SxS and dynamic loads. Empty import tables do not prove independence.",
+      "documentation": [
+        "https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order"
+      ]
+    },
+    {
+      "rule_id": "POSSIBLE_MISSING_DEPENDENCY",
+      "severity": "warning",
+      "confidence": "low",
+      "message": "Some direct dependencies have no regular file candidate in the supplied directories.",
+      "evidence": [
+        {
+          "source": "filesystem_observation",
+          "description": "2 import libraries and 1 delay-import libraries were not found as regular candidates; see dependencies.libraries for each directory observation."
+        },
+        {
+          "source": "user_supplied_option",
+          "description": "Only the explicit --search-dir directories were checked; this is not the target process's complete search environment."
+        }
+      ],
+      "recommended_next_step": "Check the application's deployment and actual loader search configuration. Known DLLs, SxS and other sources may satisfy these names; delay imports may never be used.",
+      "documentation": [
+        "https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order"
+      ]
+    },
+    {
+      "rule_id": "INSUFFICIENT_EVIDENCE",
+      "severity": "warning",
+      "confidence": "high",
+      "message": "Some dependency names or candidate paths could not be evaluated as ordinary files.",
+      "evidence": [
+        {
+          "source": "static_analysis",
+          "description": "3 API-set or unsupported names were skipped; inspect dependencies.libraries."
+        },
+        {
+          "source": "filesystem_observation",
+          "description": "0 candidate attribute observations were unavailable; they were not treated as absent."
+        }
+      ],
+      "recommended_next_step": "Inspect API-set mapping, unsupported names and the reported filesystem errors in the intended application's environment. Candidate presence does not establish loadability.",
+      "documentation": [
+        "https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "source": "static_analysis",
+      "description": "Static DLL preflight only; declared target architecture is not observed. Dependencies, runtime loading and initialization remain unverified."
+    },
+    {
+      "source": "filesystem_observation",
+      "description": "File attributes in explicit directories, using the caller process's filesystem view (including WOW64 redirection). No loader resolution or candidate content verification."
+    }
+  ],
+  "errors": [],
+  "duration_ms": 0
+}

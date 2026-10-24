@@ -29,16 +29,20 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
     for (std::size_t i = 0; i < args.size(); ++i) {
         const auto& arg = args[i];
         if (arg.empty() || arg[0] != L'-') { words.push_back(arg); continue; }
-        if (!seen.insert(arg).second) return Usage("Duplicate option; use each option once.");
+        if (!seen.insert(arg).second && arg != L"--search-dir") return Usage("Duplicate option; only --search-dir may be repeated.");
         if (arg == L"--json") options.json = true;
         else if (arg == L"--verbose") options.verbose = true;
         else if (arg == L"--help") help = true;
         else if (arg == L"--version") version = true;
-        else if (arg == L"--pid" || arg == L"--timeout-ms" || arg == L"--output" || arg == L"--target-arch") {
+        else if (arg == L"--pid" || arg == L"--timeout-ms" || arg == L"--output" || arg == L"--target-arch" || arg == L"--search-dir") {
             if (++i == args.size() || args[i].empty() || args[i].rfind(L"--", 0) == 0)
                 return Usage("Missing option value; consult --help.");
             if (arg == L"--output") options.output = args[i];
-            else if (arg == L"--target-arch") {
+            else if (arg == L"--search-dir") {
+                if (options.search_directories.size() == MaxDependencySearchDirectories)
+                    return Usage("doctor supports at most 16 --search-dir options.");
+                options.search_directories.push_back(args[i]);
+            } else if (arg == L"--target-arch") {
                 if (args[i] == L"x86") options.target_architecture = Architecture::X86;
                 else if (args[i] == L"x64") options.target_architecture = Architecture::X64;
                 else return Usage("--target-arch requires x86 or x64.");
@@ -75,6 +79,8 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
     } else return Usage("Expected --help, --version, process list/inspect/modules, pe inspect <path> or doctor <path>.");
     if (options.target_architecture && options.command != Command::Doctor)
         return Usage("--target-arch is only supported by doctor.");
+    if (!options.search_directories.empty() && options.command != Command::Doctor)
+        return Usage("--search-dir is only supported by doctor.");
     return options;
 }
 }

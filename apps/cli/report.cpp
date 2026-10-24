@@ -19,6 +19,7 @@ constexpr char Help[] =
     "  --output <path>          Also save result as UTF-8; existing files are refused\n"
     "  --verbose                Debug diagnostics on stderr\n"
     "  --target-arch <x86|x64>   Doctor only: declared target process architecture\n"
+    "  --search-dir <path>      Doctor only: inspect dependency candidates here; repeat up to 16 times\n"
     "Exit codes: 0 no blocking findings, 1 malformed PE/Doctor blocking finding,\n"
     "            2 usage, 3 unavailable/access denied,\n"
     "            4 internal/unsupported/output failure, 5 query timeout.\n"
@@ -27,7 +28,8 @@ constexpr char Help[] =
     "PE: inspect headers, sections, imports, exports and delay imports; never load the input. Limit: 256 MiB.\n"
     "PE inspection does not resolve dependencies or validate signatures and loadability.\n"
     "Doctor: static rules with evidence and next steps; outcome_verified is always false.\n"
-    "Doctor status=success means diagnosis completed; error findings still exit 1.\n";
+    "Doctor status=success means diagnosis completed; error findings still exit 1.\n"
+    "Search directories are explicit observations in the caller's filesystem view, not loader resolution.\n";
 
 std::string Utf8(const std::wstring& text) {
     auto result = ToUtf8(text);
@@ -131,6 +133,33 @@ std::string Findings(const Report& report) {
     }
     return out + ']';
 }
+std::string Dependencies(const std::optional<DependencyReport>& report) {
+    if (!report) return "null";
+    std::string out = "{\"scope\":\"explicit_directories\",\"filesystem_view\":\"caller_process\",\"search_directories\":[";
+    bool first = true;
+    for (const auto& directory : report->search_directories) {
+        if (!first) out += ',';
+        first = false; out += Quote(Utf8(directory));
+    }
+    out += "],\"libraries\":[";
+    first = true;
+    for (const auto& library : report->libraries) {
+        if (!first) out += ',';
+        first = false;
+        out += "{\"name\":" + Quote(library.name) + ",\"kind\":" + Quote(library.delay_import ? "delay_import" : "import") +
+            ",\"status\":" + Quote(DependencyStatusName(library.status)) + ",\"candidates\":[";
+        bool firstCandidate = true;
+        for (const auto& candidate : library.candidates) {
+            if (!firstCandidate) out += ',';
+            firstCandidate = false;
+            out += "{\"directory_index\":" + std::to_string(candidate.directory_index) +
+                ",\"status\":" + Quote(CandidateStatusName(candidate.status)) +
+                ",\"error\":" + (candidate.error ? ErrorJson(*candidate.error) : "null") + "}";
+        }
+        out += "]}";
+    }
+    return out + "]}";
+}
 std::string Data(const Report& report) {
     if (!report.errors.empty()) return "null";
     if (const auto* info = std::get_if<std::string>(&report.data))
@@ -146,7 +175,8 @@ std::string Data(const Report& report) {
                 ",\"import_library_count\":" + std::to_string(p.import_library_count) +
                 ",\"delay_import_library_count\":" + std::to_string(p.delay_import_library_count) + "}";
         }
-        return out + ",\"inspection_error\":" + (doctor->inspection_error ? ErrorJson(*doctor->inspection_error) : "null") + "}";
+        return out + ",\"inspection_error\":" + (doctor->inspection_error ? ErrorJson(*doctor->inspection_error) : "null") +
+            ",\"dependencies\":" + Dependencies(doctor->dependencies) + "}";
     }
     if (const auto* rows = std::get_if<std::vector<ProcessSummary>>(&report.data)) {
         std::string out = "{\"processes\":[";
@@ -259,7 +289,7 @@ Report Execute(const Options& options) {
     }
     case Command::Doctor: {
         report.command = "doctor";
-        auto result = DiagnosePe(InspectPeFile(*options.path, options.query.timeout_ms), options.target_architecture);
+        auto result = InspectDoctorFile(*options.path, options.target_architecture, options.search_directories, options.query.timeout_ms);
         if (result) report.data = std::move(result.value());
         else report.errors.push_back(result.error());
         break;
@@ -288,15 +318,22 @@ Result<std::string> Render(const Report& report, bool json) {
                 : report.command == "process.modules"
                 ? "Toolhelp loader snapshot; may change, excludes data-file loads, may contain truncated/lossy text, and does not verify DLL initialization."
                 : "Read-only Windows metadata; not a guarantee of continued process lifetime.";
+            std::string evidence = "[]";
+            if (observed || staticPe || doctor) {
+                evidence = "[{\"source\":" + Quote(staticPe || doctor ? "static_analysis" : "runtime_observation") +
+                    ",\"description\":" + Quote(description) + "}";
+                const auto* diagnosis = std::get_if<DoctorReport>(&report.data);
+                if (doctor && diagnosis && diagnosis->dependencies)
+                    evidence += ",{\"source\":\"filesystem_observation\",\"description\":\"File attributes in explicit directories, using the caller process's filesystem view (including WOW64 redirection). No loader resolution or candidate content verification.\"}";
+                evidence += ']';
+            }
             return "{\"schema_version\":" + Quote(SchemaVersion) + ",\"tool_version\":" + Quote(ToolVersion) +
                 ",\"command\":" + Quote(report.command) + ",\"status\":" + Quote(success ? "success" : "error") +
                 ",\"target\":{\"pid\":" + Number(report.pid) + ",\"path\":" +
                 (report.path ? Quote(Utf8(*report.path)) : "null") + "},\"execution\":{\"command_accepted\":" +
                 Bool(report.accepted) + ",\"operation_completed\":" + Bool(success) +
                 ",\"outcome_verified\":" + Bool(success && !doctor) + "},\"data\":" + Data(report) +
-                ",\"findings\":" + Findings(report) + ",\"evidence\":" + (observed || staticPe || doctor ?
-                    "[{\"source\":" + Quote(staticPe || doctor ? "static_analysis" : "runtime_observation") +
-                    ",\"description\":" + Quote(description) + "}]" : "[]") +
+                ",\"findings\":" + Findings(report) + ",\"evidence\":" + evidence +
                 ",\"errors\":" + Errors(report.errors) + ",\"duration_ms\":" + std::to_string(report.duration_ms) + "}\n";
         }
         std::ostringstream out;
@@ -314,6 +351,21 @@ Result<std::string> Render(const Report& report, bool json) {
                     out << "  Evidence (" << evidence.source << "): " << evidence.description << '\n';
                 out << "  Confidence: " << f.confidence << "\n  Next: " << f.recommended_next_step << '\n';
                 for (const auto& url : f.documentation) out << "  Docs: " << url << '\n';
+            }
+            if (doctor->dependencies) {
+                const auto& dependencies = *doctor->dependencies;
+                out << "Dependency candidates (caller filesystem view; not loader search order):\n";
+                for (std::size_t i = 0; i < dependencies.search_directories.size(); ++i)
+                    out << "  Directory " << i << ": " << Utf8(dependencies.search_directories[i]) << '\n';
+                for (const auto& library : dependencies.libraries) {
+                    out << (library.delay_import ? "delay_import" : "import") << '\t' << library.name << '\t'
+                        << DependencyStatusName(library.status) << '\n';
+                    for (const auto& candidate : library.candidates) {
+                        out << "  Directory " << candidate.directory_index << ": " << CandidateStatusName(candidate.status);
+                        if (candidate.error) out << " (" << CategoryName(candidate.error->category) << ", win32=" << Number(candidate.error->win32) << ')';
+                        out << '\n';
+                    }
+                }
             }
         }
         else if (const auto* rows = std::get_if<std::vector<ProcessSummary>>(&report.data)) {

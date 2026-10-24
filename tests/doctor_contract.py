@@ -13,10 +13,17 @@ import tempfile
 from jsonschema import Draft202012Validator
 
 cli, dll, exe, root = map(Path, sys.argv[1:5])
-schema = json.loads((root / 'schemas/cli-v1.4.json').read_text(encoding='utf-8'))
+schema = json.loads((root / 'schemas/cli-v1.5.json').read_text(encoding='utf-8'))
 Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
 golden = json.loads((root / 'tests/fixtures/json/doctor-mismatch.json').read_text(encoding='utf-8'))
+historical = json.loads((root / 'schemas/cli-v1.4.json').read_text(encoding='utf-8'))
+Draft202012Validator(historical).validate(golden)
+golden['schema_version'] = '1.5'
+golden['tool_version'] = '2.0.0-dev.6'
+golden['data']['dependencies'] = None
+golden['findings'][1]['evidence'][0]['description'] = (
+    'Static tables contain 0 import libraries and 0 delay-import libraries. No DLL loading or initialization was performed.')
 validator.validate(golden)
 
 def invoke(args, code=0, completed=True, human=False):

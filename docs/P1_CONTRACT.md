@@ -1,6 +1,6 @@
 # P1 process CLI contract — schema 1.0
 
-For current dev.5 / Schema 1.4 additions, see [Doctor contract](DOCTOR_CONTRACT.md).
+For current dev.6 / Schema 1.5 additions, see [Doctor contract](DOCTOR_CONTRACT.md).
 Existing process queries retain their behavior; `target.path` is null for them.
 
 This document records the dev.1 baseline. For dev.2, the process commands and common

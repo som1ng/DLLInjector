@@ -16,6 +16,7 @@ struct Options {
     std::optional<std::wstring> output;
     std::optional<std::wstring> path;
     std::optional<Architecture> target_architecture;
+    std::vector<std::wstring> search_directories;
 };
 struct Report {
     std::string command = "unknown";

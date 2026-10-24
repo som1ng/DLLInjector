@@ -1,6 +1,6 @@
 # PE import/export tables — schema 1.3
 
-This records dev.4. Current dev.5 emits Schema 1.4 with unchanged PE table data;
+This records dev.4. Current dev.6 emits Schema 1.5 with unchanged PE table data;
 the separate `doctor` command is described in [Doctor contract](DOCTOR_CONTRACT.md).
 
 Development version: `2.0.0-dev.4`. Existing `pe inspect <path>` now inspects
