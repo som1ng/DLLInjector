@@ -2,7 +2,7 @@
 
 Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。
 
-已具备 **只读进程/模块查询、PE 解析、DLL Doctor 首批静态诊断规则、版本化 JSON 和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.5`，尚未发布正式 V2.0；依赖诊断、报告导出、Skill、MCP 和一行安装器继续按路线推进。参见 [CLI 基础契约](docs/P1_CONTRACT.md)、[模块契约](docs/MODULES_CONTRACT.md)、[PE 头部契约](docs/PE_CONTRACT.md)、[PE 表解析契约](docs/PE_TABLES_CONTRACT.md)、[Doctor 契约](docs/DOCTOR_CONTRACT.md)、[本轮交付](docs/DOCTOR_DELIVERY.md) 和 [原始基线](docs/BASELINE.md)。
+已具备 **只读进程/模块查询、PE 解析、DLL Doctor 静态规则与依赖候选检查、版本化 JSON 和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.6`，尚未发布正式 V2.0；报告导出、Skill、MCP 和一行安装器继续按路线推进。参见 [CLI 基础契约](docs/P1_CONTRACT.md)、[模块契约](docs/MODULES_CONTRACT.md)、[PE 头部契约](docs/PE_CONTRACT.md)、[PE 表解析契约](docs/PE_TABLES_CONTRACT.md)、[Doctor 契约](docs/DOCTOR_CONTRACT.md)、[依赖候选契约](docs/DEPENDENCIES_CONTRACT.md)、[本轮交付](docs/DEPENDENCIES_DELIVERY.md) 和 [原始基线](docs/BASELINE.md)。
 
 ## 当前能力与验证边界
 
@@ -18,6 +18,7 @@ Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析�
 | 模块枚举 | 模块名、报告路径、基址、大小及文本限制标记；x64 CLI 可查询 x86/x64，x86 CLI 仅查询 x86，ARM64 目标暂不支持 |
 | PE 静态检查 | `pe inspect <path>`：PE32/PE32+ 头部、节表、目录范围、导入/导出/延迟导入；支持名称/序号、导出别名与转发；不加载文件，不判断依赖是否存在、签名或可加载性 |
 | DLL Doctor | `doctor <path> [--target-arch x86\|x64]`：损坏 PE、DLL 标记、原生 x86/x64 不匹配与证据不足；每条诊断含证据、置信度、下一步和官方资料 |
+| 依赖候选检查 | Doctor 的 `--search-dir <path>` 可重复指定最多 16 个目录；报告普通/延迟导入的候选与观察错误；仅检查文件属性，不模拟加载器 |
 | Agent 集成 | Skill / MCP / 安装器继续按路线推进 |
 
 GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
@@ -54,11 +55,13 @@ GUI 位于 `build/msvc-x64/Debug/DLLInjector.exe`；CLI 位于
 & .\build\msvc-x64\Debug\cli\dllinjector.exe pe inspect .\build\msvc-x64\Debug\noop_fixture.dll --json
 # 为打算加载到 x64 进程的 DLL 生成诊断；目标架构是显式声明，不是运行时观察。
 & .\build\msvc-x64\Debug\cli\dllinjector.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --target-arch x64 --json
+# 只在显式目录中检查依赖候选，可重复 --search-dir；结果不能证明实际加载成功。
+& .\build\msvc-x64\Debug\cli\dllinjector.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --search-dir .\build\msvc-x64\Debug --json
 ```
 
 stdout 为结果，stderr 为错误与 `--verbose` 日志。重定向及输出文件使用无 BOM UTF-8；
-`--output` 要求文件不存在，防止覆盖已有报告。当前 JSON Schema 为 [1.4](schemas/cli-v1.4.json)；
-[1.0](schemas/cli-v1.json) / [1.1](schemas/cli-v1.1.json) / [1.2](schemas/cli-v1.2.json) / [1.3](schemas/cli-v1.3.json) 保留用于旧版结果。调用方按 `schema_version` 选择验证器；dev.5 的所有命令均输出 1.4，增加 Doctor 结果及非空 findings。
+`--output` 要求文件不存在，防止覆盖已有报告。当前 JSON Schema 为 [1.5](schemas/cli-v1.5.json)；
+[1.0](schemas/cli-v1.json) / [1.1](schemas/cli-v1.1.json) / [1.2](schemas/cli-v1.2.json) / [1.3](schemas/cli-v1.3.json) / [1.4](schemas/cli-v1.4.json) 保留用于旧版结果。调用方按 `schema_version` 选择验证器；dev.6 的所有命令均输出 1.5，Doctor 新增 `dependencies`，未请求候选检查时为 null。
 创建时间以十进制 FILETIME **字符串**提供，避免 JavaScript 数字精度丢失；列表中无法读取的创建时间为 `null`，原因在该条目的 `errors` 中。
 
 模块基址使用十六进制字符串。模块列表是 Toolhelp 加载器快照，不包含按数据文件方式加载的模块，也不能证明 DLL 初始化成功。
@@ -75,7 +78,10 @@ ImageBase / RVA 用十六进制字符串表示；证书目录按文件偏移处�
 
 Doctor 的 `status=success` 表示诊断完成，有 error 级 finding 时仍返回 `1`；`outcome_verified` 始终为 false。
 没有阻断发现也不能证明可加载。托管/混合模式、ARM 等未支持的架构判断会明确提示证据不足；
-首版不搜索依赖目录，不把 API Set、Known DLL、SxS 或动态加载推测成缺失 DLL。详见 [Doctor 契约](docs/DOCTOR_CONTRACT.md)。
+传入 `--search-dir` 后，只观察这些目录中的直接导入/延迟导入候选，不自动加入系统目录、PATH 或 DLL 所在目录。
+未找到时给出低置信度的 `POSSIBLE_MISSING_DEPENDENCY` 警告；API Set、不可支持的名称及无法观察的候选明确区分，访问失败不会当成缺失。
+Known DLL、SxS、动态加载等仍可能提供依赖；候选文件不做内容验证。结果来自 CLI 自身的文件系统视图，受 WOW64 影响。
+详见 [Doctor 契约](docs/DOCTOR_CONTRACT.md) 和 [依赖候选契约](docs/DEPENDENCIES_CONTRACT.md)。
 
 退出码：`0` 命令完成且无阻断发现，`1` PE 内容损坏或 Doctor 阻断发现，`2` 参数错误，`3` 目标不可访问，
 `4` 内部/不支持/输出失败，`5` 查询超时。`--timeout-ms 0` 会立即返回查询超时。

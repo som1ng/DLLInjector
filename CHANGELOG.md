@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.0-dev.6 — Explicit dependency candidates milestone (2026-10-24)
+
+- Add repeatable Doctor `--search-dir` options and metadata-only observations for
+  direct import and delay-import candidates in explicit local directories.
+- Report each directory's file, absence, non-file or unavailable result. Skip
+  API-set names and unsupported/path-like/device names without probing them.
+- Add low-confidence `POSSIBLE_MISSING_DEPENDENCY` warnings scoped to supplied
+  directories. Do not confuse access errors with absence or candidates with
+  loader resolution; expose the caller's filesystem view and WOW64 limitations.
+- Share the timeout budget across PE reading and candidate checks; add deterministic
+  filesystem/error/deadline tests, end-to-end fixtures and Schema 1.5. Preserve
+  historical schemas and reports.
+
+Markdown/HTML reports and Agent integration remain follow-up work.
+
 ## 2.0.0-dev.5 — DLL Doctor static rules milestone (2026-10-23)
 
 - Add `doctor <path> [--target-arch x86|x64]` with reusable Core rules for malformed

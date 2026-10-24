@@ -9,6 +9,9 @@ std::map<std::wstring, DWORD> attributes;
 std::map<std::wstring, DWORD> failures;
 std::vector<std::wstring> probes;
 ULONGLONG now = 0, step = 0;
+ULONGLONG inspectionCost = 0;
+PeInfo inspected;
+std::optional<Error> inspectionError;
 void Check(bool ok, const char* message) {
     if (!ok) { std::cerr << "FAIL: " << message << '\n'; std::exit(1); }
 }
@@ -25,15 +28,21 @@ UINT WINAPI DriveType(LPCWSTR path) { return path[0] == L'Z' ? DRIVE_REMOTE : DR
 ULONGLONG WINAPI Tick() { return now; }
 detail::DependencyApi Api() {
     attributes = {{L"C:\\deps", FILE_ATTRIBUTE_DIRECTORY}, {L"D:\\more", FILE_ATTRIBUTE_DIRECTORY}};
-    failures.clear(); probes.clear(); now = step = 0;
+    failures.clear(); probes.clear(); now = step = inspectionCost = 0; inspectionError.reset();
     detail::DependencyApi api;
     api.attributes = Attributes; api.driveType = DriveType; api.tick = Tick;
     return api;
 }
 PeInfo Image(std::initializer_list<const char*> names) {
     PeInfo p{};
+    p.machine = 0x14c; p.characteristics = 0x2002;
     for (const auto* name : names) p.imports.push_back({name, "import_lookup_table", 0, {}});
     return p;
+}
+Result<PeInfo> Inspect(const std::wstring&, std::uint32_t) {
+    now += inspectionCost;
+    if (inspectionError) return *inspectionError;
+    return inspected;
 }
 void Candidates() {
     auto api = Api();
@@ -50,14 +59,14 @@ void Candidates() {
     Check(rows[3].delay_import && rows[3].name == rows[0].name, "delay import remains separately labelled");
     Check(probes.size() == 10 && rows[0].candidates[1].directory_index == 1, "inspect every explicit directory");
 }
-void Unknown() {
+void UnknownObservations() {
     auto api = Api();
     failures[L"C:\\deps\\denied.dll"] = ERROR_ACCESS_DENIED;
     attributes[L"C:\\deps\\link.dll"] = FILE_ATTRIBUTE_REPARSE_POINT;
     auto r = detail::CheckDependencyCandidates(Image({"denied.dll", "link.dll"}), {L"C:\\deps", L"D:\\more"}, 5000, api);
     Check(r && r.value().libraries[0].status == DependencyStatus::Inconclusive, "denied is not absence");
     const auto& error = r.value().libraries[0].candidates[0].error;
-    Check(error && error->win32 == ERROR_ACCESS_DENIED && error->category == ErrorCategory::AccessDenied, "preserve real permission error");
+    Check(error && error->win32 == 5u && error->category == ErrorCategory::AccessDenied, "preserve real permission error");
     Check(r.value().libraries[1].status == DependencyStatus::Inconclusive && !r.value().libraries[1].candidates[0].error->win32,
           "reparse point is not a proven regular candidate");
     attributes[L"D:\\more\\denied.dll"] = FILE_ATTRIBUTE_NORMAL;
@@ -87,7 +96,7 @@ void Directories() {
     }
     failures[L"C:\\deps"] = ERROR_ACCESS_DENIED;
     const auto r = detail::CheckDependencyCandidates(Image({}), {L"C:\\deps"}, 5000, api);
-    Check(!r && r.error().category == ErrorCategory::AccessDenied && r.error().win32 == ERROR_ACCESS_DENIED, "directory permission error is not missing dependency");
+    Check(!r && r.error().category == ErrorCategory::AccessDenied && r.error().win32 == 5u, "directory permission error is not missing dependency");
 }
 void Limits() {
     auto api = Api();
@@ -109,17 +118,48 @@ void Timeout() {
     step = 10;
     r = detail::CheckDependencyCandidates(Image({"one.dll"}), {L"C:\\deps"}, 15, api);
     Check(!r && r.error().category == ErrorCategory::Timeout && probes.size() == 2, "deadline checked after final system call");
+    api = Api(); api.inspectPe = Inspect; inspected = Image({"one.dll"}); inspectionCost = 15;
+    auto report = detail::InspectDoctorFile(L"ignored.dll", {}, {L"C:\\deps"}, 10, api);
+    Check(!report && report.error().category == ErrorCategory::Timeout && probes.empty(), "PE cannot spend the next phase's budget");
+    api = Api(); api.inspectPe = Inspect; inspectionCost = 5; step = 3;
+    report = detail::InspectDoctorFile(L"ignored.dll", {}, {L"C:\\deps"}, 10, api);
+    Check(!report && report.error().category == ErrorCategory::Timeout, "PE and candidates share total budget");
+    api = Api(); api.inspectPe = Inspect; inspectionCost = 5; step = 2;
+    report = detail::InspectDoctorFile(L"ignored.dll", {}, {L"C:\\deps"}, 10, api);
+    Check(report && report.value().dependencies && now == 9, "combined work within budget completes");
+}
+void Reports() {
+    auto api = Api(); api.inspectPe = Inspect;
+    inspected = Image({"missing.dll", "API-MS-WIN-EXAMPLE.DLL"});
+    auto r = detail::InspectDoctorFile(L"ignored.dll", Architecture::X86, {L"C:\\deps"}, 5000, api);
+    Check(r && r.value().dependencies && !HasBlockingFindings(r.value()), "scoped absence only warns");
+    bool missing = false;
+    for (const auto& f : r.value().findings) if (f.rule_id == "POSSIBLE_MISSING_DEPENDENCY") {
+        missing = true;
+        Check(f.severity == FindingSeverity::Warning && f.confidence == "low", "no absolute missing claim");
+        Check(f.evidence[0].source == "filesystem_observation" && f.evidence[1].source == "user_supplied_option", "observations and supplied scope separate");
+    }
+    Check(missing, "scoped absence produces finding");
+    failures[L"C:\\deps\\missing.dll"] = ERROR_ACCESS_DENIED;
+    r = detail::InspectDoctorFile(L"ignored.dll", Architecture::X86, {L"C:\\deps"}, 5000, api);
+    Check(bool(r), "per-candidate access failure is inconclusive observation");
+    for (const auto& f : r.value().findings) Check(f.rule_id != "POSSIBLE_MISSING_DEPENDENCY", "inconclusive is never absence");
+    api = Api(); api.inspectPe = Inspect;
+    inspectionError = Error{ErrorCategory::MalformedPe, "pe.dos", "Bad header.", {}, {}};
+    r = detail::InspectDoctorFile(L"ignored.dll", {}, {L"C:\\deps"}, 5000, api);
+    Check(r && !r.value().dependencies && probes.empty(), "malformed primary image skips dependencies");
 }
 }
 int main(int argc, char** argv) {
     if (argc != 2) return 2;
     const std::string name = argv[1];
     if (name == "candidates") Candidates();
-    else if (name == "unknown") Unknown();
+    else if (name == "unknown") UnknownObservations();
     else if (name == "names") Names();
     else if (name == "directories") Directories();
     else if (name == "limits") Limits();
     else if (name == "timeout") Timeout();
+    else if (name == "reports") Reports();
     else return 2;
     return 0;
 }
