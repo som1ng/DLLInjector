@@ -18,7 +18,8 @@ shell = shutil.which('powershell.exe')
 assert shell, 'Windows PowerShell is required for the published examples'
 
 with tempfile.TemporaryDirectory(prefix='dll-doctor-skill-') as tmp:
-    folder = Path(tmp)
+    # CI may expose TEMP through an 8.3 alias or junction. Compare resolved paths.
+    folder = Path(tmp).resolve()
     skill = folder / source.name
     shutil.copytree(source, skill)
     assert (skill / 'SKILL.md').is_file()
