@@ -3,10 +3,11 @@
 #include "dllinjector/process.h"
 #include "dllinjector/pe.h"
 #include "dllinjector/doctor.h"
+#include "saved_report.h"
 #include <variant>
 
 namespace dllinjector::cli {
-enum class Command { Help, Version, List, Inspect, Modules, PeInspect, Doctor };
+enum class Command { Help, Version, List, Inspect, Modules, PeInspect, Doctor, ReportExport };
 enum class DocumentFormat { Markdown, Html };
 struct Options {
     Command command = Command::Help;
@@ -25,7 +26,7 @@ struct Report {
     std::optional<std::uint32_t> pid;
     std::optional<std::wstring> path;
     bool accepted = false;
-    std::variant<std::monostate, std::string, std::vector<ProcessSummary>, ProcessDetails, ModuleSnapshot, PeInfo, DoctorReport> data;
+    std::variant<std::monostate, std::string, std::vector<ProcessSummary>, ProcessDetails, ModuleSnapshot, PeInfo, DoctorReport, SavedReport> data;
     std::vector<Error> errors;
     std::uint64_t duration_ms = 0;
 };

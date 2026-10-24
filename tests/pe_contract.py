@@ -14,7 +14,7 @@ import tempfile
 from jsonschema import Draft202012Validator
 
 cli, dll, root = map(Path, sys.argv[1:])
-schema = json.loads((root / 'schemas/cli-v1.5.json').read_text(encoding='utf-8'))
+schema = json.loads((root / 'schemas/cli-v1.6.json').read_text(encoding='utf-8'))
 Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
 
@@ -60,7 +60,7 @@ def fixture(plus):
 fixed = json.loads((root / 'tests/fixtures/json/pe-tables-empty.json').read_text(encoding='utf-8'))
 historical = json.loads((root / 'schemas/cli-v1.3.json').read_text(encoding='utf-8'))
 Draft202012Validator(historical).validate(fixed)
-fixed['schema_version'] = '1.5'
+fixed['schema_version'] = '1.6'
 validator.validate(fixed)
 for key, value in [('image_base', 0x20000000010000), ('entry_point_rva', '0x100000000'),
                    ('scope', 'loadability_verified'), ('sections', [])]:

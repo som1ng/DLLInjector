@@ -1,0 +1,1975 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DLLInjector read-only CLI response v1.6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool_version",
+    "command",
+    "status",
+    "target",
+    "execution",
+    "data",
+    "findings",
+    "evidence",
+    "errors",
+    "duration_ms"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.6"
+    },
+    "tool_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+    },
+    "command": {
+      "enum": [
+        "unknown",
+        "help",
+        "version",
+        "process.list",
+        "process.inspect",
+        "process.modules",
+        "pe.inspect",
+        "doctor",
+        "report.export"
+      ]
+    },
+    "status": {
+      "enum": [
+        "success",
+        "error"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "path"
+      ],
+      "properties": {
+        "pid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/pid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command_accepted",
+        "operation_completed",
+        "outcome_verified"
+      ],
+      "properties": {
+        "command_accepted": {
+          "type": "boolean"
+        },
+        "operation_completed": {
+          "type": "boolean"
+        },
+        "outcome_verified": {
+          "type": "boolean"
+        }
+      }
+    },
+    "data": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/info"
+        },
+        {
+          "$ref": "#/$defs/list"
+        },
+        {
+          "$ref": "#/$defs/process"
+        },
+        {
+          "$ref": "#/$defs/modules"
+        },
+        {
+          "$ref": "#/$defs/pe"
+        },
+        {
+          "$ref": "#/$defs/doctor"
+        }
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/doctor_finding"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "description"
+        ],
+        "properties": {
+          "source": {
+            "enum": [
+              "runtime_observation",
+              "static_analysis",
+              "filesystem_observation"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/error"
+      }
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "not": {
+              "const": "unknown"
+            }
+          },
+          "data": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "errors": {
+            "maxItems": 0
+          },
+          "execution": {
+            "properties": {
+              "command_accepted": {
+                "const": true
+              },
+              "operation_completed": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "data": {
+            "type": "null"
+          },
+          "errors": {
+            "minItems": 1
+          },
+          "evidence": {
+            "maxItems": 0
+          },
+          "execution": {
+            "properties": {
+              "operation_completed": {
+                "const": false
+              },
+              "outcome_verified": {
+                "const": false
+              }
+            }
+          },
+          "findings": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "enum": [
+              "process.inspect",
+              "process.modules"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "pid": {
+                "$ref": "#/$defs/pid"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "target": {
+            "properties": {
+              "pid": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "const": "process.inspect"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/process"
+          },
+          "evidence": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "const": "process.list"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/list"
+          },
+          "evidence": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "enum": [
+              "help",
+              "version"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/info"
+          },
+          "evidence": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "const": "process.modules"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/modules"
+          },
+          "evidence": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "enum": [
+              "pe.inspect",
+              "doctor",
+              "report.export"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "target": {
+            "properties": {
+              "path": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "success"
+          },
+          "command": {
+            "const": "pe.inspect"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/pe"
+          },
+          "evidence": {
+            "minItems": 1,
+            "items": {
+              "properties": {
+                "source": {
+                  "const": "static_analysis"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "enum": [
+              "process.list",
+              "process.inspect",
+              "process.modules"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "items": {
+              "properties": {
+                "source": {
+                  "const": "runtime_observation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "doctor"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "outcome_verified": {
+                "const": false
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "allOf": [
+          {
+            "properties": {
+              "findings": {
+                "maxItems": 0
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "success"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "execution": {
+                  "properties": {
+                    "outcome_verified": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "doctor"
+          },
+          "status": {
+            "const": "success"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/doctor"
+          },
+          "findings": {
+            "minItems": 1,
+            "maxItems": 6
+          },
+          "evidence": {
+            "minItems": 1,
+            "items": {
+              "properties": {
+                "source": {
+                  "enum": [
+                    "static_analysis",
+                    "filesystem_observation"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "doctor"
+          },
+          "status": {
+            "const": "success"
+          },
+          "data": {
+            "properties": {
+              "image": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "findings": {
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "properties": {
+                "rule_id": {
+                  "const": "MALFORMED_PE"
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "findings": {
+            "items": {
+              "properties": {
+                "rule_id": {
+                  "not": {
+                    "const": "MALFORMED_PE"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "doctor"
+          },
+          "status": {
+            "const": "success"
+          },
+          "findings": {
+            "contains": {
+              "properties": {
+                "rule_id": {
+                  "const": "ARCH_MISMATCH"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "properties": {
+              "target_architecture": {
+                "enum": [
+                  "x86",
+                  "x64"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "doctor"
+          },
+          "status": {
+            "const": "success"
+          }
+        }
+      },
+      "then": {
+        "if": {
+          "properties": {
+            "data": {
+              "properties": {
+                "dependencies": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "evidence": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "static_analysis"
+                  }
+                }
+              }
+            },
+            "findings": {
+              "items": {
+                "properties": {
+                  "rule_id": {
+                    "not": {
+                      "const": "POSSIBLE_MISSING_DEPENDENCY"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "allOf": [
+            {
+              "properties": {
+                "evidence": {
+                  "contains": {
+                    "properties": {
+                      "source": {
+                        "const": "filesystem_observation"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "data": {
+                    "properties": {
+                      "dependencies": {
+                        "properties": {
+                          "libraries": {
+                            "contains": {
+                              "properties": {
+                                "status": {
+                                  "const": "not_found_in_search_dirs"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "findings": {
+                    "contains": {
+                      "properties": {
+                        "rule_id": {
+                          "const": "POSSIBLE_MISSING_DEPENDENCY"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "findings": {
+                    "items": {
+                      "properties": {
+                        "rule_id": {
+                          "not": {
+                            "const": "POSSIBLE_MISSING_DEPENDENCY"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "report.export"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "error"
+          }
+        }
+      },
+      "$comment": "Successful export embeds the original source report; only export failures produce a new JSON envelope."
+    }
+  ],
+  "$defs": {
+    "pid": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "filetime": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "stage",
+        "message",
+        "win32",
+        "ntstatus",
+        "verified"
+      ],
+      "properties": {
+        "category": {
+          "enum": [
+            "invalid_argument",
+            "access_denied",
+            "not_found",
+            "unsupported",
+            "system",
+            "timeout",
+            "io",
+            "malformed_pe"
+          ]
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "win32": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "ntstatus": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "verified": {
+          "type": "boolean"
+        }
+      }
+    },
+    "info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "name",
+        "creation_time_filetime",
+        "errors"
+      ],
+      "properties": {
+        "pid": {
+          "$ref": "#/$defs/pid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "creation_time_filetime": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/filetime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/error"
+          }
+        }
+      }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "processes"
+      ],
+      "properties": {
+        "processes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/summary"
+          }
+        }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "name",
+        "image_path",
+        "creation_time_filetime",
+        "architecture",
+        "architecture_source"
+      ],
+      "properties": {
+        "pid": {
+          "$ref": "#/$defs/pid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "image_path": {
+          "type": "string"
+        },
+        "creation_time_filetime": {
+          "$ref": "#/$defs/filetime"
+        },
+        "architecture": {
+          "enum": [
+            "x86",
+            "x64",
+            "arm64"
+          ]
+        },
+        "architecture_source": {
+          "enum": [
+            "IsWow64Process2",
+            "IsWow64Process"
+          ]
+        }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "path",
+        "base_address",
+        "size_bytes",
+        "name_may_be_truncated",
+        "path_may_be_truncated",
+        "text_may_be_lossy"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "base_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,16}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "name_may_be_truncated": {
+          "type": "boolean"
+        },
+        "path_may_be_truncated": {
+          "type": "boolean"
+        },
+        "text_may_be_lossy": {
+          "type": "boolean"
+        }
+      }
+    },
+    "modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "creation_time_filetime",
+        "architecture",
+        "architecture_source",
+        "scope",
+        "modules"
+      ],
+      "properties": {
+        "pid": {
+          "$ref": "#/$defs/pid"
+        },
+        "creation_time_filetime": {
+          "$ref": "#/$defs/filetime"
+        },
+        "architecture": {
+          "enum": [
+            "x86",
+            "x64"
+          ]
+        },
+        "architecture_source": {
+          "enum": [
+            "IsWow64Process2",
+            "IsWow64Process"
+          ]
+        },
+        "scope": {
+          "const": "toolhelp_snapshot"
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/module"
+          }
+        }
+      }
+    },
+    "pe_section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "name_bytes",
+        "virtual_address",
+        "virtual_size",
+        "raw_offset",
+        "raw_size",
+        "characteristics"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "name_bytes": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "virtual_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,8}$"
+        },
+        "virtual_size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "raw_offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "raw_size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "characteristics": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "pe_directory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "address",
+        "size_bytes",
+        "address_kind",
+        "file_offset"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15
+        },
+        "address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,8}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "address_kind": {
+          "enum": [
+            "rva",
+            "file_offset"
+          ]
+        },
+        "file_offset": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "index": {
+                "const": 4
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "address_kind": {
+                "const": "file_offset"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "address_kind": {
+                "const": "rva"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "file_size",
+        "format",
+        "machine",
+        "characteristics",
+        "subsystem",
+        "dll_characteristics",
+        "entry_point_rva",
+        "image_base",
+        "size_of_image",
+        "size_of_headers",
+        "section_alignment",
+        "file_alignment",
+        "sections",
+        "directories",
+        "imports",
+        "delay_imports",
+        "exports"
+      ],
+      "properties": {
+        "scope": {
+          "const": "headers_sections_imports_exports_delay_imports"
+        },
+        "file_size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 268435456
+        },
+        "format": {
+          "enum": [
+            "PE32",
+            "PE32+"
+          ]
+        },
+        "machine": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "characteristics": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "subsystem": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "dll_characteristics": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "entry_point_rva": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,8}$"
+        },
+        "image_base": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,16}$"
+        },
+        "size_of_image": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "size_of_headers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "section_alignment": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "file_alignment": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "sections": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 96,
+          "items": {
+            "$ref": "#/$defs/pe_section"
+          }
+        },
+        "directories": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/pe_directory"
+          }
+        },
+        "imports": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/import_library"
+              },
+              {
+                "properties": {
+                  "lookup_source": {
+                    "enum": [
+                      "import_lookup_table",
+                      "unbound_iat"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "delay_imports": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/import_library"
+              },
+              {
+                "properties": {
+                  "lookup_source": {
+                    "enum": [
+                      "delay_import_name_table"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "exports": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/exports"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "import_symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "ordinal",
+        "hint"
+      ],
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "not": {
+                "pattern": "[^ -~]"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ordinal": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "not": {
+                "pattern": "[^ -~]"
+              }
+            },
+            "hint": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "ordinal": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "name": {
+              "type": "null"
+            },
+            "hint": {
+              "type": "null"
+            },
+            "ordinal": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          }
+        }
+      ]
+    },
+    "import_library": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "lookup_source",
+        "timestamp",
+        "symbols"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "not": {
+            "pattern": "[^ -~]"
+          }
+        },
+        "lookup_source": {
+          "enum": [
+            "import_lookup_table",
+            "unbound_iat",
+            "delay_import_name_table"
+          ]
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "symbols": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/import_symbol"
+          }
+        }
+      }
+    },
+    "export_symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "rva",
+        "names",
+        "forwarder"
+      ],
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "rva": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{1,8}$"
+        },
+        "names": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "not": {
+              "pattern": "[^ -~]"
+            }
+          }
+        },
+        "forwarder": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "not": {
+                "pattern": "[^ -~]"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "exports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dll_name",
+        "ordinal_base",
+        "address_table_entries",
+        "symbols"
+      ],
+      "properties": {
+        "dll_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "not": {
+            "pattern": "[^ -~]"
+          }
+        },
+        "ordinal_base": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "address_table_entries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65536
+        },
+        "symbols": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/export_symbol"
+          }
+        }
+      }
+    },
+    "doctor_finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_id",
+        "severity",
+        "message",
+        "evidence",
+        "confidence",
+        "recommended_next_step",
+        "documentation"
+      ],
+      "properties": {
+        "rule_id": {
+          "enum": [
+            "MALFORMED_PE",
+            "NOT_A_DLL",
+            "ARCH_MISMATCH",
+            "INSUFFICIENT_EVIDENCE",
+            "POSSIBLE_MISSING_DEPENDENCY"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning",
+            "info"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "description"
+            ],
+            "properties": {
+              "source": {
+                "enum": [
+                  "static_analysis",
+                  "user_supplied_option",
+                  "filesystem_observation"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "low"
+          ]
+        },
+        "recommended_next_step": {
+          "type": "string",
+          "minLength": 1
+        },
+        "documentation": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^https://learn\\.microsoft\\.com/[^\\s]+$"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "rule_id": {
+                "const": "POSSIBLE_MISSING_DEPENDENCY"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "severity": {
+                "const": "warning"
+              },
+              "confidence": {
+                "const": "low"
+              }
+            }
+          },
+          "else": {
+            "allOf": [
+              {
+                "properties": {
+                  "confidence": {
+                    "const": "high"
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "rule_id": {
+                      "const": "INSUFFICIENT_EVIDENCE"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "severity": {
+                      "enum": [
+                        "info",
+                        "warning"
+                      ]
+                    }
+                  }
+                },
+                "else": {
+                  "properties": {
+                    "severity": {
+                      "const": "error"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "doctor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "target_architecture",
+        "image",
+        "inspection_error",
+        "dependencies"
+      ],
+      "properties": {
+        "scope": {
+          "const": "static_dll_preflight"
+        },
+        "target_architecture": {
+          "enum": [
+            "x86",
+            "x64",
+            null
+          ]
+        },
+        "image": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "machine",
+                "characteristics",
+                "format",
+                "has_clr_header",
+                "import_library_count",
+                "delay_import_library_count"
+              ],
+              "properties": {
+                "machine": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 65535
+                },
+                "characteristics": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 65535
+                },
+                "format": {
+                  "enum": [
+                    "PE32",
+                    "PE32+"
+                  ]
+                },
+                "has_clr_header": {
+                  "type": "boolean"
+                },
+                "import_library_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1024
+                },
+                "delay_import_library_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1024
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inspection_error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/error"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dependencies": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/dependencies"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "image": {
+              "type": "object"
+            },
+            "inspection_error": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "image": {
+              "type": "null"
+            },
+            "inspection_error": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/error"
+                },
+                {
+                  "properties": {
+                    "category": {
+                      "const": "malformed_pe"
+                    }
+                  }
+                }
+              ]
+            },
+            "dependencies": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    },
+    "dependency_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "directory_index",
+        "status",
+        "error"
+      ],
+      "properties": {
+        "directory_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15
+        },
+        "status": {
+          "enum": [
+            "file",
+            "not_found",
+            "not_file",
+            "unavailable"
+          ]
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "$ref": "#/$defs/error"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "dependency_library": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "status",
+        "candidates"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "kind": {
+          "enum": [
+            "import",
+            "delay_import"
+          ]
+        },
+        "status": {
+          "enum": [
+            "candidate_found",
+            "not_found_in_search_dirs",
+            "inconclusive",
+            "api_set_unresolved",
+            "unsupported_name"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/dependency_candidate"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "api_set_unresolved",
+                  "unsupported_name"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "candidates": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "candidates": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "candidate_found"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "candidates": {
+                "contains": {
+                  "properties": {
+                    "status": {
+                      "const": "file"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_found_in_search_dirs"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "candidates": {
+                "items": {
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "not_found",
+                        "not_file"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "inconclusive"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "candidates": {
+                "contains": {
+                  "properties": {
+                    "status": {
+                      "const": "unavailable"
+                    }
+                  }
+                },
+                "items": {
+                  "properties": {
+                    "status": {
+                      "not": {
+                        "const": "file"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "filesystem_view",
+        "search_directories",
+        "libraries"
+      ],
+      "properties": {
+        "scope": {
+          "const": "explicit_directories"
+        },
+        "filesystem_view": {
+          "const": "caller_process"
+        },
+        "search_directories": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 32767
+          }
+        },
+        "libraries": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "$ref": "#/$defs/dependency_library"
+          }
+        }
+      }
+    }
+  }
+}

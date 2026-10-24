@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 include(CTest)
+include(cmake/ReportSchemas.cmake)
 
 add_library(dllinjector_core STATIC
     core/common/result.cpp core/common/text.cpp core/process/process.cpp core/pe/pe.cpp
@@ -17,9 +18,18 @@ target_include_directories(dllinjector_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
 target_compile_definitions(dllinjector_core PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 
-add_library(cli_support STATIC apps/cli/parser.cpp apps/cli/report.cpp apps/cli/document.cpp)
+add_library(cli_support STATIC apps/cli/parser.cpp apps/cli/report.cpp apps/cli/document.cpp apps/cli/saved_report.cpp)
 target_link_libraries(cli_support PUBLIC dllinjector_core)
 target_include_directories(cli_support PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/apps/cli")
+target_include_directories(cli_support PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core" "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_include_directories(cli_support SYSTEM PRIVATE "${jsoncons_SOURCE_DIR}/include")
+target_compile_definitions(cli_support PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
+if(MSVC)
+    # The header-only schema validator instantiates many templates in this one file.
+    set_source_files_properties(apps/cli/saved_report.cpp PROPERTIES COMPILE_OPTIONS /bigobj)
+elseif(MINGW)
+    set_source_files_properties(apps/cli/saved_report.cpp PROPERTIES COMPILE_OPTIONS -Wa,-mbig-obj)
+endif()
 add_executable(dllinjector_cli apps/cli/main.cpp)
 target_link_libraries(dllinjector_cli PRIVATE cli_support)
 target_include_directories(dllinjector_cli PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
@@ -165,6 +175,9 @@ if(BUILD_TESTING)
     add_test(NAME cli.reports COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/reports_contract.py"
         "$<TARGET_FILE:dllinjector_cli>" "$<TARGET_FILE:report_fixtures>" "$<TARGET_FILE:noop_fixture>" "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(cli.reports PROPERTIES TIMEOUT 90)
+    add_test(NAME cli.saved-reports COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/saved_reports_contract.py"
+        "$<TARGET_FILE:dllinjector_cli>" "$<TARGET_FILE:noop_fixture>" "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(cli.saved-reports PROPERTIES TIMEOUT 90)
 
     foreach(case picker architecture-modern architecture-errors architecture-legacy privileges live-process unicode-file)
         add_test(NAME utils.${case} COMMAND utils_tests "${case}")

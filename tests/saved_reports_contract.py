@@ -5,6 +5,7 @@ from ctypes import wintypes
 from html.parser import HTMLParser
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -126,7 +127,7 @@ with tempfile.TemporaryDirectory(prefix='dllinjector-saved-') as tmp:
 
     for raw in (b'', b'[]', b'{}', b'null', b'{}{}', b'{"x":1,}', b'//comment\n{}',
                 b'{"a":1,"a":2}', b'{"a":1,"\\u0061":2}', b'{"a":"\xff"}',
-                b'{"a":"\\ud800"}', b'\xff\xfe{\x00}\x00'):
+                b'{"a":"\\ud800"}', b'{"a":"\\u0000"}', b'{"a\\u0000":1}', b'\xff\xfe{\x00}\x00'):
         invalid(raw)
     for edit in ('flags', 'data', 'dependency', 'missing', 'unknown-key'):
         broken = copy.deepcopy(baseline)
@@ -136,9 +137,22 @@ with tempfile.TemporaryDirectory(prefix='dllinjector-saved-') as tmp:
         elif edit == 'missing': del broken['findings'][0]['confidence']
         else: broken['unexpected'] = 'reject extra root keys'
         invalid(broken)
+    # A new export error envelope is itself a valid saved 1.6 report.
+    failed_export = invalid(b'{')
+    input_path.write_text(json.dumps(failed_export), encoding='utf-8')
+    assert invoke(input_path)[1] == failed_export
     unsupported = copy.deepcopy(baseline)
     unsupported['schema_version'] = '99.0'
     assert invalid(unsupported, 4)['errors'][0]['stage'] == 'report.version'
+    oversized = copy.deepcopy(baseline)
+    oversized['tool_version'] = '1' * 129
+    invalid(oversized, 4)
+    oversized = copy.deepcopy(baseline)
+    oversized['findings'][0]['documentation'] = ['https://learn.microsoft.com/' + 'a' * 2048]
+    invalid(oversized, 4)
+    nul_version = copy.deepcopy(baseline)
+    nul_version['tool_version'] = '2.0.0\u0000invalid'
+    invalid(nul_version)
     invalid(b'{"x":1.0}')
     invalid(b'{"x":1e2}')
     invalid(b'{"x":18446744073709551616}', 4)
@@ -146,6 +160,12 @@ with tempfile.TemporaryDirectory(prefix='dllinjector-saved-') as tmp:
     invalid(b'[' + b'0,' * 250000 + b'0]', 4)
     invalid(b' ' * (16 * 1024 * 1024 + 1), 4)
     input_path.write_text(json.dumps(baseline), encoding='utf-8')
+    # The copied executable has no adjacent schema files or repository working directory.
+    standalone = folder / 'standalone.exe'
+    shutil.copyfile(cli, standalone)
+    offline = subprocess.run([str(standalone), 'report', 'export', str(input_path), '--format', 'html'],
+                             cwd=folder, capture_output=True, timeout=20)
+    assert offline.returncode == 0 and not offline.stderr
     invoke(input_path, 'html', 5, '--timeout-ms', '0')
     invoke(folder / 'missing.json', 'html', 3)
     invoke(r'\\server\share\report.json', 'html', 4)

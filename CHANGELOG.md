@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0-dev.8 — Saved report conversion (2026-10-24)
+
+- Add `report export <saved.json> --format markdown|html`, with full validation against embedded schemas 1.0–1.6 and no target reinspection.
+- Preserve source versions, flags, evidence and JSON content; successful conversion exits 0 independently of source diagnostic failures. Export errors use the new 1.6 envelope.
+- Bound file size, nesting, parser events and regex inputs; reject duplicate keys, malformed UTF-8, embedded NUL and imprecise numeric forms.
+- Pin jsoncons 1.10.0 by archive SHA-256 in the ignored build cache, with native runtime and offline source-directory override.
+- Ignore Python caches and local reports/artifacts; retain fixed fixtures, schemas and required provenance documentation.
+
 ## 2.0.0-dev.7 — Markdown / HTML reports milestone (2026-10-24)
 
 - Add `--format markdown|html` to process, PE and Doctor diagnostic commands, mutually exclusive with `--json`.

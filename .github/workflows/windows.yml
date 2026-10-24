@@ -51,12 +51,14 @@ jobs:
             docs/DOCTOR_CONTRACT.md
             docs/DEPENDENCIES_CONTRACT.md
             docs/REPORTS_CONTRACT.md
+            docs/SAVED_REPORTS_CONTRACT.md
             schemas/cli-v1.json
             schemas/cli-v1.1.json
             schemas/cli-v1.2.json
             schemas/cli-v1.3.json
             schemas/cli-v1.4.json
             schemas/cli-v1.5.json
+            schemas/cli-v1.6.json
       - name: Upload cross-bitness fixtures
         if: success() && matrix.configuration == 'release'
         uses: actions/upload-artifact@v4
