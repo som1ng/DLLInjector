@@ -15,6 +15,7 @@ Draft202012Validator.check_schema(schema)
 validator = Draft202012Validator(schema)
 golden = json.loads((root / 'tests/fixtures/json/doctor-dependencies.json').read_text(encoding='utf-8'))
 validator.validate(golden)
+golden['tool_version'] = '2.0.0-dev.7'
 
 def invoke(args, code=0, human=False, cwd=None):
     result = subprocess.run([str(cli.resolve()), *map(str, args), *([] if human else ['--json'])],

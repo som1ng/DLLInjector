@@ -129,18 +129,22 @@ with tempfile.TemporaryDirectory(prefix='dllinjector-reports-') as tmp:
         invoke(['pe', 'inspect', dll], fmt)
         invoke(['process', 'list'], fmt)
         invoke(['process', 'inspect', '--pid', os.getpid()], fmt)
-        # Modules enumerate a same-bitness self-owned long-lived Python target only where supported.
+        # Same-bitness module success is covered by the fixed snapshot above and cli.modules.
         invoke(['process', 'modules', '--pid', '4294967295'], fmt, 3)
 
-    invalid = [[], ['--format'], ['--format', 'json'], ['--format', 'HTML'],
-               ['--format', 'html', '--format', 'html'], ['--format', 'html', '--json']]
+    invalid = [['--format'], ['--format', ''], ['--format', 'json'], ['--format', 'HTML'],
+               ['--format', 'html', '--format', 'html'], ['--format', 'html', '--json'],
+               ['--json', '--format', 'markdown']]
     for args in invalid:
-        result = subprocess.run([str(cli), 'doctor', str(dll), *args, '--format', 'markdown'],
+        result = subprocess.run([str(cli), 'doctor', str(dll), *args],
                                 capture_output=True, timeout=15)
-        if not args:
-            assert result.returncode == 0
-        else:
-            assert result.returncode == 2
+        assert result.returncode == 2
+        if '--json' in args:
+            validator.validate(json.loads(result.stdout))
+    result = subprocess.run([str(cli), '--format', 'markdown', 'doctor', str(dll)],
+                            capture_output=True, timeout=15)
+    assert result.returncode == 0
+    extract(result.stdout.decode('utf-8'), 'markdown')
     for option in ('--help', '--version'):
         target = folder / 'invalid.html'
         result = subprocess.run([str(cli), option, '--format', 'html', '--output', str(target)],

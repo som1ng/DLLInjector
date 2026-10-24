@@ -63,7 +63,7 @@ cli::Report Sample(const std::string& name) {
             {{L"plugin?.dll", L"C:\\plugin?.dll", 0x7ff000000000ull, 8192, false, true, true}}};
     } else if (name == "pe") {
         report.command = "pe.inspect";
-        pe.imports.push_back({"KERNEL32.dll", "original_first_thunk", 0, {{std::string("Sleep"), {}, 0}}});
+        pe.imports.push_back({"KERNEL32.dll", "import_lookup_table", 0, {{std::string("Sleep"), {}, std::uint16_t{0}}}});
         report.data = pe;
     } else if (name == "hostile") {
         report.path = L"C:\\fixtures\\` [x](javascript:evil) & <tag> 🚀.dll";
