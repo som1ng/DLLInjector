@@ -283,12 +283,12 @@ static void RenderHeaderBar() {
     ImGui::BeginChild("HeaderBar", ImVec2(0, 52), false, ImGuiWindowFlags_NoScrollbar);
 
     ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::AccentCyan, "⚡ DLL INJECTOR");
+    ImGui::TextColored(theme::Accent, "⚡ DLL INJECTOR");
     ImGui::SameLine();
-    RenderStatusBadge("v2.0-modern", "cyan");
+    RenderStatusBadge("v2.0-modern", "accent");
     ImGui::SameLine();
     #if defined(_WIN64)
-    RenderStatusBadge("宿主: x64", "cyan");
+    RenderStatusBadge("宿主: x64", "accent");
     #else
     RenderStatusBadge("宿主: x86", "amber");
     #endif
@@ -306,6 +306,30 @@ static void RenderHeaderBar() {
             } else {
                 Logger::Instance().Error("提升 SeDebugPrivilege 权限失败 (需管理员权限运行)。");
             }
+        }
+    }
+
+    // Theme Switcher & Arc Accent Presets (Strictly NO BLUE)
+    ImGui::SameLine();
+    const bool isDark = (gui::GetCurrentThemeMode() == gui::ThemeMode::Dark);
+    if (ImGui::SmallButton(isDark ? "☀️ 浅色模式" : "🌙 深色模式")) {
+        gui::ToggleTheme();
+    }
+
+    ImGui::SameLine();
+    const char* accentLabel = "🎨 紫罗兰";
+    switch (gui::GetCurrentAccent()) {
+        case gui::AccentPreset::Violet:  accentLabel = "🎨 重点色: 紫罗兰"; break;
+        case gui::AccentPreset::Green:   accentLabel = "🎨 重点色: 翡翠绿"; break;
+        case gui::AccentPreset::Amber:   accentLabel = "🎨 重点色: 琥珀金"; break;
+        case gui::AccentPreset::Neutral: accentLabel = "🎨 重点色: 极简灰"; break;
+    }
+    if (ImGui::SmallButton(accentLabel)) {
+        switch (gui::GetCurrentAccent()) {
+            case gui::AccentPreset::Violet:  gui::SetAccent(gui::AccentPreset::Green); break;
+            case gui::AccentPreset::Green:   gui::SetAccent(gui::AccentPreset::Amber); break;
+            case gui::AccentPreset::Amber:   gui::SetAccent(gui::AccentPreset::Neutral); break;
+            case gui::AccentPreset::Neutral: gui::SetAccent(gui::AccentPreset::Violet); break;
         }
     }
 
@@ -343,7 +367,7 @@ static void RenderProcessListPane(float width) {
 
     // Section Title & Refresh
     ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::AccentCyan, "🎯 目标进程");
+    ImGui::TextColored(theme::Accent, "🎯 目标进程");
     ImGui::SameLine();
     std::string countBadge = std::to_string(g_Processes.size()) + " 个";
     RenderStatusBadge(countBadge.c_str(), "muted");
@@ -452,12 +476,12 @@ static void RenderProcessListPane(float width) {
     ImGui::Separator();
     auto selected = GetSelectedProcessItem();
     if (selected) {
-        ImGui::TextColored(theme::AccentCyan, "当前目标:");
+        ImGui::TextColored(theme::Accent, "当前目标:");
         ImGui::SameLine();
         ImGui::TextColored(theme::TextPrimary, "%s", selected->name_utf8.c_str());
         ImGui::SameLine();
         std::string pBadge = "PID: " + std::to_string(selected->pid);
-        RenderStatusBadge(pBadge.c_str(), "cyan");
+        RenderStatusBadge(pBadge.c_str(), "accent");
         ImGui::SameLine();
         RenderStatusBadge(selected->archStr.c_str(), selected->arch == utils::ProcessArchitecture::X64 ? "cyan" : "amber");
     } else {
@@ -475,9 +499,9 @@ static void RenderPayloadPane() {
     if (g_CurrentPayloadMode == PayloadMode::Dll) {
         // DLL Mode
         ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(theme::AccentCyan, "📁 DLL 载荷设置");
+        ImGui::TextColored(theme::Accent, "📁 DLL 载荷设置");
         ImGui::SameLine();
-        RenderStatusBadge("PE 动态库", "cyan");
+        RenderStatusBadge("PE 动态库", "accent");
 
         // File selection input
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
@@ -510,7 +534,7 @@ static void RenderPayloadPane() {
         if (!g_CurrentDllPath.empty()) {
             ImGui::Spacing();
             ImGui::Separator();
-            ImGui::TextColored(theme::AccentCyan, "🧬 Core Doctor 预检报告 (Preflight Diagnostics)");
+            ImGui::TextColored(theme::Accent, "🧬 Core Doctor 预检报告 (Preflight Diagnostics)");
 
             if (g_Preflight.valid) {
                 // Match Status Banner
@@ -575,9 +599,9 @@ static void RenderPayloadPane() {
     } else {
         // Shellcode Mode
         ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(theme::AccentCyan, "💻 Shellcode / 原始机器码载荷");
+        ImGui::TextColored(theme::Accent, "💻 Shellcode / 原始机器码载荷");
         ImGui::SameLine();
-        RenderStatusBadge("Raw Bytes", "cyan");
+        RenderStatusBadge("Raw Bytes", "accent");
 
         // Optional .bin file picker
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
@@ -618,9 +642,9 @@ static void RenderMethodsGrid() {
     ImGui::BeginChild("MethodsCard", ImVec2(0, 230), true);
 
     ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::AccentCyan, "⚙️ 注入方法选择 (INJECTION METHODS)");
+    ImGui::TextColored(theme::Accent, "⚙️ 注入方法选择 (INJECTION METHODS)");
     ImGui::SameLine();
-    RenderStatusBadge("6 种核心机制", "cyan");
+    RenderStatusBadge("6 种核心机制", "accent");
 
     ImGui::Columns(2, "MethodGridColumns", false);
 
@@ -633,11 +657,11 @@ static void RenderMethodsGrid() {
 
         ImGui::PushID(i);
         if (!isSupported) {
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.06f, 0.07f, 0.09f, 0.40f));
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(theme::Surface0.x, theme::Surface0.y, theme::Surface0.z, 0.40f));
             ImGui::PushStyleColor(ImGuiCol_Border, theme::BorderSubtle);
         } else if (isSelected) {
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.00f, 0.30f, 0.45f, 0.25f));
-            ImGui::PushStyleColor(ImGuiCol_Border, theme::AccentCyan);
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(theme::Accent.x, theme::Accent.y, theme::Accent.z, 0.18f));
+            ImGui::PushStyleColor(ImGuiCol_Border, theme::Accent);
         } else {
             ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface2);
             ImGui::PushStyleColor(ImGuiCol_Border, theme::BorderSubtle);
@@ -648,7 +672,7 @@ static void RenderMethodsGrid() {
         ImGui::BeginChild("MethodSubCard", ImVec2(0, 54), true, ImGuiWindowFlags_NoScrollbar);
         
         // Card Title & Badge
-        ImGui::TextColored(isSelected ? theme::AccentCyan : (isSupported ? theme::TextPrimary : theme::TextDark),
+        ImGui::TextColored(isSelected ? theme::Accent : (isSupported ? theme::TextPrimary : theme::TextDisabled),
                            "%s", card.title);
         ImGui::SameLine();
         if (!isSupported) {
@@ -658,7 +682,7 @@ static void RenderMethodsGrid() {
         }
 
         // Subtitle / description
-        ImGui::TextColored(isSupported ? theme::TextMuted : theme::TextDark, "%s", card.description);
+        ImGui::TextColored(isSupported ? theme::TextMuted : theme::TextDisabled, "%s", card.description);
 
         bool cardHovered = isSupported && ImGui::IsWindowHovered();
         ImGui::EndChild();
@@ -823,7 +847,7 @@ static void ExecuteInjection() {
 static void RenderActionBar() {
     auto proc = GetSelectedProcessItem();
 
-    ImGui::PushStyleColor(ImGuiCol_Button, theme::AccentBlue);
+    ImGui::PushStyleColor(ImGuiCol_Button, theme::Accent);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, theme::AccentHover);
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, theme::AccentActive);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));

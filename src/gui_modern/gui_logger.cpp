@@ -29,11 +29,11 @@ const char* LevelToString(LogLevel level) {
 
 ImVec4 LevelToColor(LogLevel level) {
     switch (level) {
-        case LogLevel::Info:    return theme::AccentBlue;
-        case LogLevel::Success: return theme::StatusGreen;
-        case LogLevel::Warn:    return theme::StatusAmber;
-        case LogLevel::Error:   return theme::StatusRed;
-        case LogLevel::Doctor:  return theme::StatusPurple;
+        case LogLevel::Info:    return theme::Accent;
+        case LogLevel::Success: return theme::StatusSuccess;
+        case LogLevel::Warn:    return theme::StatusWarning;
+        case LogLevel::Error:   return theme::StatusDanger;
+        case LogLevel::Doctor:  return theme::StatusSpecial;
     }
     return theme::TextMuted;
 }
@@ -75,13 +75,13 @@ void Logger::RenderConsole(const char* title, float height, ImFont* monoFont) {
 
     // Toolbar Header
     ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::AccentCyan, ">_ ");
+    ImGui::TextColored(theme::Accent, ">_ ");
     ImGui::SameLine(0, 2);
     ImGui::TextColored(theme::TextPrimary, "终端日志控制台 (TERMINAL CONSOLE)");
     
     ImGui::SameLine();
     std::string countStr = std::to_string(entries_.size()) + " 条";
-    RenderStatusBadge(countStr.c_str(), "cyan");
+    RenderStatusBadge(countStr.c_str(), "accent");
 
     ImGui::SameLine(0, 10);
     ImGui::SetNextItemWidth(140.0f);

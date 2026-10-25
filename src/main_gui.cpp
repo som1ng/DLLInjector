@@ -141,10 +141,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
         return 1;
     }
 
-    // Initialize Dear ImGui
+    // Initialize Dear ImGui with Arc design system (Dark & Light supported, Violet accent default)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    gui::ApplyArcDarkGeekTheme();
+    gui::ApplyTheme(gui::ThemeMode::Dark, gui::AccentPreset::Violet);
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;

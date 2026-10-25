@@ -2,37 +2,63 @@
 #include "imgui.h"
 
 namespace gui {
-    namespace theme {
-        // Arc Modern Geek Dark Color Palette
-        constexpr ImVec4 Surface0       = ImVec4(0.051f, 0.059f, 0.075f, 1.00f); // #0d0f13 - Deep background
-        constexpr ImVec4 Surface1       = ImVec4(0.078f, 0.094f, 0.129f, 1.00f); // #141821 - Card / panel
-        constexpr ImVec4 Surface2       = ImVec4(0.094f, 0.110f, 0.149f, 1.00f); // #181c26 - Input / secondary
-        constexpr ImVec4 SurfaceHover   = ImVec4(0.125f, 0.149f, 0.200f, 1.00f); // #202633 - Hover item
-        constexpr ImVec4 SurfaceActive  = ImVec4(0.157f, 0.188f, 0.251f, 1.00f); // #283040 - Active item
-        constexpr ImVec4 BorderSubtle   = ImVec4(0.180f, 0.212f, 0.278f, 0.75f); // #2e3647 - 1px border
-        constexpr ImVec4 BorderBright   = ImVec4(0.000f, 0.824f, 1.000f, 0.60f); // #00d2ff - Accent border
 
-        constexpr ImVec4 AccentCyan     = ImVec4(0.000f, 0.824f, 1.000f, 1.00f); // #00d2ff - Primary Cyan
-        constexpr ImVec4 AccentBlue     = ImVec4(0.055f, 0.647f, 0.914f, 1.00f); // #0ea5e9 - Sky blue
-        constexpr ImVec4 AccentHover    = ImVec4(0.150f, 0.720f, 0.980f, 1.00f);
-        constexpr ImVec4 AccentActive   = ImVec4(0.012f, 0.520f, 0.780f, 1.00f);
+enum class ThemeMode {
+    Dark,
+    Light
+};
 
-        constexpr ImVec4 TextPrimary    = ImVec4(0.945f, 0.961f, 0.976f, 1.00f); // #f1f5f9 - Bright text
-        constexpr ImVec4 TextMuted      = ImVec4(0.580f, 0.639f, 0.722f, 1.00f); // #94a3b8 - Muted label
-        constexpr ImVec4 TextDark       = ImVec4(0.392f, 0.455f, 0.545f, 1.00f); // #64748b - Subtle note
+enum class AccentPreset {
+    Violet,  // Arc Violet (#7747FF / #A78BFF) - Default
+    Green,   // Arc Green (#0DB879 / #53DCA6)
+    Neutral, // Arc Neutral (#353535 / #BEBEBE)
+    Amber    // Arc Amber (#F3AD20 / #FFCB62)
+};
 
-        constexpr ImVec4 StatusGreen    = ImVec4(0.063f, 0.725f, 0.506f, 1.00f); // #10b981 - Success
-        constexpr ImVec4 StatusAmber    = ImVec4(0.961f, 0.620f, 0.043f, 1.00f); // #f59e0b - Warning
-        constexpr ImVec4 StatusRed      = ImVec4(0.937f, 0.267f, 0.267f, 1.00f); // #ef4444 - Error
-        constexpr ImVec4 StatusPurple   = ImVec4(0.753f, 0.518f, 0.988f, 1.00f); // #c084fc - Special / Info
-    }
+namespace theme {
+    // Dynamically updated tokens according to Active ThemeMode & AccentPreset
+    extern ImVec4 Surface0;       // Canvas background
+    extern ImVec4 Surface1;       // Card / Panel background
+    extern ImVec4 Surface2;       // Input / Well background
+    extern ImVec4 SurfaceHover;   // Hover item
+    extern ImVec4 SurfaceActive;  // Active item
+    extern ImVec4 BorderSubtle;   // 1px subtle divider/border
+    extern ImVec4 BorderStrong;   // Highlight/focus border
 
-    void ApplyArcDarkGeekTheme();
+    extern ImVec4 Accent;         // Active Accent (Arc Violet / Green / etc. - NO BLUE)
+    extern ImVec4 AccentHover;
+    extern ImVec4 AccentActive;
 
-    // Custom badge capsule helper
-    void RenderBadge(const char* text, ImVec4 textColor, ImVec4 bgColor, ImVec4 borderColor);
-    void RenderStatusBadge(const char* text, const char* style); // "green", "amber", "red", "cyan", "purple", "muted"
-    
-    // Custom styled button helper
-    bool RenderSegmentButton(const char* label, bool selected, ImVec2 size = ImVec2(0, 0));
+    extern ImVec4 TextPrimary;    // Title and primary text
+    extern ImVec4 TextSecondary;  // Description and labels
+    extern ImVec4 TextMuted;      // Hints and captions
+    extern ImVec4 TextDisabled;   // Inactive items
+
+    extern ImVec4 StatusSuccess;  // Green
+    extern ImVec4 StatusWarning;  // Amber
+    extern ImVec4 StatusDanger;   // Coral / Red
+    extern ImVec4 StatusSpecial;  // Violet / Special info
+
+    // Compatibility aliases so existing code never displays blue/cyan
+    #define AccentCyan  Accent
+    #define AccentBlue  Accent
+    #define StatusGreen StatusSuccess
+    #define StatusAmber StatusWarning
+    #define StatusRed   StatusDanger
+    #define StatusPurple StatusSpecial
+    #define TextDark    TextDisabled
 }
+
+ThemeMode GetCurrentThemeMode();
+AccentPreset GetCurrentAccent();
+
+void ApplyTheme(ThemeMode mode, AccentPreset accent = AccentPreset::Violet);
+void ToggleTheme();
+void SetAccent(AccentPreset accent);
+
+// Custom UI badge & button helpers
+void RenderBadge(const char* text, ImVec4 textColor, ImVec4 bgColor, ImVec4 borderColor);
+void RenderStatusBadge(const char* text, const char* style); // "green", "amber", "red", "accent", "muted"
+bool RenderSegmentButton(const char* label, bool selected, ImVec2 size = ImVec2(0, 0));
+
+} // namespace gui
