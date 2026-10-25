@@ -164,11 +164,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
         gui::g_MainFont = io.Fonts->AddFontDefault();
     }
 
-    if (GetFileAttributesW(L"C:\\Windows\\Fonts\\consola.ttf") != INVALID_FILE_ATTRIBUTES) {
-        gui::g_MonoFont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\consola.ttf", 15.0f);
-    } else {
-        gui::g_MonoFont = gui::g_MainFont;
-    }
+    // Use main CJK font for console as well to support full Chinese character logs without fallback issues
+    gui::g_MonoFont = gui::g_MainFont;
 
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(d3d::g_pd3dDevice, d3d::g_pd3dDeviceContext);

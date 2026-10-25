@@ -226,7 +226,7 @@ void RefreshProcesses() {
             case utils::ProcessArchitecture::X64:   item.archStr = "x64"; break;
             case utils::ProcessArchitecture::X86:   item.archStr = "x86"; break;
             case utils::ProcessArchitecture::Arm64: item.archStr = "ARM64"; break;
-            default:                                item.archStr = "?"; break;
+            default:                                item.archStr = "受限"; break;
         }
         g_Processes.push_back(std::move(item));
     }
@@ -237,7 +237,7 @@ void RefreshProcesses() {
 } // namespace
 
 void InitGuiApp() {
-    Logger::Instance().Info("⚡ DLL Injector (Dear ImGui + DirectX 11) 初始化完成。");
+    Logger::Instance().Info("DLL Injector (Dear ImGui + DirectX 11) 初始化完成。");
     #if defined(_WIN64)
     Logger::Instance().Info("当前宿主构建架构: 64-bit (x64)");
     #else
@@ -283,7 +283,7 @@ static void RenderHeaderBar() {
     ImGui::BeginChild("HeaderBar", ImVec2(0, 52), false, ImGuiWindowFlags_NoScrollbar);
 
     ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::Accent, "⚡ DLL INJECTOR");
+    ImGui::TextColored(theme::Accent, "DLL INJECTOR");
     ImGui::SameLine();
     RenderStatusBadge("v2.0-modern", "accent");
     ImGui::SameLine();
@@ -312,17 +312,17 @@ static void RenderHeaderBar() {
     // Theme Switcher & Arc Accent Presets (Strictly NO BLUE)
     ImGui::SameLine();
     const bool isDark = (gui::GetCurrentThemeMode() == gui::ThemeMode::Dark);
-    if (ImGui::SmallButton(isDark ? "☀️ 浅色模式" : "🌙 深色模式")) {
+    if (ImGui::SmallButton(isDark ? "浅色模式" : "深色模式")) {
         gui::ToggleTheme();
     }
 
     ImGui::SameLine();
-    const char* accentLabel = "🎨 紫罗兰";
+    const char* accentLabel = "重点色: 紫罗兰";
     switch (gui::GetCurrentAccent()) {
-        case gui::AccentPreset::Violet:  accentLabel = "🎨 重点色: 紫罗兰"; break;
-        case gui::AccentPreset::Green:   accentLabel = "🎨 重点色: 翡翠绿"; break;
-        case gui::AccentPreset::Amber:   accentLabel = "🎨 重点色: 琥珀金"; break;
-        case gui::AccentPreset::Neutral: accentLabel = "🎨 重点色: 极简灰"; break;
+        case gui::AccentPreset::Violet:  accentLabel = "重点色: 紫罗兰"; break;
+        case gui::AccentPreset::Green:   accentLabel = "重点色: 翡翠绿"; break;
+        case gui::AccentPreset::Amber:   accentLabel = "重点色: 琥珀金"; break;
+        case gui::AccentPreset::Neutral: accentLabel = "重点色: 极简灰"; break;
     }
     if (ImGui::SmallButton(accentLabel)) {
         switch (gui::GetCurrentAccent()) {
@@ -342,12 +342,12 @@ static void RenderHeaderBar() {
         ImGui::SameLine();
     }
 
-    if (RenderSegmentButton("📁 DLL 注入模式", g_CurrentPayloadMode == PayloadMode::Dll, ImVec2(125, 30))) {
+    if (RenderSegmentButton("DLL 注入模式", g_CurrentPayloadMode == PayloadMode::Dll, ImVec2(125, 30))) {
         g_CurrentPayloadMode = PayloadMode::Dll;
         TriggerPreflight();
     }
     ImGui::SameLine(0, 6);
-    if (RenderSegmentButton("💻 Shellcode 模式", g_CurrentPayloadMode == PayloadMode::Shellcode, ImVec2(125, 30))) {
+    if (RenderSegmentButton("Shellcode 模式", g_CurrentPayloadMode == PayloadMode::Shellcode, ImVec2(125, 30))) {
         g_CurrentPayloadMode = PayloadMode::Shellcode;
         // In Shellcode mode, if selected method only supports DLL, switch to CRT
         if (g_SelectedMethod == MethodID::HOOK ||
@@ -367,27 +367,27 @@ static void RenderProcessListPane(float width) {
 
     // Section Title & Refresh
     ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::Accent, "🎯 目标进程");
+    ImGui::TextColored(theme::Accent, "目标进程");
     ImGui::SameLine();
     std::string countBadge = std::to_string(g_Processes.size()) + " 个";
     RenderStatusBadge(countBadge.c_str(), "muted");
 
     ImGui::SameLine(ImGui::GetWindowWidth() - 75.0f);
-    if (ImGui::SmallButton("↻ 刷新")) {
+    if (ImGui::SmallButton("刷新")) {
         RefreshProcesses();
     }
 
     // Search filter with clear button
     if (g_SearchFilter[0] != '\0') {
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 32.0f);
-        ImGui::InputTextWithHint("##SearchFilter", "🔍 输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
+        ImGui::InputTextWithHint("##SearchFilter", "输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
         ImGui::SameLine();
-        if (ImGui::SmallButton("×")) {
+        if (ImGui::SmallButton("X")) {
             g_SearchFilter[0] = '\0';
         }
     } else {
         ImGui::SetNextItemWidth(-1.0f);
-        ImGui::InputTextWithHint("##SearchFilter", "🔍 输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
+        ImGui::InputTextWithHint("##SearchFilter", "输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
     }
 
     // Arch filter tabs
@@ -449,16 +449,18 @@ static void RenderProcessListPane(float width) {
             // Column 2: Arch
             ImGui::TableSetColumnIndex(2);
             if (proc.arch == utils::ProcessArchitecture::X64) {
-                RenderStatusBadge("x64", "cyan");
+                RenderStatusBadge("x64", "accent");
             } else if (proc.arch == utils::ProcessArchitecture::X86) {
                 RenderStatusBadge("x86", "amber");
             } else {
-                RenderStatusBadge("?", "muted");
+                RenderStatusBadge("受限", "muted");
             }
 
             // Column 3: Status / Compatibility
             ImGui::TableSetColumnIndex(3);
-            if (g_Preflight.valid) {
+            if (proc.arch == utils::ProcessArchitecture::Unknown) {
+                RenderStatusBadge("受限", "muted");
+            } else if (g_Preflight.valid) {
                 if (proc.arch == g_Preflight.dllArch) {
                     RenderStatusBadge("兼容", "green");
                 } else {
@@ -483,7 +485,10 @@ static void RenderProcessListPane(float width) {
         std::string pBadge = "PID: " + std::to_string(selected->pid);
         RenderStatusBadge(pBadge.c_str(), "accent");
         ImGui::SameLine();
-        RenderStatusBadge(selected->archStr.c_str(), selected->arch == utils::ProcessArchitecture::X64 ? "cyan" : "amber");
+        const char* archStyle = "muted";
+        if (selected->arch == utils::ProcessArchitecture::X64) archStyle = "accent";
+        else if (selected->arch == utils::ProcessArchitecture::X86) archStyle = "amber";
+        RenderStatusBadge(selected->archStr.c_str(), archStyle);
     } else {
         ImGui::TextColored(theme::TextDark, "尚未选择目标进程 (请在上方表格中单击选择)");
     }
@@ -499,7 +504,7 @@ static void RenderPayloadPane() {
     if (g_CurrentPayloadMode == PayloadMode::Dll) {
         // DLL Mode
         ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(theme::Accent, "📁 DLL 载荷设置");
+        ImGui::TextColored(theme::Accent, "DLL 载荷设置");
         ImGui::SameLine();
         RenderStatusBadge("PE 动态库", "accent");
 
@@ -525,7 +530,7 @@ static void RenderPayloadPane() {
         ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface2);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 9.0f));
         ImGui::BeginChild("DropZone", ImVec2(0, 36), true, ImGuiWindowFlags_NoScrollbar);
-        ImGui::TextColored(theme::TextDark, "  📥 支持将 .dll 文件直接拖入本窗口任意区域完成自动加载与分析");
+        ImGui::TextColored(theme::TextDark, "  [拖放支持] 支持将 .dll 文件直接拖入本窗口任意区域完成自动加载与分析");
         ImGui::EndChild();
         ImGui::PopStyleVar();
         ImGui::PopStyleColor();
@@ -534,16 +539,16 @@ static void RenderPayloadPane() {
         if (!g_CurrentDllPath.empty()) {
             ImGui::Spacing();
             ImGui::Separator();
-            ImGui::TextColored(theme::Accent, "🧬 Core Doctor 预检报告 (Preflight Diagnostics)");
+            ImGui::TextColored(theme::Accent, "Core 预检报告 (Preflight Diagnostics)");
 
             if (g_Preflight.valid) {
                 // Match Status Banner
                 if (g_Preflight.matchStatus == ArchMatchStatus::Match) {
-                    RenderStatusBadge("✓ 架构完全匹配 (Compatible)", "green");
+                    RenderStatusBadge("[兼容] 架构完全匹配 (Compatible)", "green");
                 } else if (g_Preflight.matchStatus == ArchMatchStatus::Mismatch) {
-                    RenderStatusBadge("✗ 架构冲突: DLL 与目标进程架构不一致", "red");
+                    RenderStatusBadge("[冲突] 架构冲突: DLL 与目标进程架构不一致", "red");
                 } else {
-                    RenderStatusBadge("⏳ 目标进程待选定 (Select Target)", "amber");
+                    RenderStatusBadge("[待定] 目标进程待选定 (Select Target)", "amber");
                 }
 
                 ImGui::SameLine();
@@ -599,7 +604,7 @@ static void RenderPayloadPane() {
     } else {
         // Shellcode Mode
         ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(theme::Accent, "💻 Shellcode / 原始机器码载荷");
+        ImGui::TextColored(theme::Accent, "Shellcode / 原始机器码载荷");
         ImGui::SameLine();
         RenderStatusBadge("Raw Bytes", "accent");
 
@@ -642,7 +647,7 @@ static void RenderMethodsGrid() {
     ImGui::BeginChild("MethodsCard", ImVec2(0, 230), true);
 
     ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::Accent, "⚙️ 注入方法选择 (INJECTION METHODS)");
+    ImGui::TextColored(theme::Accent, "注入方法选择 (INJECTION METHODS)");
     ImGui::SameLine();
     RenderStatusBadge("6 种核心机制", "accent");
 
@@ -836,10 +841,10 @@ static void ExecuteInjection() {
     }
 
     if (success) {
-        Logger::Instance().Success("✓ 注入请求已提交！(底层 API 成功返回，预期效果视目标保护机制而定)");
+        Logger::Instance().Success("[成功] 注入请求已提交！(底层 API 成功返回，预期效果视目标保护机制而定)");
         MessageBoxW(NULL, L"请求已提交，底层 API 执行成功！", L"注入成功", MB_ICONINFORMATION);
     } else {
-        Logger::Instance().Error("✗ 注入执行失败！GetLastError: " + std::to_string(GetLastError()));
+        Logger::Instance().Error("[失败] 注入执行失败！GetLastError: " + std::to_string(GetLastError()));
         MessageBoxW(NULL, L"注入失败，详情请查看终端控制台日志。", L"执行失败", MB_ICONERROR);
     }
 }
@@ -852,7 +857,7 @@ static void RenderActionBar() {
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, theme::AccentActive);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
 
-    std::string btnText = "🚀 开始执行注入 (INJECT PAYLOAD)";
+    std::string btnText = "开始执行注入 (EXECUTE INJECTION)";
     if (proc) {
         btnText += " -> [ PID: " + std::to_string(proc->pid) + " " + proc->name_utf8 + " ]";
     }
