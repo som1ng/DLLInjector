@@ -31,6 +31,24 @@ jobs:
         run: cmake --build --preset ${{ matrix.architecture }}-${{ matrix.configuration }} --parallel
       - name: Test
         run: ctest --preset ${{ matrix.architecture }}-${{ matrix.configuration }}
+      - uses: actions/setup-node@v4
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        with:
+          node-version: '22.22.3'
+          cache: npm
+          cache-dependency-path: integrations/mcp/package-lock.json
+      - name: Install MCP dependencies
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: integrations/mcp
+        run: npm ci --no-audit --no-fund
+      - name: Build MCP adapter
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: integrations/mcp
+        run: npm run build
+      - name: Test MCP protocol and native integration
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: integrations/mcp
+        run: npm test
       - name: Upload review artifacts
         if: success()
         uses: actions/upload-artifact@v4
