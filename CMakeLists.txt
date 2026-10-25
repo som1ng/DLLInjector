@@ -44,25 +44,55 @@ target_include_directories(injector_utils PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_compile_definitions(injector_utils PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 target_link_libraries(injector_utils PUBLIC dllinjector_core comdlg32 advapi32)
 
+add_library(imgui STATIC
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/backends/imgui_impl_win32.cpp
+    third_party/imgui/backends/imgui_impl_dx11.cpp
+)
+target_include_directories(imgui PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends"
+)
+target_compile_definitions(imgui PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
+
 # Retain the legacy sources. The GNU x64 syscall experiment is deliberately
 # outside this validated MSVC/MinGW GUI build; no assembly port is implied.
 add_executable(DLLInjector WIN32
     src/main_gui.cpp
+    src/gui_modern/gui_theme.cpp
+    src/gui_modern/gui_logger.cpp
+    src/gui_modern/preflight.cpp
+    src/gui_modern/d3d11_renderer.cpp
+    src/gui_modern/gui_app.cpp
     src/methods/method_crt.cpp
     src/methods/method_apc.cpp
     src/methods/method_hook.cpp
     src/methods/method_reflective.cpp
     src/methods/method_hijack.cpp
 )
-target_compile_definitions(DLLInjector PRIVATE DLLINJECTOR_HAS_SYSCALL=0)
-target_link_libraries(DLLInjector PRIVATE injector_utils user32 gdi32 comctl32 shlwapi)
+target_include_directories(DLLInjector PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui_modern"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core"
+)
+target_compile_definitions(DLLInjector PRIVATE DLLINJECTOR_HAS_SYSCALL=0 UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
+target_link_libraries(DLLInjector PRIVATE
+    injector_utils
+    imgui
+    user32 gdi32 comctl32 shlwapi shell32 d3d11 dxgi d3dcompiler dwmapi
+)
 
 add_executable(demo_target dll_test/demo.c)
 add_library(demo_dll SHARED dll_test/dll_demo1.cpp)
 target_link_libraries(demo_dll PRIVATE user32)
 
 if(MSVC)
-    foreach(target dllinjector_core cli_support dllinjector_cli injector_utils DLLInjector demo_target demo_dll)
+    foreach(target dllinjector_core cli_support dllinjector_cli injector_utils DLLInjector demo_target demo_dll imgui)
         target_compile_options(${target} PRIVATE /utf-8)
     endforeach()
 elseif(MINGW)
