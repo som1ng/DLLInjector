@@ -56,6 +56,12 @@ jobs:
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         working-directory: integrations/pi
         run: npm test
+      - name: Test local Skill installer
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: integrations/installer
+        run: |
+          $env:DLL_INSTALLER_TEST_CLI = (Resolve-Path ../../build/msvc-x64/Release/cli/dllinjector.exe).Path
+          npm test
       - name: Upload review artifacts
         if: success()
         uses: actions/upload-artifact@v4

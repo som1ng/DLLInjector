@@ -5,7 +5,9 @@
 完整复制该目录即可保留相对引用。独立的 [本地 MCP 服务](../integrations/mcp/README.md) 已提供；
 本页记录 Skill 接入，不代表 MCP 的 Agent 宿主兼容性实测。
 2026-10-25 已补充可本地安装的 [原生 Pi Package](../integrations/pi/README.md)，
-安装/卸载实测另见 [Pi 交付记录](PI_PACKAGE_DELIVERY.md)。自动安装器和已发布 npm 包尚未提供。
+安装/卸载实测另见 [Pi 交付记录](PI_PACKAGE_DELIVERY.md)。
+同日补充 [本地 Skill 安装器](../integrations/installer/README.md)，显式选择 Codex/Claude/OpenCode 和范围；
+安装/回滚与真实项目发现记录见 [安装器交付](INSTALLER_DELIVERY.md)。自动下载和已发布 npm 包尚未提供。
 MCP 的版本限定配置与真实宿主调用结果另见 [MCP 客户端实测](MCP_HOST_VALIDATION.md)。
 
 ## 官方发现规则与本机版本

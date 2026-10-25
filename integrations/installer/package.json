@@ -1,0 +1,10 @@
+{
+  "name": "@som1ng/dll-doctor-installer",
+  "version": "0.1.0-dev.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "Local Windows DLL Doctor Skill installer",
+  "engines": { "node": ">=22.19.0" },
+  "scripts": { "test": "node --test tests/*.test.mjs" }
+}

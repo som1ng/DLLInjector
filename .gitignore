@@ -107,6 +107,12 @@ ENV/
 /integrations/pi/dist/
 /integrations/pi/*.tgz
 
+# Local Skill installations carry machine-specific CLI paths
+**/.agents/skills/windows-dll-doctor/
+**/.claude/skills/windows-dll-doctor/
+**/.dll-doctor-stage-*/
+**/.dll-doctor-installer.lock
+
 # --------------------------------------------------------------------
 # 7. 操作系统临时文件
 # --------------------------------------------------------------------
