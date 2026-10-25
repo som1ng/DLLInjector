@@ -1,0 +1,77 @@
+"""Opt-in project discovery of installer-created Skills; no model calls."""
+import argparse
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+
+from agent_discovery import codex_discovery, opencode_discovery, native_executable
+
+ROOT = Path(__file__).resolve().parents[1]
+ENTRY = ROOT / 'integrations/installer/src/index.mjs'
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--cli', required=True, type=Path)
+    parser.add_argument('--codex')
+    parser.add_argument('--opencode')
+    args = parser.parse_args()
+    if not args.codex and not args.opencode:
+        parser.error('select at least one installed client')
+    try:
+        node = shutil.which('node')
+        if not node:
+            raise RuntimeError('Node is required')
+        description = next(line.removeprefix('description: ') for line in
+            (ROOT / 'integrations/skills/windows-dll-doctor/SKILL.md').read_text(encoding='utf-8').splitlines()
+            if line.startswith('description: '))
+        results = []
+        with tempfile.TemporaryDirectory(prefix='dll-installer-host-') as temporary:
+            base = Path(temporary).resolve()
+            for name, client in [('codex', args.codex), ('opencode', args.opencode)]:
+                if not client:
+                    continue
+                project = base / (name + ' 中文 space 🚀')
+                project.mkdir()
+                subprocess.run(['git', 'init', '-q', str(project)], check=True, capture_output=True)
+
+                def installer(command):
+                    arguments = [node, str(ENTRY), command, '--agent', name, '--scope', 'project', '--project', str(project)]
+                    if command == 'setup':
+                        arguments += ['--cli', str(args.cli.resolve()), '--verify']
+                    outcome = subprocess.run(arguments, capture_output=True, timeout=30,
+                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                    if outcome.returncode:
+                        raise RuntimeError('installer failed during host check')
+                    return json.loads(outcome.stdout)
+
+                installed = installer('setup')
+                fixture = {'cwd': project, 'path': Path(installed['target']) / 'SKILL.md',
+                    'description': description, 'present': True}
+                executable = native_executable(client)
+
+                def discover():
+                    if name == 'codex':
+                        return codex_discovery(executable, [fixture], 30)
+                    return opencode_discovery(executable, [fixture], base, 30)
+
+                observed = discover()
+                if installer('setup')['action'] != 'unchanged':
+                    raise RuntimeError('repeated setup was not a no-op')
+                if installer('uninstall')['action'] != 'removed':
+                    raise RuntimeError('uninstall did not remove the managed Skill')
+                fixture['present'] = False
+                discover()
+                results.append({'client': name, 'version': observed['version'],
+                    'checks': ['installed-project-discovery', 'repeat', 'uninstalled-absence']})
+        print(json.dumps({'status': 'passed', 'results': results, 'model_evaluation': 'not_run'}, indent=2))
+        return 0
+    except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        print(json.dumps({'status': 'failed', 'message': 'Installer/client discovery failed; check installed client compatibility and local paths.'}))
+        return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
