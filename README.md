@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="DLLInjector Logo" width="180" />
+</p>
+
 # DLLInjector（二次开发中）
 
 Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。

@@ -49,7 +49,8 @@ if(MSVC)
 elseif(MINGW)
     set_source_files_properties(apps/cli/saved_report.cpp PROPERTIES COMPILE_OPTIONS -Wa,-mbig-obj)
 endif()
-add_executable(dllinjector_cli apps/cli/main.cpp)
+set(APP_RC "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.rc")
+add_executable(dllinjector_cli apps/cli/main.cpp ${APP_RC})
 target_link_libraries(dllinjector_cli PRIVATE cli_support)
 target_include_directories(dllinjector_cli PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
 target_compile_definitions(dllinjector_cli PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
@@ -61,6 +62,7 @@ set_target_properties(dllinjector_cli PROPERTIES OUTPUT_NAME dllinjector
 # outside this validated MSVC/MinGW GUI build; no assembly port is implied.
 add_executable(DLLInjector WIN32
     src/main_gui.cpp
+    ${APP_RC}
 )
 target_compile_definitions(DLLInjector PRIVATE DLLINJECTOR_HAS_SYSCALL=0)
 target_link_libraries(DLLInjector PRIVATE injector_methods injector_utils user32 gdi32 comctl32 shlwapi)
