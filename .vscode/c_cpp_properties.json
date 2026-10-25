@@ -5,6 +5,9 @@
       "name": "Windows MSVC x64",
       "compilerPath": "cl.exe",
       "includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/apps/cli",
+        "${workspaceFolder}/core",
         "${workspaceFolder}/src"
       ],
       "defines": [

@@ -34,7 +34,7 @@ add_library(injector_methods STATIC
 )
 target_include_directories(injector_methods PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
-target_compile_definitions(injector_methods PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600 DLLINJECTOR_HAS_SYSCALL=0)
+target_compile_definitions(injector_methods PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600 DLLINJECTOR_HAS_SYSCALL=0)
 target_link_libraries(injector_methods PUBLIC dllinjector_core injector_utils user32 shlwapi)
 
 add_library(cli_support STATIC apps/cli/parser.cpp apps/cli/report.cpp apps/cli/document.cpp apps/cli/saved_report.cpp)

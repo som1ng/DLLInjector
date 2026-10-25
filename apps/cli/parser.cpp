@@ -2,6 +2,10 @@
 #include <limits>
 #include <set>
 
+#ifndef DLLINJECTOR_HAS_SYSCALL
+#define DLLINJECTOR_HAS_SYSCALL 0
+#endif
+
 namespace dllinjector::cli {
 namespace {
 Error Usage(const char* message) {

@@ -4,7 +4,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-cli, noop_dll, demo_target, root = map(Path, sys.argv[1:])
+if len(sys.argv) >= 5:
+    cli, noop_dll, demo_target, root = map(Path, sys.argv[1:5])
+else:
+    root = Path(__file__).resolve().parent.parent
+    cli = root / "build/msvc-x64/Release/cli/dllinjector.exe"
+    noop_dll = root / "build/msvc-x64/Release/noop_fixture.dll"
+    demo_target = root / "build/msvc-x64/Release/demo_target.exe"
+    if not (cli.exists() and noop_dll.exists() and demo_target.exists()):
+        print(f"Usage: python {Path(__file__).name} <cli_path> <noop_dll_path> <demo_target_path> <repo_root>")
+        sys.exit(0)
 
 def run_cmd(*args):
     cmd = [str(cli), *map(str, args)]
