@@ -103,6 +103,10 @@ ENV/
 /integrations/mcp/dist/
 /integrations/mcp/*.tgz
 
+# Pi package resources are generated from the canonical Skill
+/integrations/pi/dist/
+/integrations/pi/*.tgz
+
 # --------------------------------------------------------------------
 # 7. 操作系统临时文件
 # --------------------------------------------------------------------

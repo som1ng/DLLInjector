@@ -1,0 +1,28 @@
+{
+  "name": "@som1ng/dll-doctor-pi",
+  "version": "0.1.0-dev.1",
+  "description": "Read-only Windows DLL Doctor Skill packaged for Pi",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "keywords": ["pi-package", "windows", "dll", "diagnostics"],
+  "engines": { "node": ">=22.19.0" },
+  "files": [
+    "dist/skills/windows-dll-doctor/SKILL.md",
+    "dist/skills/windows-dll-doctor/references/commands.md",
+    "dist/skills/windows-dll-doctor/references/evidence.md",
+    "dist/skills/windows-dll-doctor/agents/openai.yaml"
+  ],
+  "pi": {
+    "skills": ["./dist/skills/windows-dll-doctor"],
+    "extensions": [],
+    "prompts": [],
+    "themes": []
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "node scripts/build.mjs",
+    "test": "python ../../tests/pi_package_contract.py",
+    "verify-host": "python ../../tests/pi_package_host.py"
+  }
+}

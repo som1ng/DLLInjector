@@ -3,7 +3,9 @@
 核验日期：**2026-10-24**。权威源只有
 [`integrations/skills/windows-dll-doctor/`](../integrations/skills/windows-dll-doctor/SKILL.md)。
 完整复制该目录即可保留相对引用。独立的 [本地 MCP 服务](../integrations/mcp/README.md) 已提供；
-本页记录 Skill 接入，不代表 MCP 的 Agent 宿主兼容性实测。自动安装器、已发布 npm 包和原生 Pi Package 尚未提供。
+本页记录 Skill 接入，不代表 MCP 的 Agent 宿主兼容性实测。
+2026-10-25 已补充可本地安装的 [原生 Pi Package](../integrations/pi/README.md)，
+安装/卸载实测另见 [Pi 交付记录](PI_PACKAGE_DELIVERY.md)。自动安装器和已发布 npm 包尚未提供。
 MCP 的版本限定配置与真实宿主调用结果另见 [MCP 客户端实测](MCP_HOST_VALIDATION.md)。
 
 ## 官方发现规则与本机版本
@@ -13,7 +15,7 @@ MCP 的版本限定配置与真实宿主调用结果另见 [MCP 客户端实测]
 | Codex CLI | `0.164.0` | `.agents/skills/windows-dll-doctor/` | app-server `skills/list` 实测项目发现、repo scope、enabled 与未安装负例；未运行模型触发测试 |
 | Claude Code | `2.1.310` | `.claude/skills/windows-dll-doctor/` | 版本、帮助和文档核对；发现与模型触发未验证 |
 | OpenCode | `1.19.4` | `.opencode/skills/` 或 `.agents/skills/` 下的同名目录 | `debug skill --pure` 实测 `.agents/skills` 项目发现及未安装负例；未验证工具权限或模型选择 |
-| Pi Coding Agent | `1.4.0` | `.agents/skills/windows-dll-doctor/`；也可显式 `--skill <path>` | 已安装包资源发现器实测项目发现、提示清单、未信任/未安装负例；未创建 AgentSession 或验证包安装 |
+| Pi Coding Agent | `1.4.0` | `.agents/skills/windows-dll-doctor/`；也可显式 `--skill <path>` 或原生包安装 | 已安装包资源发现器实测项目发现、提示清单、未信任/未安装负例；原生包用户/项目安装另见 Pi 交付记录；未创建 AgentSession |
 
 来源：[Agent Skills 规范](https://agentskills.io/specification)、
 [Codex 官方 Skills 文档](https://learn.chatgpt.com/docs/build-skills)、
