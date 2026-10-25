@@ -82,11 +82,11 @@ Result<Options> Parse(const std::vector<std::wstring>& args) {
         options.command = Command::Doctor;
         options.path = words[1];
     } else if (words.size() == 3 && words[0] == L"report" && words[1] == L"export") {
-        if (options.pid || words[2].empty() || !options.document_format)
-            return Usage("report export requires one file path and --format markdown|html; it does not accept --pid.");
+        if (options.pid || words[2].empty() || (!options.document_format && !options.json))
+            return Usage("report export requires one file path and --json or --format markdown|html; it does not accept --pid.");
         options.command = Command::ReportExport;
         options.path = words[2];
-    } else return Usage("Expected --help, --version, process list/inspect/modules, pe inspect <path>, doctor <path> or report export <path> --format markdown|html.");
+    } else return Usage("Expected --help, --version, process list/inspect/modules, pe inspect <path>, doctor <path> or report export <path> --json/--format.");
     if (options.target_architecture && options.command != Command::Doctor)
         return Usage("--target-arch is only supported by doctor.");
     if (!options.search_directories.empty() && options.command != Command::Doctor)

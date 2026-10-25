@@ -72,7 +72,7 @@ $ErrorActionPreference = 'Continue'
             validator.validate(report)
             return report
 
-        assert run('version')['tool_version'] == '2.0.0-dev.8'
+        assert run('version')['tool_version'] == '2.0.0-dev.9'
         assert 'report export' in run('help')['data']['text']
         pe = run('pe')
         assert pe['command'] == 'pe.inspect'
