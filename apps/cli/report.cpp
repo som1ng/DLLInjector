@@ -13,7 +13,7 @@ constexpr char Help[] =
     "  dllinjector process modules --pid <PID> [options]\n"
     "  dllinjector pe inspect <path> [options]\n"
     "  dllinjector doctor <path> [--target-arch x86|x64] [options]\n"
-    "  dllinjector report export <saved.json> --format markdown|html [options]\n"
+    "  dllinjector report export <saved.json> --json | --format markdown|html [options]\n"
     "Options (before or after command):\n"
     "  --json                   One versioned JSON result on stdout\n"
     "  --format <markdown|html> Diagnostic report document; mutually exclusive with --json\n"

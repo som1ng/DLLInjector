@@ -17,7 +17,7 @@ golden = json.loads((root / 'tests/fixtures/json/doctor-dependencies.json').read
 historical = json.loads((root / 'schemas/cli-v1.5.json').read_text(encoding='utf-8'))
 Draft202012Validator(historical).validate(golden)
 golden['schema_version'] = '1.6'
-golden['tool_version'] = '2.0.0-dev.8'
+golden['tool_version'] = '2.0.0-dev.9'
 validator.validate(golden)
 
 def invoke(args, code=0, human=False, cwd=None):

@@ -2,7 +2,7 @@
 
 Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。
 
-已具备 **只读进程/模块查询、PE 解析、DLL Doctor 静态规则与依赖候选检查、JSON / Markdown / HTML 报告及离线转换和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.8`，尚未发布正式 V2.0；已提供只读诊断 Agent Skill，MCP 和一行安装器继续按路线推进。参见 [CLI 基础契约](docs/P1_CONTRACT.md)、[模块契约](docs/MODULES_CONTRACT.md)、[PE 头部契约](docs/PE_CONTRACT.md)、[PE 表解析契约](docs/PE_TABLES_CONTRACT.md)、[Doctor 契约](docs/DOCTOR_CONTRACT.md)、[依赖候选契约](docs/DEPENDENCIES_CONTRACT.md)、[直接报告](docs/REPORTS_CONTRACT.md)、[离线转换](docs/SAVED_REPORTS_CONTRACT.md)、[Skill 接入与兼容性](docs/AGENT_COMPATIBILITY.md) 和 [原始基线](docs/BASELINE.md)。
+已具备 **只读进程/模块查询、PE 解析、DLL Doctor 静态规则与依赖候选检查、JSON / Markdown / HTML 报告及离线转换和 Windows 回归测试**，现有 Win32 GUI 保留。CLI 当前版本为 `2.0.0-dev.9`，尚未发布正式 V2.0；已提供只读诊断 Agent Skill 和 [本地 stdio MCP 服务](integrations/mcp/README.md)，一行安装器继续按路线推进。参见 [CLI 基础契约](docs/P1_CONTRACT.md)、[模块契约](docs/MODULES_CONTRACT.md)、[PE 头部契约](docs/PE_CONTRACT.md)、[PE 表解析契约](docs/PE_TABLES_CONTRACT.md)、[Doctor 契约](docs/DOCTOR_CONTRACT.md)、[依赖候选契约](docs/DEPENDENCIES_CONTRACT.md)、[直接报告](docs/REPORTS_CONTRACT.md)、[离线转换](docs/SAVED_REPORTS_CONTRACT.md)、[Skill 接入与兼容性](docs/AGENT_COMPATIBILITY.md) 和 [原始基线](docs/BASELINE.md)。
 
 ## 当前能力与验证边界
 
@@ -21,7 +21,7 @@ Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析�
 | 依赖候选检查 | Doctor 的 `--search-dir <path>` 可重复指定最多 16 个目录；报告普通/延迟导入的候选与观察错误；仅检查文件属性，不模拟加载器 |
 | 可分享报告 | 诊断命令支持 `--format markdown` / `--format html`，展示证据、发现与完整 JSON 附录；HTML 单文件离线阅读 |
 | 已保存报告转换 | `report export <saved.json> --format markdown|html` 按源版本校验并保留原报告，不重新查询其中的目标 |
-| Agent 集成 | 单一权威 Windows DLL Doctor Skill 与手动接入说明；命令示例已回归验证，客户端自动触发尚未实测；MCP / 安装器待实现 |
+| Agent 集成 | 单一权威 Windows DLL Doctor Skill 与手动接入说明；命令示例已回归验证，客户端自动触发尚未实测；7 个只读 MCP 工具已实现，Agent 宿主接入实测 / 安装器继续推进 |
 
 GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
 
@@ -178,7 +178,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 ## 后续路线
 
 1. P2：Doctor、报告和权威 Skill 指令包已实现；补充真实客户端触发与回答评测。
-2. P3/P4：本地 stdio MCP、实测的 Agent 适配和可回滚安装器。
+2. P3/P4：本地 stdio MCP 已实现；继续实测 Agent 宿主适配和开发可回滚安装器。
 3. P5：自有测试程序的 DLL 生命周期实验与结果对比。
 
 旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。
@@ -186,7 +186,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 ## English quick start
 
 This Windows C++ project includes the legacy GUI and a read-only process/PE CLI
-(`2.0.0-dev.8`). Install Visual Studio 2022 C++ tools and CMake 3.21+, plus Python
+(`2.0.0-dev.9`). Install Visual Studio 2022 C++ tools and CMake 3.21+, plus Python
 3.9+ and `python -m pip install -r tests/requirements.txt` for tests. Build with the
 presets above, then run `build/msvc-x64/Debug/cli/dllinjector.exe process list --json`
 or `process inspect --pid <PID> --json` / `process modules --pid <PID> --json`.
@@ -211,7 +211,7 @@ hash-checked jsoncons archive on first configuration; the CLI needs no external 
 or network at runtime. A portable [Windows DLL Doctor Skill](integrations/skills/windows-dll-doctor/SKILL.md)
 is available with tested CLI examples. Project discovery is checked with Codex, OpenCode and
 Pi's resource loader in the documented versions; model behavior and Claude discovery remain unverified.
-MCP and installers remain planned. CTest uses read-only queries,
+A local read-only [stdio MCP adapter](integrations/mcp/README.md) is available; Agent-host verification and installers remain in progress. CTest uses read-only queries,
 hidden startup checks, mocks and self-owned fixtures.
 
 ## 来源与许可

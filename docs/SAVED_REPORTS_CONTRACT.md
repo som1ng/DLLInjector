@@ -1,13 +1,15 @@
 # 已保存 JSON 报告离线转换
 
-目标：CLI `2.0.0-dev.8` / Schema `1.6`。
+目标：CLI `2.0.0-dev.9` / Schema `1.6`（dev.9 增加校验后的 JSON 导出）。
 
 ```powershell
 dllinjector report export .\reports\doctor.json --format html --output .\reports\doctor.html
 dllinjector report export .\reports\doctor.json --format markdown
+dllinjector report export .\reports\doctor.json --json
 ```
 
-- 必须提供一个输入文件和显式 `--format markdown|html`；拒绝 --json、--pid、--target-arch、--search-dir。
+- 必须提供一个输入文件和显式 `--format markdown|html` 或 `--json`；两种格式不能同时指定。
+  拒绝 --pid、--target-arch、--search-dir。JSON 模式输出校验后的源 JSON，保留原版本、字段与整数精度。
   --output、--verbose、--timeout-ms 沿用现有约定。只指定 .html 扩展名不能代替 --format。
 - 成功转换退出 0，即使源报告记录了诊断失败、阻断发现或超时。源状态/错误/执行标志展示为“记录的结果”，
   不重算诊断、不确认来源真实性。成功转换不把源 outcome_verified 从 false 改为 true。
