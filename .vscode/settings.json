@@ -37,7 +37,12 @@
   "C_Cpp_Runner.warningsAsError": false,
   "C_Cpp_Runner.compilerArgs": [],
   "C_Cpp_Runner.linkerArgs": [],
-  "C_Cpp_Runner.includePaths": [],
+  "C_Cpp_Runner.includePaths": [
+    "${workspaceFolder}/include",
+    "${workspaceFolder}/apps/cli",
+    "${workspaceFolder}/core",
+    "${workspaceFolder}/src"
+  ],
   "C_Cpp_Runner.includeSearch": [
     "*",
     "**/*"
