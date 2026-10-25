@@ -1,6 +1,6 @@
 # 本地 Skill 安装器
 
-Windows 源码运行版本 `0.1.0-dev.1`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.2`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 DLLInjector CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 没有 npm 依赖，不需要 `npm install`。包尚未发布；当前从本仓库运行。
 
@@ -17,6 +17,12 @@ node integrations/installer/src/index.mjs setup --agent codex --scope project --
 复制完整 Skill，并保存本机 CLI 路径和文件校验信息。CLI 仍位于原位置，请保留它。
 诊断时，Skill 优先使用用户明确提供的路径、`DLLINJECTOR_CLI`，然后读取安装记录中的路径。
 安装记录是数据，仍须确认 CLI 来源；安装成功不表示模型已发现或执行 Skill。
+
+若使用带 `manifest.json` 的 [CLI 分发归档](../../docs/CLI_DISTRIBUTION.md)，正式安装时附加
+`--manifest 'D:\tools\manifest.json'`。安装器在启动 EXE 前检查文件大小、SHA-256 和 PE 架构，
+启动后核对实际版本与清单一致。清单不符会失败，不能自动降级为无清单安装。
+`--dry-run` 也会执行文件校验，但不启动 CLI。普通源码构建仍可省略此选项。
+哈希用于比对内容，不能替代可信来源或数字签名。
 
 | 选择 | 项目安装目录 | 用户安装目录 |
 | --- | --- | --- |
@@ -62,4 +68,5 @@ node integrations/installer/src/index.mjs uninstall --agent codex --scope projec
 后者使用临时项目，客户端必须已安装且参数为原生 EXE，不调用模型 API。
 
 本轮不修改 MCP/客户端主配置，不探测并选择所有客户端，不下载 CLI，也不提供公开 npm 命令。
-发行包下载与哈希校验、`auto/all` 交互选择、统一 Pi/MCP 配置和升级恢复将分批推进。
+CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、`auto/all` 交互选择、
+统一 Pi/MCP 配置和升级恢复将分批推进。
