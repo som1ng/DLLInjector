@@ -21,7 +21,7 @@ Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析�
 | 依赖候选检查 | Doctor 的 `--search-dir <path>` 可重复指定最多 16 个目录；报告普通/延迟导入的候选与观察错误；仅检查文件属性，不模拟加载器 |
 | 可分享报告 | 诊断命令支持 `--format markdown` / `--format html`，展示证据、发现与完整 JSON 附录；HTML 单文件离线阅读 |
 | 已保存报告转换 | `report export <saved.json> --format markdown|html` 按源版本校验并保留原报告，不重新查询其中的目标 |
-| Agent 集成 | 单一权威 Windows DLL Doctor Skill 与手动接入说明；命令示例已回归验证，客户端自动触发尚未实测；7 个只读 MCP 工具已实现，Agent 宿主接入实测 / 安装器继续推进 |
+| Agent 集成 | 单一权威 Windows DLL Doctor Skill；命令示例已回归验证，客户端自动触发尚未实测；7 个只读 MCP 工具；可本地安装的原生 Pi 包；跨 Agent 安装器继续推进 |
 
 GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
 
@@ -119,6 +119,10 @@ HTML 不需要联网或脚本；两种格式将名称和路径作为文字展示
 已用 Codex、OpenCode 的实际发现接口和 Pi 的资源加载器验证项目 Skill 发现及负例；
 范围和复现命令见接入说明。Claude Code 的发现尚未实测。
 
+Pi 用户也可通过 [原生 Pi 包](integrations/pi/README.md) 安装同一份 Skill。
+已验证 Pi `1.4.0` 的本地目录与独立归档安装、重复安装、发现和卸载，覆盖用户/项目两种范围。
+包尚未发布到 npm，CLI 需另行准备；具体结果见 [Pi 交付记录](docs/PI_PACKAGE_DELIVERY.md)。
+
 ## 其他构建组合
 
 其他已配置组合：
@@ -168,6 +172,7 @@ schemas/               版本化 JSON Schema
 dll_test/              原 Demo 与第三方反射式样例
 tests/                 Win32 回归测试、启动测试与无副作用 fixture
 integrations/skills/   权威 Agent Skill、相对引用与只读命令示例
+integrations/pi/       原生 Pi 包清单、生成脚本与本地安装说明
 docs/                  基线、契约、验证记录与第三方声明
 CMakeLists.txt         构建入口
 CMakePresets.json       MSVC / 可选 MinGW 配置
@@ -178,7 +183,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 ## 后续路线
 
 1. P2：Doctor、报告和权威 Skill 指令包已实现；补充真实客户端触发与回答评测。
-2. P3/P4：本地 stdio MCP 已实现；继续实测 Agent 宿主适配和开发可回滚安装器。
+2. P3/P4：本地 stdio MCP 和原生 Pi 本地包已实现；继续补齐宿主验证和可回滚安装器。
 3. P5：自有测试程序的 DLL 生命周期实验与结果对比。
 
 旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。
@@ -211,7 +216,9 @@ hash-checked jsoncons archive on first configuration; the CLI needs no external 
 or network at runtime. A portable [Windows DLL Doctor Skill](integrations/skills/windows-dll-doctor/SKILL.md)
 is available with tested CLI examples. Project discovery is checked with Codex, OpenCode and
 Pi's resource loader in the documented versions; model behavior and Claude discovery remain unverified.
-A local read-only [stdio MCP adapter](integrations/mcp/README.md) is available; Agent-host verification and installers remain in progress. CTest uses read-only queries,
+A local read-only [stdio MCP adapter](integrations/mcp/README.md) and a locally installable
+[native Pi Skill package](integrations/pi/README.md) are available; the Pi package is not published to npm.
+Agent-host verification and cross-Agent installers remain in progress. CTest uses read-only queries,
 hidden startup checks, mocks and self-owned fixtures.
 
 ## 来源与许可

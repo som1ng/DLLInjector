@@ -52,6 +52,10 @@ jobs:
       - name: Test MCP host validation fixtures
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         run: python tests/mcp_hosts_tests.py
+      - name: Test Pi package build and archive
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: integrations/pi
+        run: npm test
       - name: Upload review artifacts
         if: success()
         uses: actions/upload-artifact@v4
