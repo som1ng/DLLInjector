@@ -116,6 +116,8 @@ HTML 不需要联网或脚本；两种格式将名称和路径作为文字展示
 构建 CLI 后，将整个 Skill 目录复制到 Agent 支持的项目目录，并提供 CLI 绝对路径或
 `DLLINJECTOR_CLI` 环境变量。具体步骤、官方目录与版本核验见 [接入说明](docs/AGENT_COMPATIBILITY.md)。
 此轮提供可移植指令包与 22 条评测规格，尚未验证各客户端的自动触发和模型回答质量。
+已用 Codex、OpenCode 的实际发现接口和 Pi 的资源加载器验证项目 Skill 发现及负例；
+范围和复现命令见接入说明。Claude Code 的发现尚未实测。
 
 ## 其他构建组合
 
@@ -207,7 +209,8 @@ validates schemas 1.0–1.6 and preserves the source snapshot without inspecting
 Export success exits 0 independently of the source diagnosis. CMake fetches a pinned,
 hash-checked jsoncons archive on first configuration; the CLI needs no external schemas
 or network at runtime. A portable [Windows DLL Doctor Skill](integrations/skills/windows-dll-doctor/SKILL.md)
-is available with tested CLI examples; client discovery/model behavior remain unverified.
+is available with tested CLI examples. Project discovery is checked with Codex, OpenCode and
+Pi's resource loader in the documented versions; model behavior and Claude discovery remain unverified.
 MCP and installers remain planned. CTest uses read-only queries,
 hidden startup checks, mocks and self-owned fixtures.
 
