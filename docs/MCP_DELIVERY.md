@@ -44,6 +44,9 @@ Inspector 使用本地临时配置和 stdio；配置与输出放在忽略的 `bu
 
 ## 尚未验证 / 尚未交付
 
+后续补充：Codex / Claude Code / OpenCode 的实际宿主调用已由
+[MCP 客户端验证](MCP_HOST_VALIDATION.md) 覆盖；以下保留首版交付时的验证边界。
+
 这是 MCP 服务与协议集成的交付，不等于全部 P3/P4 验收完成。尚未进行 Inspector 图形界面手动验收、
 Codex/Claude Code/OpenCode 实际 Agent 宿主的 MCP 工具调用、模型自主选择工具的行为评测，
 也没有发布 npm 包或提供一行安装器。此前 Skill 发现测试不能代替这些 MCP 验证。

@@ -90,3 +90,6 @@ npm test
 `noop_fixture.dll` 的构建目录。测试使用自有模块宿主，不修改其他进程。
 现有 Agent Skill 可独立使用；MCP 协议测试与 Agent 自主选择工具的效果测试是不同的验证。
 实测范围及未完成项见 [交付记录](../../docs/MCP_DELIVERY.md)。
+
+Codex、Claude Code、OpenCode 的已安装宿主调用验证、版本限定配置示例及重复运行方法，
+见 [MCP 客户端实测](../../docs/MCP_HOST_VALIDATION.md)。

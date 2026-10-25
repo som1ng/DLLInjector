@@ -4,6 +4,7 @@
 [`integrations/skills/windows-dll-doctor/`](../integrations/skills/windows-dll-doctor/SKILL.md)。
 完整复制该目录即可保留相对引用。独立的 [本地 MCP 服务](../integrations/mcp/README.md) 已提供；
 本页记录 Skill 接入，不代表 MCP 的 Agent 宿主兼容性实测。自动安装器、已发布 npm 包和原生 Pi Package 尚未提供。
+MCP 的版本限定配置与真实宿主调用结果另见 [MCP 客户端实测](MCP_HOST_VALIDATION.md)。
 
 ## 官方发现规则与本机版本
 
