@@ -20,7 +20,7 @@ golden = json.loads((root / 'tests/fixtures/json/doctor-mismatch.json').read_tex
 historical = json.loads((root / 'schemas/cli-v1.4.json').read_text(encoding='utf-8'))
 Draft202012Validator(historical).validate(golden)
 golden['schema_version'] = '1.6'
-golden['tool_version'] = '2.0.0-dev.9'
+golden['tool_version'] = '2.0.0-dev.8'
 golden['data']['dependencies'] = None
 golden['findings'][1]['evidence'][0]['description'] = (
     'Static tables contain 0 import libraries and 0 delay-import libraries. No DLL loading or initialization was performed.')

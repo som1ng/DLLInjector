@@ -100,19 +100,3 @@ FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
-
-## Local TypeScript MCP adapter
-
-`integrations/mcp/package-lock.json` pins the npm dependency graph with registry
-URLs and integrity hashes. Dependencies remain in ignored `node_modules`; this
-repository does not vendor their source or bundles. Runtime dependencies:
-
-- Official `@modelcontextprotocol/server` 2.4.0 and its core package: Apache-2.0.
-- Ajv 8.20.0: MIT.
-- Zod 4.6.7: MIT.
-
-Development dependencies include the official MCP client 2.4.0 (Apache-2.0),
-TypeScript 7.0.2 (Apache-2.0), and Node type declarations 22.20.5 (MIT).
-Their installed packages retain upstream licenses and notices. The adapter is
-private and marked `UNLICENSED`; third-party licenses do not resolve the
-repository's outstanding project-level licensing decision.

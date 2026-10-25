@@ -68,9 +68,9 @@ invalid["data"]["architecture"] = "unknown"
 assert not validator.is_valid(invalid), "unknown architecture cannot be inspect success"
 
 version, _ = run("--version")
-assert version["tool_version"] == "2.0.0-dev.9"
+assert version["tool_version"] == "2.0.0-dev.8"
 assert "process inspect" in run("--help")[0]["data"]["text"]
-assert "2.0.0-dev.9" in run("--version", json_mode=False)[0]
+assert "2.0.0-dev.8" in run("--version", json_mode=False)[0]
 assert "process list" in run("--help", json_mode=False)[0]
 
 listing, _ = run("process", "list")

@@ -2,8 +2,7 @@
 
 核验日期：**2026-10-24**。权威源只有
 [`integrations/skills/windows-dll-doctor/`](../integrations/skills/windows-dll-doctor/SKILL.md)。
-完整复制该目录即可保留相对引用。独立的 [本地 MCP 服务](../integrations/mcp/README.md) 已提供；
-本页记录 Skill 接入，不代表 MCP 的 Agent 宿主兼容性实测。自动安装器、已发布 npm 包和原生 Pi Package 尚未提供。
+完整复制该目录即可保留相对引用；此轮没有 MCP、自动安装器、已发布 npm 包或原生 Pi Package。
 
 ## 官方发现规则与本机版本
 

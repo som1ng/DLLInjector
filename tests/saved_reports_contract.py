@@ -78,26 +78,12 @@ def invoke(path, fmt='html', code=0, *extra):
     return text, doc, parsed
 
 
-def invoke_json(path, code=0, *extra):
-    result = subprocess.run([str(cli), 'report', 'export', str(path), '--json', *map(str, extra)],
-                            capture_output=True, timeout=20)
-    assert result.returncode == code, (path, result.returncode, result.stderr)
-    doc = json.loads(result.stdout.decode('utf-8'))
-    if code:
-        current.validate(doc)
-        assert doc['command'] == 'report.export' and doc['status'] == 'error'
-    else:
-        assert not result.stderr
-    return doc
-
-
 with tempfile.TemporaryDirectory(prefix='dllinjector-saved-') as tmp:
     folder = Path(tmp) / '中文 space 🚀'
     folder.mkdir()
     input_path = folder / 'report.json'
     for fixture in (root / 'tests/fixtures/json').glob('*.json'):
         expected = json.loads(fixture.read_text(encoding='utf-8'))
-        assert invoke_json(fixture) == expected, fixture
         for fmt in ('html', 'markdown'):
             _, actual, _ = invoke(fixture, fmt)
             assert actual == expected, fixture
@@ -109,12 +95,6 @@ with tempfile.TemporaryDirectory(prefix='dllinjector-saved-') as tmp:
     assert made.returncode == 1
     expected = json.loads(made.stdout)
     sample.unlink()
-    assert invoke_json(input_path) == expected
-    json_output = folder / 'export.json'
-    assert invoke_json(input_path, 0, '--output', json_output) == expected
-    before_json = json_output.read_bytes()
-    invoke_json(input_path, 4, '--output', json_output)
-    assert json_output.read_bytes() == before_json
     for fmt in ('html', 'markdown'):
         output = folder / f'export.{fmt}'
         text, actual, _ = invoke(input_path, fmt, 0, '--output', output)
@@ -140,11 +120,9 @@ with tempfile.TemporaryDirectory(prefix='dllinjector-saved-') as tmp:
     precise['duration_ms'] = 18446744073709551615
     input_path.write_text(json.dumps(precise), encoding='utf-8')
     assert invoke(input_path)[1] == precise
-    assert invoke_json(input_path) == precise
 
     def invalid(document, code=2):
         input_path.write_bytes(document if isinstance(document, bytes) else json.dumps(document).encode('utf-8'))
-        invoke_json(input_path, code)
         return invoke(input_path, 'html', code)[1]
 
     for raw in (b'', b'[]', b'{}', b'null', b'{}{}', b'{"x":1,}', b'//comment\n{}',

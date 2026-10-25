@@ -98,11 +98,6 @@ ENV/
 /reports/
 /artifacts/
 
-# Local MCP dependencies and generated distribution
-/integrations/mcp/node_modules/
-/integrations/mcp/dist/
-/integrations/mcp/*.tgz
-
 # --------------------------------------------------------------------
 # 7. 操作系统临时文件
 # --------------------------------------------------------------------
