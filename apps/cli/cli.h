@@ -3,11 +3,12 @@
 #include "dllinjector/process.h"
 #include "dllinjector/pe.h"
 #include "dllinjector/doctor.h"
+#include "dllinjector/injector.h"
 #include "saved_report.h"
 #include <variant>
 
 namespace dllinjector::cli {
-enum class Command { Help, Version, List, Inspect, Modules, PeInspect, Doctor, ReportExport };
+enum class Command { Help, Version, List, Inspect, Modules, PeInspect, Doctor, ReportExport, Inject };
 enum class DocumentFormat { Markdown, Html };
 struct Options {
     Command command = Command::Help;
@@ -20,13 +21,18 @@ struct Options {
     std::optional<std::wstring> path;
     std::optional<Architecture> target_architecture;
     std::vector<std::wstring> search_directories;
+    // Inject options
+    std::optional<std::wstring> dll_path;
+    std::optional<InjectionMethod> injection_method;
+    std::optional<std::wstring> target_dir;
+    bool force = false;
 };
 struct Report {
     std::string command = "unknown";
     std::optional<std::uint32_t> pid;
     std::optional<std::wstring> path;
     bool accepted = false;
-    std::variant<std::monostate, std::string, std::vector<ProcessSummary>, ProcessDetails, ModuleSnapshot, PeInfo, DoctorReport, SavedReport> data;
+    std::variant<std::monostate, std::string, std::vector<ProcessSummary>, ProcessDetails, ModuleSnapshot, PeInfo, DoctorReport, SavedReport, InjectionOutcome> data;
     std::vector<Error> errors;
     std::uint64_t duration_ms = 0;
 };
