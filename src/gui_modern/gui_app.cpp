@@ -91,6 +91,20 @@ std::string ToLower(const std::string& str) {
     return lower;
 }
 
+std::string TrimPathString(std::string str) {
+    size_t first = str.find_first_not_of(" \t\r\n\"'");
+    if (first == std::string::npos) return "";
+    size_t last = str.find_last_not_of(" \t\r\n\"'");
+    return str.substr(first, (last - first + 1));
+}
+
+std::wstring TrimPathWString(std::wstring str) {
+    size_t first = str.find_first_not_of(L" \t\r\n\"'");
+    if (first == std::wstring::npos) return L"";
+    size_t last = str.find_last_not_of(L" \t\r\n\"'");
+    return str.substr(first, (last - first + 1));
+}
+
 std::wstring Utf8ToWide(std::string_view utf8) {
     if (utf8.empty()) return L"";
     int needed = MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), nullptr, 0);
@@ -234,8 +248,9 @@ void InitGuiApp() {
 
 void OnDropFile(const wchar_t* path) {
     if (!path) return;
-    std::wstring p(path);
-    std::wstring ext = PathFindExtensionW(path);
+    std::wstring p = TrimPathWString(path);
+    if (p.empty()) return;
+    std::wstring ext = PathFindExtensionW(p.c_str());
     std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
 
     if (ext == L".dll") {
@@ -338,9 +353,18 @@ static void RenderProcessListPane(float width) {
         RefreshProcesses();
     }
 
-    // Search filter
-    ImGui::SetNextItemWidth(-1.0f);
-    ImGui::InputTextWithHint("##SearchFilter", "🔍 输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
+    // Search filter with clear button
+    if (g_SearchFilter[0] != '\0') {
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 32.0f);
+        ImGui::InputTextWithHint("##SearchFilter", "🔍 输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
+        ImGui::SameLine();
+        if (ImGui::SmallButton("×")) {
+            g_SearchFilter[0] = '\0';
+        }
+    } else {
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::InputTextWithHint("##SearchFilter", "🔍 输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
+    }
 
     // Arch filter tabs
     if (RenderSegmentButton("全部", g_ArchFilterTab == 0, ImVec2(80, 24))) g_ArchFilterTab = 0;
@@ -358,10 +382,10 @@ static void RenderProcessListPane(float width) {
     if (ImGui::BeginTable("ProcessTable", 4,
                           ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg |
                           ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersInnerV)) {
-        ImGui::TableSetupColumn("PID", ImGuiTableColumnFlags_WidthFixed, 65.0f);
+        ImGui::TableSetupColumn("PID", ImGuiTableColumnFlags_WidthFixed, 60.0f);
         ImGui::TableSetupColumn("进程名称", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("架构", ImGuiTableColumnFlags_WidthFixed, 55.0f);
-        ImGui::TableSetupColumn("匹配", ImGuiTableColumnFlags_WidthFixed, 60.0f);
+        ImGui::TableSetupColumn("架构", ImGuiTableColumnFlags_WidthFixed, 65.0f);
+        ImGui::TableSetupColumn("匹配", ImGuiTableColumnFlags_WidthFixed, 65.0f);
         ImGui::TableHeadersRow();
 
         std::string filterLower = ToLower(g_SearchFilter);
@@ -458,7 +482,8 @@ static void RenderPayloadPane() {
         // File selection input
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
         if (ImGui::InputTextWithHint("##DllPath", "输入或选择目标 .dll 绝对路径...", g_DllPathBuf, sizeof(g_DllPathBuf))) {
-            g_CurrentDllPath = Utf8ToWide(g_DllPathBuf);
+            std::string clean = TrimPathString(g_DllPathBuf);
+            g_CurrentDllPath = Utf8ToWide(clean);
             TriggerPreflight();
         }
         ImGui::SameLine();
@@ -474,10 +499,11 @@ static void RenderPayloadPane() {
 
         // Drag & Drop hint zone
         ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface2);
-        ImGui::BeginChild("DropZone", ImVec2(0, 42), true);
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 9.0f));
+        ImGui::BeginChild("DropZone", ImVec2(0, 36), true, ImGuiWindowFlags_NoScrollbar);
         ImGui::TextColored(theme::TextDark, "  📥 支持将 .dll 文件直接拖入本窗口任意区域完成自动加载与分析");
         ImGui::EndChild();
+        ImGui::PopStyleVar();
         ImGui::PopStyleColor();
 
         // Core Doctor Preflight Card
@@ -556,7 +582,7 @@ static void RenderPayloadPane() {
         // Optional .bin file picker
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
         if (ImGui::InputTextWithHint("##BinPath", "载入 .bin 文件路径 (可选)...", g_BinPathBuf, sizeof(g_BinPathBuf))) {
-            std::wstring binPath = Utf8ToWide(g_BinPathBuf);
+            std::wstring binPath = Utf8ToWide(TrimPathString(g_BinPathBuf));
             if (!binPath.empty() && GetFileAttributesW(binPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
                 g_ParsedHexBytes = utils::ReadFileToBuffer(binPath);
                 Logger::Instance().Info("已从二进制文件读取 " + std::to_string(g_ParsedHexBytes.size()) + " 字节。");
@@ -589,7 +615,7 @@ static void RenderPayloadPane() {
 
 static void RenderMethodsGrid() {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface1);
-    ImGui::BeginChild("MethodsCard", ImVec2(0, 205), true);
+    ImGui::BeginChild("MethodsCard", ImVec2(0, 230), true);
 
     ImGui::AlignTextToFramePadding();
     ImGui::TextColored(theme::AccentCyan, "⚙️ 注入方法选择 (INJECTION METHODS)");
@@ -617,7 +643,9 @@ static void RenderMethodsGrid() {
             ImGui::PushStyleColor(ImGuiCol_Border, theme::BorderSubtle);
         }
 
-        ImGui::BeginChild("MethodSubCard", ImVec2(0, 48), true, ImGuiWindowFlags_NoScrollbar);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 6.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 3.0f));
+        ImGui::BeginChild("MethodSubCard", ImVec2(0, 54), true, ImGuiWindowFlags_NoScrollbar);
         
         // Card Title & Badge
         ImGui::TextColored(isSelected ? theme::AccentCyan : (isSupported ? theme::TextPrimary : theme::TextDark),
@@ -632,22 +660,20 @@ static void RenderMethodsGrid() {
         // Subtitle / description
         ImGui::TextColored(isSupported ? theme::TextMuted : theme::TextDark, "%s", card.description);
 
+        bool cardHovered = isSupported && ImGui::IsWindowHovered();
         ImGui::EndChild();
+        ImGui::PopStyleVar(2);
         ImGui::PopStyleColor(2);
 
         // Click detection
-        if (isSupported && ImGui::IsItemClicked()) {
+        if (isSupported && (ImGui::IsItemClicked() || (cardHovered && ImGui::IsMouseClicked(0)))) {
             g_SelectedMethod = card.id;
             Logger::Instance().Info(std::string("已切换注入技术: ") + card.title);
         }
 
         ImGui::PopID();
 
-        if (i % 2 == 0) {
-            ImGui::NextColumn();
-        } else {
-            ImGui::NextColumn();
-        }
+        ImGui::NextColumn();
     }
 
     ImGui::Columns(1);
@@ -837,7 +863,7 @@ void RenderGuiFrame() {
         // 2. Middle Body: Two Column Split
         float consoleHeight = 175.0f;
         float middleHeight = io.DisplaySize.y - 52.0f - consoleHeight - 38.0f;
-        if (middleHeight < 280.0f) middleHeight = 280.0f;
+        if (middleHeight < 310.0f) middleHeight = 310.0f;
 
         float leftPaneWidth = 380.0f;
 

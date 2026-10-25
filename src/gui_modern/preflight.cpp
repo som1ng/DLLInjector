@@ -128,7 +128,12 @@ std::string PreflightDoctor::GenerateJsonReport(const PreflightResult& res, DWOR
     json << "  \"import_libraries_count\": " << res.importCount << ",\n";
     json << "  \"delay_imports_count\": " << res.delayImportCount << ",\n";
     json << "  \"target_pid\": " << targetPid << ",\n";
-    json << "  \"target_architecture\": \"" << (res.targetArch ? dllinjector::ArchitectureName(*MapArch(res.targetArch)) : "None") << "\",\n";
+    std::string targetArchStr = "None";
+    if (res.targetArch) {
+        auto mappedTarget = MapArch(res.targetArch);
+        targetArchStr = mappedTarget ? std::string(dllinjector::ArchitectureName(*mappedTarget)) : "Unknown";
+    }
+    json << "  \"target_architecture\": \"" << targetArchStr << "\",\n";
     
     std::string matchStr = "UNKNOWN";
     if (res.matchStatus == ArchMatchStatus::Match) matchStr = "MATCH";
@@ -176,7 +181,12 @@ std::string PreflightDoctor::GenerateTextReport(const PreflightResult& res, DWOR
     txt << "DLL Architecture: " << res.dllArchStr << " (" << (res.isPe32Plus ? "PE32+" : "PE32") << ")\r\n";
     txt << "Imported Libraries: " << res.importCount << " | Delay Imports: " << res.delayImportCount << "\r\n";
     txt << "Target Process PID: " << targetPid << "\r\n";
-    txt << "Target Architecture: " << (res.targetArch ? dllinjector::ArchitectureName(*MapArch(res.targetArch)) : "Not Selected") << "\r\n";
+    std::string textTargetArch = "Not Selected";
+    if (res.targetArch) {
+        auto mappedTarget = MapArch(res.targetArch);
+        textTargetArch = mappedTarget ? std::string(dllinjector::ArchitectureName(*mappedTarget)) : "Unknown";
+    }
+    txt << "Target Architecture: " << textTargetArch << "\r\n";
     
     txt << "Architecture Compatibility: ";
     if (res.matchStatus == ArchMatchStatus::Match) txt << "[PASS] Architecture match confirmed.\r\n";

@@ -70,8 +70,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
     case WM_DROPFILES: {
         HDROP hDrop = (HDROP)wParam;
-        wchar_t droppedPath[MAX_PATH];
-        if (DragQueryFileW(hDrop, 0, droppedPath, MAX_PATH)) {
+        wchar_t droppedPath[1024];
+        if (DragQueryFileW(hDrop, 0, droppedPath, 1024)) {
             gui::OnDropFile(droppedPath);
         }
         DragFinish(hDrop);
@@ -149,10 +149,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    // Load High-Quality Fonts
+    // Load High-Quality Fonts (Oversample=1 for CJK avoids massive 35MB atlas and slow startup)
     ImFontConfig font_cfg;
-    font_cfg.OversampleH = 2;
-    font_cfg.OversampleV = 2;
+    font_cfg.OversampleH = 1;
+    font_cfg.OversampleV = 1;
+    font_cfg.PixelSnapH = true;
 
     if (GetFileAttributesW(L"C:\\Windows\\Fonts\\msyh.ttc") != INVALID_FILE_ATTRIBUTES) {
         gui::g_MainFont = io.Fonts->AddFontFromFileTTF(
@@ -194,6 +195,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
         // When window is hidden (e.g., automated smoke test), wait for messages without GPU rendering
         if (!IsWindowVisible(hwnd)) {
             WaitMessage();
+            continue;
+        }
+
+        // When window is minimized, sleep briefly to avoid 100% CPU spin without VSync
+        if (IsIconic(hwnd)) {
+            Sleep(16);
             continue;
         }
 

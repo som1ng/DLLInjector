@@ -41,6 +41,7 @@ private:
     mutable std::mutex mutex_;
     std::vector<LogEntry> entries_;
     bool autoScroll_ = true;
+    bool scrollToBottom_ = false;
     int filterLevel_ = 0; // 0: All, 1: Info+, 2: Success+, 3: Warn+, 4: Error only
     char searchFilter_[64] = "";
 };

@@ -51,11 +51,13 @@ void Logger::Log(LogLevel level, const std::string& message) {
     entry.level = level;
     entry.message = message;
     entries_.push_back(std::move(entry));
+    scrollToBottom_ = true;
 }
 
 void Logger::Clear() {
     std::lock_guard<std::mutex> lock(mutex_);
     entries_.clear();
+    scrollToBottom_ = true;
 }
 
 std::string Logger::GetAllAsText() const {
@@ -80,6 +82,10 @@ void Logger::RenderConsole(const char* title, float height, ImFont* monoFont) {
     ImGui::SameLine();
     std::string countStr = std::to_string(entries_.size()) + " 条";
     RenderStatusBadge(countStr.c_str(), "cyan");
+
+    ImGui::SameLine(0, 10);
+    ImGui::SetNextItemWidth(140.0f);
+    ImGui::InputTextWithHint("##LogSearch", "🔍 搜索日志...", searchFilter_, sizeof(searchFilter_));
 
     // Right-aligned toolbar buttons
     float rightControlsWidth = 270.0f;
@@ -111,7 +117,23 @@ void Logger::RenderConsole(const char* title, float height, ImFont* monoFont) {
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        std::string filterLower = searchFilter_;
+        if (!filterLower.empty()) {
+            std::transform(filterLower.begin(), filterLower.end(), filterLower.begin(),
+                           [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+        }
+
         for (const auto& entry : entries_) {
+            if (!filterLower.empty()) {
+                std::string msgLower = entry.message;
+                std::transform(msgLower.begin(), msgLower.end(), msgLower.begin(),
+                               [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+                if (msgLower.find(filterLower) == std::string::npos &&
+                    entry.timestamp.find(filterLower) == std::string::npos) {
+                    continue;
+                }
+            }
+
             // Timestamp
             ImGui::TextColored(theme::TextDark, "[%s]", entry.timestamp.c_str());
             ImGui::SameLine(0, 4);
@@ -134,8 +156,9 @@ void Logger::RenderConsole(const char* title, float height, ImFont* monoFont) {
         }
     }
 
-    if (autoScroll_ && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
+    if (scrollToBottom_ || (autoScroll_ && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())) {
         ImGui::SetScrollHereY(1.0f);
+        scrollToBottom_ = false;
     }
 
     if (monoFont) ImGui::PopFont();
