@@ -1,8 +1,9 @@
-# 本地 Skill 安装器
+# 本地 Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.2`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.3`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 DLLInjector CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
-没有 npm 依赖，不需要 `npm install`。包尚未发布；当前从本仓库运行。
+默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
+项目级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
 
 ## 安装
 
@@ -60,13 +61,63 @@ node integrations/installer/src/index.mjs uninstall --agent codex --scope projec
 输出为 JSON，成功退出 `0`，失败退出 `1`。文件清单包含本机路径；安装目录与安装记录应保留在本机，
 请在目标项目的 Git 忽略规则中排除对应安装目录。本仓库已配置这些忽略规则。
 
+## 项目级 MCP 配置
+
+支持 Codex **0.164.0**、Claude Code **2.1.310**、OpenCode **1.19.4 (V1)**；
+其他版本会明确拒绝，尚未验证其配置兼容性。准备 CLI **dev.9 / Schema 1.6**、
+已构建的 [MCP 服务](../mcp/README.md) 和客户端原生 `.exe`（不接受 `.cmd` / `.ps1` 包装器）。
+安装器不下载或复制这些运行文件，移动/更新后需明确卸载再安装。
+
+在仓库根目录运行，替换绝对路径；`--allow-root` 可重复指定：
+
+```powershell
+npm.cmd ci --prefix integrations/installer --ignore-scripts --no-audit --no-fund
+node integrations/installer/src/index.mjs setup --integration mcp --agent codex --scope project --project 'D:\work\my-app' --client 'D:\tools\codex.exe' --cli 'D:\tools\dllinjector.exe' --server 'D:\src\DLLInjector\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' --dry-run
+# 确认预览后，将 --dry-run 换成 --verify 执行安装。
+node integrations/installer/src/index.mjs verify --integration mcp --agent codex --scope project --project 'D:\work\my-app'
+node integrations/installer/src/index.mjs uninstall --integration mcp --agent codex --scope project --project 'D:\work\my-app' --dry-run
+node integrations/installer/src/index.mjs uninstall --integration mcp --agent codex --scope project --project 'D:\work\my-app'
+```
+
+| 客户端 | 项目配置 |
+| --- | --- |
+| Codex | `.codex/config.toml` |
+| Claude Code | `.mcp.json` |
+| OpenCode | 已有 `opencode.jsonc` 或 `opencode.json`；无配置时创建 `.json`；同时存在则拒绝 |
+
+仅管理 `dll_doctor` 条目，保留其他设置和注释。已有同名手动配置、被修改的托管条目、
+重复键、损坏配置或链接路径会阻止写入。相同安装返回 `unchanged`；更换路径或授权目录需先卸载。
+若 JSONC 编辑会删除相邻注释，也会保留原文件并报错，请先调整注释位置。
+默认只开放显式授权的目录；需要查询进程时在 setup 中明确加 `--allow-processes`。
+支持可选的 CLI `--manifest` 校验。`--dry-run` 不启动客户端、CLI 或 MCP 服务。
+
+正式 setup 在写入前检查客户端/CLI 版本，并启动 MCP 服务验证握手和七个只读工具；
+`--verify` 额外在写入后复查。独立 verify 也检查记录的 CLI/入口脚本哈希和 Node 路径。
+**验证成功不代表客户端自动发现、信任该项目，或模型自主选择了工具。**
+在目标客户端中按其正常流程信任项目、批准 MCP，再使用工具；安装器不修改信任或批准设置。
+实际客户端验证的加载方式和范围见 [交付记录](../../docs/MCP_INSTALLER_DELIVERY.md)。
+
+本机记录位于 `.dll-doctor/mcp-<agent>.json`，只保存本安装的设置、路径和校验信息，
+不复制其他配置或凭据。卸载保留安装后的其他配置修改；例如 OpenCode 自动新增的 `$schema`。
+未被修改的新建配置才会整体删除。请在目标项目忽略 `.dll-doctor/`，
+并根据项目需要忽略含本机绝对路径的客户端配置；安装器不会改动目标项目的 `.gitignore`。
+
+可捕获的写入失败会按原始字节回滚，遇到并发修改则保留现场并报告 `ROLLBACK_INCOMPLETE`。
+强制结束/断电恢复不在本轮范围内；残留 `.dll-doctor/mcp-<agent>.lock` 时，
+先确认没有安装器运行，再备份配置与记录并检查残留，不自动抢锁。
+MCP 暂只支持 `--scope project`；详细边界见 [契约](../../docs/MCP_INSTALLER_CONTRACT.md)。
+
 ## 开发验证与范围
 
-在本目录执行 `npm test`。设置 `DLL_INSTALLER_TEST_CLI` 为现有 CLI 的绝对路径，会额外执行真实入口安装、
+在本目录完成 `npm.cmd ci --ignore-scripts --no-audit --no-fund` 后执行 `npm.cmd test`。
+设置 `DLL_INSTALLER_TEST_CLI` 为现有 CLI 的绝对路径，会额外执行真实入口安装、
 校验及 PE 查询；未设置时该项明确标为跳过。真实客户端发现可运行仓库的
 `python tests/installer_hosts.py --cli <cli.exe> --codex <codex.exe> --opencode <opencode.exe>`。
 后者使用临时项目，客户端必须已安装且参数为原生 EXE，不调用模型 API。
 
-本轮不修改 MCP/客户端主配置，不探测并选择所有客户端，不下载 CLI，也不提供公开 npm 命令。
-CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、`auto/all` 交互选择、
-统一 Pi/MCP 配置和升级恢复将分批推进。
+同时设置 `DLL_INSTALLER_TEST_MCP` 为构建后的 MCP `index.js` 绝对路径，可运行真实 MCP 握手测试。
+生成配置的真实宿主测试见 `tests/mcp_installer_hosts.py --help`，使用隔离临时项目和本地固定模型响应，
+不调用付费模型 API；这是显式配置加载验证，不是自动项目发现测试。
+
+CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、`auto/all` 客户端选择、
+用户级 MCP、公开 npm 分发和升级恢复仍待实现。

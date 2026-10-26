@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from './distribution.mjs';
 
-export const VERSION = '0.1.0-dev.2';
+export const VERSION = '0.1.0-dev.3';
 export const NAME = 'windows-dll-doctor';
 export const FILES = ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml'];
 const BINDING = 'references/installation.json';
@@ -22,13 +22,13 @@ export class InstallError extends Error {
   constructor(code, message) { super(message); this.code = code; }
 }
 function fail(code, message) { throw new InstallError(code, message); }
-async function stat(file) {
+export async function stat(file) {
   try { return await fs.lstat(file); }
   catch (error) { if (error.code === 'ENOENT') return undefined; throw error; }
 }
 
 // Check existing components before any writes; do not follow junctions into user data.
-async function safePath(file) {
+export async function safePath(file) {
   const absolute = path.resolve(file);
   let current = path.parse(absolute).root;
   for (const part of absolute.slice(current.length).split(path.sep).filter(Boolean)) {
@@ -51,7 +51,7 @@ export function destination(options, home = os.homedir(), env = process.env) {
   return { root, target: path.join(root, options.agent === 'claude' ? '.claude' : '.agents', 'skills', NAME) };
 }
 
-async function cliPath(file) {
+export async function cliPath(file) {
   if (!file || !path.isAbsolute(file) || path.extname(file).toLowerCase() !== '.exe' || file.startsWith('\\\\')) {
     fail('CLI_PATH', 'Provide an absolute local .exe path with --cli.');
   }
@@ -135,7 +135,7 @@ async function verify(target, probe) {
   return cli;
 }
 
-async function makeParents(directory, made) {
+export async function makeParents(directory, made) {
   if (await stat(directory)) return;
   await makeParents(path.dirname(directory), made);
   try { await fs.mkdir(directory); made.push(directory); }

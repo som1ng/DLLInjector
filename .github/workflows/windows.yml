@@ -36,7 +36,9 @@ jobs:
         with:
           node-version: '22.22.3'
           cache: npm
-          cache-dependency-path: integrations/mcp/package-lock.json
+          cache-dependency-path: |
+            integrations/mcp/package-lock.json
+            integrations/installer/package-lock.json
       - name: Install MCP dependencies
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         working-directory: integrations/mcp
@@ -56,11 +58,16 @@ jobs:
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         working-directory: integrations/pi
         run: npm test
-      - name: Test local Skill installer
+      - name: Install installer dependencies
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: integrations/installer
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Test local Skill and MCP installer
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         working-directory: integrations/installer
         run: |
           $env:DLL_INSTALLER_TEST_CLI = (Resolve-Path ../../build/msvc-x64/Release/cli/dllinjector.exe).Path
+          $env:DLL_INSTALLER_TEST_MCP = (Resolve-Path ../mcp/dist/index.js).Path
           npm test
       - name: Test CLI distribution packaging
         if: matrix.configuration == 'release'
