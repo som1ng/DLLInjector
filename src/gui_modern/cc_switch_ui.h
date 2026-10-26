@@ -347,10 +347,12 @@ inline std::string GetCcSwitchUiHtml() {
     position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
     width: 20px; height: 20px; border: 0; border-radius: 50%;
     background: transparent; color: var(--text-3); cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0; margin: 0;
+    line-height: 0; box-sizing: border-box;
     transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
   }
   .input-wrap > .clear-btn:hover { background: var(--bg-subtle); color: var(--text-1); }
+  .input-wrap > .clear-btn svg { width: 12px; height: 12px; display: block; stroke-width: 2; }
 )CCS2";
 
     static constexpr std::string_view kChunk3 = R"CCS3(
@@ -506,12 +508,23 @@ inline std::string GetCcSwitchUiHtml() {
   .toast > svg.ok { color: var(--success); }
   .toast > svg.err { color: var(--danger); }
   .toast > svg.warn { color: var(--warning); }
-  .toast .grow { flex: 1; }
+  .toast .grow { flex: 1; min-width: 0; word-break: break-word; line-height: 18px; }
   .toast .tclose {
-    position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%;
-    background: var(--bg-card); color: var(--text-2); box-shadow: var(--shadow-sm); cursor: pointer;
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-2);
+    box-shadow: var(--shadow-sm); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; margin: 0 0 0 auto; line-height: 0; box-sizing: border-box; outline: none;
+    flex-shrink: 0;
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
   }
-  .toast .tclose:hover { color: var(--text-1); }
+  .toast .tclose:hover { color: var(--text-1); background: var(--bg-subtle); border-color: var(--border-strong); }
+  .toast .tclose svg {
+    width: 12px; height: 12px; display: block;
+    fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+  }
 
   .modal-backdrop {
     position: fixed; inset: 0; background: var(--overlay); z-index: 180;
@@ -519,11 +532,28 @@ inline std::string GetCcSwitchUiHtml() {
   }
   .modal-backdrop.open { display: flex; }
   .dialog {
+    position: relative;
     width: min(460px, 92vw); max-height: 85vh; display: flex; flex-direction: column;
     border: 1px solid var(--border); border-radius: var(--r-dialog);
     background: var(--bg-card); box-shadow: var(--shadow-lg); padding: 20px;
   }
-  .dialog h4 { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); flex-shrink: 0; }
+  .dialog-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-2);
+    box-shadow: var(--shadow-sm); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; margin: 0; line-height: 0; box-sizing: border-box; outline: none;
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .dialog-close:hover { color: var(--text-1); background: var(--bg-subtle); border-color: var(--border-strong); }
+  .dialog-close svg {
+    width: 12px; height: 12px; display: block;
+    fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+  }
+  .dialog h4 { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); flex-shrink: 0; padding-right: 28px; }
   .dialog #modalBody { overflow-y: auto; max-height: calc(85vh - 120px); margin-top: 6px; color: var(--text-2); font-size: 13px; line-height: 20px; }
   .dialog .ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; flex-shrink: 0; }
 </style>
@@ -905,6 +935,9 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 <!-- Modal Dialog (Confirm / Settings) -->
 <div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
   <div class="dialog" role="dialog" aria-modal="true">
+    <button class="dialog-close" onclick="closeModal()" aria-label="关闭">
+      <svg class="i sm"><use href="#x"/></svg>
+    </button>
     <h4 id="modalTitle">提示</h4>
     <div id="modalBody"></div>
     <div class="ft" id="modalFooter"></div>
