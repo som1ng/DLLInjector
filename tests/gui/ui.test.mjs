@@ -171,3 +171,25 @@ test('collapsed navigation and edge controls show tooltips inside the viewport',
     assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 880 && box.y + box.height <= 600);
   }
 });
+
+test('collapsed sidebar navigation items center their svg icons horizontally', async () => {
+  await page.locator('#sidebarToggleBtn').click();
+  await page.waitForTimeout(350);
+  const navItem = page.locator('.sidebar .nav-item[data-view="workbench"]');
+  const svg = navItem.locator('svg.i');
+  const itemBox = await navItem.boundingBox();
+  const svgBox = await svg.boundingBox();
+  const itemCenter = itemBox.x + itemBox.width / 2;
+  const svgCenter = svgBox.x + svgBox.width / 2;
+  assert.ok(Math.abs(itemCenter - svgCenter) <= 2, `Icon should be centered: itemCenter=${itemCenter}, svgCenter=${svgCenter}`);
+  assert.equal(await page.locator('.sidebar .nav-label').first().isVisible(), false);
+});
+
+test('inline process refresh and F5 shortcut dispatch refresh_processes command', async () => {
+  assert.equal(await page.locator('#headerSubtitle').count(), 0);
+  await page.locator('#btnRefreshProcesses').click();
+  assert.equal(await page.evaluate(() => commands.at(-1)?.cmd), 'refresh_processes');
+  await page.keyboard.press('F5');
+  assert.equal(await page.evaluate(() => commands.at(-1)?.cmd), 'refresh_processes');
+});
+
