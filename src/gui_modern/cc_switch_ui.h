@@ -249,18 +249,27 @@ inline std::string GetCcSwitchUiHtml() {
   .btn.icon.lg { width: 32px; height: 32px; }
   .btn:disabled { opacity: .45; cursor: not-allowed; }
 
-  /* HoverTip (zero-delay inverse capsule) */
-  [data-tip] { position: relative; }
-  [data-tip]::after {
-    content: attr(data-tip); position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%);
-    z-index: 130; pointer-events: none; white-space: nowrap;
-    padding: 5px 10px; border-radius: 9999px; background: var(--inverse-bg); color: var(--inverse-fg);
-    font: 500 11.5px/16px var(--font-sans); box-shadow: var(--shadow-md);
-    opacity: 0; transition: opacity 80ms;
+  /* Global HoverTip (Viewport-safe adaptive capsule) */
+  .global-hovertip {
+    position: fixed;
+    z-index: 10000;
+    pointer-events: none;
+    white-space: nowrap;
+    padding: 5px 10px;
+    border-radius: 9999px;
+    background: var(--inverse-bg);
+    color: var(--inverse-fg);
+    font: 500 11.5px/16px var(--font-sans);
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 80ms var(--ease);
+    transform: none;
   }
-  [data-tip]:hover::after { opacity: 1; }
-  [data-tip-pos="top"]::after { top: auto; bottom: calc(100% + 6px); }
-  [data-tip-pos="right"]::after { left: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
+  .global-hovertip.visible {
+    opacity: 1;
+    visibility: visible;
+  }
 
   /* Chips / Badges (v7 badge.tsx) */
   .chip {
@@ -888,6 +897,8 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 
 <!-- Toast Container -->
 <div id="toaster" aria-live="polite"></div>
+<!-- Viewport-Clamped Global HoverTip Container -->
+<div id="globalHoverTip" class="global-hovertip" role="tooltip" aria-hidden="true"></div>
 )CCS6";
 
     static constexpr std::string_view kChunk7 = R"CCS7(
@@ -1170,7 +1181,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
   }
 )CCS8";
 
-    static constexpr std::string_view kChunk9 = R"CCS9(
+    static constexpr std::string_view kChunk9a = R"CCS9A(
   function renderProcesses() {
     const q = ui.procSearch.trim().toLowerCase();
     let countX64 = 0, countX86 = 0, countRest = 0;
@@ -1229,7 +1240,9 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     }).join("");
   }
 
-  function renderDoctorAndDeps() {
+)CCS9A";
+
+    static constexpr std::string_view kChunk9b = R"CCS9B(  function renderDoctorAndDeps() {
     const pf = state.preflight;
     document.getElementById("navFindingCount").textContent = pf.valid ? pf.findings.length : "—";
     document.getElementById("navDepCount").textContent = pf.valid ? pf.dependencies.length : "0";
@@ -1305,6 +1318,93 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
       return `<tr><td class="mono" style="color:var(--text-3)">${esc(l.time)}</td><td><span class="chip ${tone}">${esc(l.level)}</span></td><td class="selectable">${esc(l.msg)}</td></tr>`;
     }).join("");
     scroll.scrollTop = resetScroll ? 0 : (wasAtBottom ? scroll.scrollHeight : previousTop);
+  }
+
+  function initGlobalHoverTip() {
+    const tip = document.getElementById("globalHoverTip");
+    if (!tip) return;
+    let activeEl = null;
+
+    function showTip(target) {
+      const text = target.getAttribute("data-tip");
+      if (!text) {
+        hideTip();
+        return;
+      }
+      activeEl = target;
+      tip.textContent = text;
+      tip.classList.add("visible");
+      tip.setAttribute("aria-hidden", "false");
+
+      const targetRect = target.getBoundingClientRect();
+      const tipRect = tip.getBoundingClientRect();
+      const pos = target.getAttribute("data-tip-pos") || "bottom";
+      const margin = 8;
+      const gap = 6;
+
+      let left = 0;
+      let top = 0;
+
+      if (pos === "top") {
+        top = targetRect.top - tipRect.height - gap;
+        left = targetRect.left + (targetRect.width - tipRect.width) / 2;
+        if (top < margin) {
+          top = targetRect.bottom + gap;
+        }
+      } else if (pos === "right") {
+        left = targetRect.right + gap;
+        top = targetRect.top + (targetRect.height - tipRect.height) / 2;
+        if (left + tipRect.width > window.innerWidth - margin) {
+          left = targetRect.left - tipRect.width - gap;
+        }
+      } else if (pos === "left") {
+        left = targetRect.left - tipRect.width - gap;
+        top = targetRect.top + (targetRect.height - tipRect.height) / 2;
+        if (left < margin) {
+          left = targetRect.right + gap;
+        }
+      } else {
+        top = targetRect.bottom + gap;
+        left = targetRect.left + (targetRect.width - tipRect.width) / 2;
+        if (top + tipRect.height > window.innerHeight - margin) {
+          top = targetRect.top - tipRect.height - gap;
+        }
+      }
+
+      left = Math.max(margin, Math.min(window.innerWidth - tipRect.width - margin, left));
+      top = Math.max(margin, Math.min(window.innerHeight - tipRect.height - margin, top));
+
+      tip.style.left = Math.round(left) + "px";
+      tip.style.top = Math.round(top) + "px";
+    }
+
+    function hideTip() {
+      activeEl = null;
+      tip.classList.remove("visible");
+      tip.setAttribute("aria-hidden", "true");
+    }
+
+    document.addEventListener("mouseover", (e) => {
+      const target = e.target.closest("[data-tip]");
+      if (target && target.getAttribute("data-tip")) {
+        showTip(target);
+      } else if (activeEl && !e.target.closest("[data-tip]")) {
+        hideTip();
+      }
+    }, { passive: true });
+
+    document.addEventListener("mouseout", (e) => {
+      if (activeEl) {
+        const related = e.relatedTarget ? e.relatedTarget.closest("[data-tip]") : null;
+        if (related !== activeEl) {
+          hideTip();
+        }
+      }
+    }, { passive: true });
+
+    window.addEventListener("scroll", hideTip, { capture: true, passive: true });
+    document.addEventListener("mousedown", hideTip, { passive: true });
+    window.addEventListener("blur", hideTip);
   }
 
   function applyState(newState) {
@@ -1418,17 +1518,18 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     });
 
     syncAllThumbs();
+    initGlobalHoverTip();
     sendCmd({ cmd: "init" });
   });
 </script>
 </body>
 </html>
-)CCS9";
+)CCS9B";
 
     std::string html;
     html.reserve(kChunk1.size() + kChunk2.size() + kChunk3.size() +
                  kChunk4a.size() + kLogoBase64.size() + kChunk4b.size() + kChunk5.size() + kChunk6.size() +
-                 kChunk7.size() + kChunk8.size() + kChunk9.size());
+                 kChunk7.size() + kChunk8.size() + kChunk9a.size() + kChunk9b.size());
     html.append(kChunk1);
     html.append(kChunk2);
     html.append(kChunk3);
@@ -1439,7 +1540,8 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     html.append(kChunk6);
     html.append(kChunk7);
     html.append(kChunk8);
-    html.append(kChunk9);
+    html.append(kChunk9a);
+    html.append(kChunk9b);
     return html;
 }
 
