@@ -106,53 +106,100 @@ inline std::string GetCcSwitchUiHtml() {
   .sidebar {
     width: 200px; flex-shrink: 0; background: var(--bg-sidebar); border-right: 1px solid var(--border);
     display: flex; flex-direction: column; overflow: hidden; white-space: nowrap;
+    transition: width 260ms cubic-bezier(.4, 0, .2, 1);
+    will-change: width;
   }
   .sidebar.collapsed { width: 68px; }
   .sidebar-top {
     height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
     padding: 0 10px 0 14px; border-bottom: 1px solid var(--border);
-    user-select: none;
+    user-select: none; overflow: hidden;
+    transition: padding 260ms cubic-bezier(.4, 0, .2, 1);
   }
-  .sidebar.collapsed .sidebar-top { justify-content: center; padding: 0 8px; }
-  .brand { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text-1); min-width: 0; }
-  .sidebar.collapsed .brand { display: none; }
-    .brand-logo {
-      width: 22px; height: 22px; border-radius: 6px; overflow: hidden;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-    }
-    .brand-logo img {
-      width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 6px;
-    }
-  .sidebar-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 2px 0 8px; display: flex; flex-direction: column; gap: 2px; }
-  .sidebar-group-label { padding: 10px 16px 4px; font-size: 11px; font-weight: 500; color: var(--text-3); }
-  .sidebar.collapsed .sidebar-group-label { display: none; }
-  .sidebar-divider { height: 1px; background: var(--border); margin: 6px 16px; flex-shrink: 0; }
-  .sidebar.collapsed .sidebar-divider { margin: 6px 14px; }
+  .sidebar.collapsed .sidebar-top { justify-content: center; padding: 0; }
+  .brand {
+    display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text-1); min-width: 0;
+    overflow: hidden; max-width: 130px;
+    transition: opacity 180ms ease, transform 240ms cubic-bezier(.4, 0, .2, 1), max-width 260ms cubic-bezier(.4, 0, .2, 1);
+  }
+  .sidebar.collapsed .brand {
+    opacity: 0; max-width: 0; width: 0 !important; min-width: 0 !important; flex: 0 0 0px !important;
+    padding: 0 !important; margin: 0 !important; transform: translateX(-10px); pointer-events: none;
+    overflow: hidden; display: none !important;
+  }
+  .brand-logo {
+    width: 22px; height: 22px; border-radius: 6px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
+  .brand-logo img {
+    width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 6px;
+  }
+  .sidebar-scroll {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 2px 0 8px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .sidebar-group-label {
+    padding: 10px 16px 4px; font-size: 11px; font-weight: 500; color: var(--text-3);
+    overflow: hidden; max-height: 28px; white-space: nowrap;
+    transition: opacity 180ms ease, max-height 240ms cubic-bezier(.4, 0, .2, 1), padding 240ms cubic-bezier(.4, 0, .2, 1);
+  }
+  .sidebar.collapsed .sidebar-group-label {
+    opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; pointer-events: none;
+  }
+  .sidebar-divider {
+    height: 1px; background: var(--border); margin: 6px 16px; flex-shrink: 0;
+    transition: margin 260ms cubic-bezier(.4, 0, .2, 1);
+  }
+  .sidebar.collapsed .sidebar-divider { margin: 6px 12px; }
 
   .nav-item {
-    margin: 0 8px; height: 28px; padding: 0 8px; border-radius: var(--r-control); border: 0;
+    margin: 0 8px; height: 32px; padding: 0 8px; border-radius: var(--r-control); border: 0;
     background: transparent; color: var(--text-2); font: 400 13px/20px var(--font-sans);
     display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left;
-    transition: background-color var(--dur), color var(--dur);
+    overflow: hidden; white-space: nowrap;
+    transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), margin 260ms cubic-bezier(.4, 0, .2, 1), padding 260ms cubic-bezier(.4, 0, .2, 1), width 260ms cubic-bezier(.4, 0, .2, 1);
   }
   .nav-item:hover { background: var(--bg-subtle); color: var(--text-1); }
   .nav-item.active { background: var(--bg-selected); color: var(--text-1); font-weight: 500; }
-  .nav-item .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .nav-item .nav-trail { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-3); }
+  .nav-item svg.i { flex-shrink: 0; }
+  .nav-item .nav-label {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: opacity 180ms ease, transform 240ms cubic-bezier(.4, 0, .2, 1);
+  }
+  .nav-item .nav-trail {
+    font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-3); flex-shrink: 0;
+    transition: opacity 180ms ease, transform 240ms cubic-bezier(.4, 0, .2, 1);
+  }
   .nav-item .nav-tag {
-    height: 18px; line-height: 18px; padding: 0 6px; border-radius: 9999px; font-size: 11px; font-weight: 500;
+    height: 18px; line-height: 18px; padding: 0 6px; border-radius: 9999px; font-size: 11px; font-weight: 500; flex-shrink: 0;
+    transition: opacity 180ms ease, transform 240ms cubic-bezier(.4, 0, .2, 1);
   }
   .nav-item .nav-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-  .sidebar.collapsed .nav-item { width: 48px; height: 32px; margin: 0 auto; justify-content: center; padding: 0; }
+  .sidebar.collapsed .nav-item {
+    width: 48px; height: 32px; margin: 0 auto; justify-content: center; align-items: center; padding: 0; gap: 0;
+  }
+  .sidebar.collapsed .nav-item svg.i {
+    margin: 0 auto;
+    flex-shrink: 0;
+  }
   .sidebar.collapsed .nav-item .nav-label,
   .sidebar.collapsed .nav-item .nav-trail,
-  .sidebar.collapsed .nav-item .nav-tag { display: none; }
+  .sidebar.collapsed .nav-item .nav-tag {
+    opacity: 0; width: 0 !important; min-width: 0 !important; max-width: 0 !important; flex: 0 0 0px !important;
+    padding: 0 !important; margin: 0 !important; border: 0 !important;
+    pointer-events: none; overflow: hidden; display: none !important;
+  }
 
-  .sidebar-bottom { display: flex; gap: 4px; padding: 0 8px 8px; flex-shrink: 0; }
-  .sidebar.collapsed .sidebar-bottom { flex-direction: column; padding: 0 0 8px; }
+  .sidebar-bottom {
+    display: flex; gap: 4px; padding: 0 8px 8px; flex-shrink: 0;
+    transition: padding 260ms cubic-bezier(.4, 0, .2, 1);
+  }
+  .sidebar.collapsed .sidebar-bottom {
+    flex-direction: column; padding: 0 0 8px; align-items: center;
+  }
   .sidebar-bottom .nav-item { margin: 0; flex: 1; min-width: 0; }
-  .sidebar.collapsed .sidebar-bottom .nav-item { margin: 0 auto; flex: none; }
+  .sidebar.collapsed .sidebar-bottom .nav-item { margin: 0 auto; flex: none; width: 48px; }
 )CCS1";
 
     static constexpr std::string_view kChunk2 = R"CCS2(
@@ -171,7 +218,6 @@ inline std::string GetCcSwitchUiHtml() {
     display: inline-flex; align-items: center; justify-content: center;
   }
   .header-title { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); white-space: nowrap; }
-  .header-sub { font-size: 12.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1; }
   .header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
 
   /* Window Controls & Integrated Title Bar Header (CC Switch v7 Component texture) */
@@ -276,8 +322,8 @@ inline std::string GetCcSwitchUiHtml() {
 
   /* Chips / Badges (v7 badge.tsx) */
   .chip {
-    display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px;
-    border-radius: 9999px; font-size: 11px; line-height: 16px; font-weight: 500; white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 20px; padding: 0 8px;
+    border-radius: 9999px; font-size: 11px; line-height: 1; font-weight: 500; white-space: nowrap; box-sizing: border-box;
   }
   .chip.outline { border: 1px solid var(--border-strong); color: var(--text-2); background: transparent; }
   .chip.direct { background: var(--direct-soft); color: var(--direct-text); }
@@ -347,10 +393,12 @@ inline std::string GetCcSwitchUiHtml() {
     position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
     width: 20px; height: 20px; border: 0; border-radius: 50%;
     background: transparent; color: var(--text-3); cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0; margin: 0;
+    line-height: 0; box-sizing: border-box;
     transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
   }
   .input-wrap > .clear-btn:hover { background: var(--bg-subtle); color: var(--text-1); }
+  .input-wrap > .clear-btn svg { width: 12px; height: 12px; display: block; stroke-width: 2; }
 )CCS2";
 
     static constexpr std::string_view kChunk3 = R"CCS3(
@@ -397,7 +445,6 @@ inline std::string GetCcSwitchUiHtml() {
   .workbench-grid > div { min-width: 0; }
   .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; flex-shrink: 0; }
   @media (max-width: 1180px) {
-    .header-sub { display: none; }
     #chipHostArch { display: none; }
   }
   @media (max-width: 1000px) {
@@ -432,28 +479,45 @@ inline std::string GetCcSwitchUiHtml() {
   /* ProviderCard-style Method Cards (v7 ProviderCard.tsx .pcard) */
   .pcard-list { display: flex; flex-direction: column; gap: 8px; }
   .pcard {
-    position: relative; display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px 12px 10px 10px;
+    position: relative; display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px 14px;
     border: 1px solid var(--border); border-radius: var(--r-panel); background: var(--bg-card); cursor: pointer;
-    transition: border-color var(--dur), box-shadow var(--dur), background-color var(--dur);
+    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background-color var(--dur) var(--ease);
   }
   .pcard:hover:not(.disabled) { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
   .pcard.t-direct { border-color: var(--direct-fill); background: var(--direct-soft); box-shadow: none; }
   .pcard.t-route { border-color: var(--route-fill); background: var(--route-soft); box-shadow: none; }
   .pcard.t-stack { border-color: var(--stack-fill); background: var(--stack-soft); box-shadow: none; }
   .pcard.disabled { opacity: .45; cursor: not-allowed; }
-  .pcard:hover:not(.disabled) .grip { opacity: 1; }
+  .pcard .grip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; color: var(--text-3); opacity: 0.35; transition: opacity var(--dur) var(--ease); flex-shrink: 0;
+  }
+  .pcard:hover:not(.disabled) .grip { opacity: 0.9; }
   .pcard .logo {
-    width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+    width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-1);
+    display: inline-flex; align-items: center; justify-content: center;
     font-family: var(--font-mono); font-weight: 700; font-size: 11px; flex-shrink: 0;
+    line-height: 1; text-align: center; letter-spacing: 0.5px;
+    box-sizing: border-box;
   }
-  .pcard .body { min-width: 0; flex: 1; }
-  .pcard .name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-weight: 500; font-size: 14px; color: var(--text-1); }
-  .pcard .name > span:first-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pcard .sub { margin-top: 2px; font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pcard .body { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .pcard .name {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    font-weight: 600; font-size: 14px; line-height: 20px; color: var(--text-1);
+  }
+  .pcard .name > span:first-child {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 20px;
+  }
+  .pcard .sub {
+    margin-top: 3px; font-size: 12px; line-height: 18px; color: var(--text-2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .pcard .active-indicator {
-    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 0 6px; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500;
+    padding: 0 6px; white-space: nowrap; line-height: 20px;
   }
-  .pcard .acts { display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity var(--dur); }
+  .pcard .acts { display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity var(--dur) var(--ease); }
   .pcard:hover:not(.disabled) .acts { opacity: 1; }
 
   /* DropZone */
@@ -506,12 +570,23 @@ inline std::string GetCcSwitchUiHtml() {
   .toast > svg.ok { color: var(--success); }
   .toast > svg.err { color: var(--danger); }
   .toast > svg.warn { color: var(--warning); }
-  .toast .grow { flex: 1; }
+  .toast .grow { flex: 1; min-width: 0; word-break: break-word; line-height: 18px; }
   .toast .tclose {
-    position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%;
-    background: var(--bg-card); color: var(--text-2); box-shadow: var(--shadow-sm); cursor: pointer;
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-2);
+    box-shadow: var(--shadow-sm); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; margin: 0 0 0 auto; line-height: 0; box-sizing: border-box; outline: none;
+    flex-shrink: 0;
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
   }
-  .toast .tclose:hover { color: var(--text-1); }
+  .toast .tclose:hover { color: var(--text-1); background: var(--bg-subtle); border-color: var(--border-strong); }
+  .toast .tclose svg {
+    width: 12px; height: 12px; display: block;
+    fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+  }
 
   .modal-backdrop {
     position: fixed; inset: 0; background: var(--overlay); z-index: 180;
@@ -519,11 +594,28 @@ inline std::string GetCcSwitchUiHtml() {
   }
   .modal-backdrop.open { display: flex; }
   .dialog {
+    position: relative;
     width: min(460px, 92vw); max-height: 85vh; display: flex; flex-direction: column;
     border: 1px solid var(--border); border-radius: var(--r-dialog);
     background: var(--bg-card); box-shadow: var(--shadow-lg); padding: 20px;
   }
-  .dialog h4 { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); flex-shrink: 0; }
+  .dialog-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-2);
+    box-shadow: var(--shadow-sm); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; margin: 0; line-height: 0; box-sizing: border-box; outline: none;
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .dialog-close:hover { color: var(--text-1); background: var(--bg-subtle); border-color: var(--border-strong); }
+  .dialog-close svg {
+    width: 12px; height: 12px; display: block;
+    fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+  }
+  .dialog h4 { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); flex-shrink: 0; padding-right: 28px; }
   .dialog #modalBody { overflow-y: auto; max-height: calc(85vh - 120px); margin-top: 6px; color: var(--text-2); font-size: 13px; line-height: 20px; }
   .dialog .ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; flex-shrink: 0; }
 </style>
@@ -631,7 +723,6 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
       <div class="header-left">
         <span class="header-glyph"><svg class="i"><use href="#plug" id="headerGlyphUse"/></svg></span>
         <h1 class="header-title" id="headerTitle">注入工作台</h1>
-        <span class="header-sub" id="headerSubtitle">直连注入 · 静态预检与 6 种注入机制</span>
         <span class="chip outline" id="chipHostArch">宿主 x64</span>
         <span class="chip warning" id="chipPriv" style="cursor:pointer" onclick="sendCmd({cmd:'enable_debug_priv'})">
           <span class="d"></span><span id="chipPrivText">SeDebug 未提权</span>
@@ -639,12 +730,6 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
         <span class="chip direct" id="chipTargetProc" style="display:none"></span>
       </div>
       <div class="header-actions">
-        <button class="btn icon" onclick="sendCmd({cmd:'refresh_processes'})" data-tip="刷新活跃进程列表" aria-label="刷新">
-          <svg class="i"><use href="#refresh"/></svg>
-        </button>
-        <button class="btn icon" onclick="sendCmd({cmd:'copy_doctor_json'})" data-tip="复制 Core Doctor 诊断 JSON" aria-label="复制诊断">
-          <svg class="i"><use href="#copy"/></svg>
-        </button>
         <div class="seg sm" id="themeSeg" role="group" aria-label="主题">
           <span class="thumb" id="themeThumb"></span>
           <button type="button" id="btnThemeLight" aria-pressed="false" onclick="setTheme('light')">浅色</button>
@@ -680,25 +765,24 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
         <div class="seg modes" id="modeSeg" role="group" aria-label="载荷与工作模式">
           <span class="thumb" id="modeThumb"></span>
           <button type="button" id="modeBtnDll" aria-pressed="true" class="act-direct" onclick="setPayloadMode('dll')">
-            <svg class="i sm"><use href="#plug"/></svg>DLL 直连注入<span class="dot"></span>
+            <svg class="i sm"><use href="#plug"/></svg>DLL 注入<span class="dot"></span>
           </button>
           <button type="button" id="modeBtnDoctor" aria-pressed="false" onclick="switchView('doctor')">
             <svg class="i sm"><use href="#route"/></svg>Doctor 预检
           </button>
           <button type="button" id="modeBtnShell" aria-pressed="false" onclick="setPayloadMode('shellcode')">
-            <svg class="i sm"><use href="#layers"/></svg>Shellcode 载荷
+            <svg class="i sm"><use href="#layers"/></svg>Shellcode
           </button>
         </div>
         <span class="helptip">
-          <button type="button" aria-label="三种模式的区别"><svg class="i sm"><use href="#help"/></svg></button>
+          <button type="button" aria-label="模式说明"><svg class="i sm"><use href="#help"/></svg></button>
           <span class="card" role="tooltip">
-            <b>三种模式的区别</b>
-            直连 DLL：解析 PE 架构与依赖后注入动态库。<br>
+            <b>模式说明</b>
+            DLL 注入：解析 PE 架构与依赖后注入动态库。<br>
             Doctor 预检：零权限静态分析 PE 头、导入表与缺失依赖。<br>
-            Shellcode 载荷：直接向目标进程写入并执行原始机器码。
+            Shellcode：向目标进程写入并执行机器码载荷。
           </span>
         </span>
-        <span class="status" id="modeStatusText">当前模式：DLL 动态库注入 · 请选择目标进程与载荷文件</span>
         <label class="toggle-lbl" onclick="toggleGuardSwitch()">
           <span>预检拦截保护</span>
           <button type="button" class="switch" id="guardSwitch" role="switch" aria-checked="true" aria-label="预检拦截保护"><i></i></button>
@@ -726,11 +810,16 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
                 <button type="button" data-arch="x86" aria-pressed="false" onclick="setArchFilter('x86')">x86</button>
               </div>
             </div>
-            <div class="input-wrap" style="flex:none">
-              <svg class="i sm search-ic"><use href="#search"/></svg>
-              <input class="input with-ic" id="procSearchInput" placeholder="搜索进程名称或 PID (Ctrl+F)..." oninput="onProcSearch(this.value)">
-              <button class="clear-btn" id="procSearchClear" style="display:none" onclick="onProcSearch('')" aria-label="清空">
-                <svg class="i sm"><use href="#x"/></svg>
+            <div style="display:flex;align-items:center;gap:6px;flex:none">
+              <div class="input-wrap" style="flex:1">
+                <svg class="i sm search-ic"><use href="#search"/></svg>
+                <input class="input with-ic" id="procSearchInput" placeholder="搜索进程名称或 PID (Ctrl+F)..." oninput="onProcSearch(this.value)">
+                <button class="clear-btn" id="procSearchClear" style="display:none" onclick="onProcSearch('')" aria-label="清空">
+                  <svg class="i sm"><use href="#x"/></svg>
+                </button>
+              </div>
+              <button class="btn icon" id="btnRefreshProcesses" onclick="sendCmd({cmd:'refresh_processes'})" data-tip="刷新活跃进程列表 (F5)" aria-label="刷新进程">
+                <svg class="i"><use href="#refresh"/></svg>
               </button>
             </div>
             <div class="proc-list" id="workbenchProcList"></div>
@@ -744,7 +833,13 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
                   <span>DLL 载荷文件</span>
                   <span class="chip direct" id="dllArchChip">未载入</span>
                 </div>
-                <div style="display:flex;gap:4px">
+                <div style="display:flex;align-items:center;gap:4px">
+                  <button class="btn quiet compact" onclick="switchView('doctor')" data-tip="查看 PE 头与兼容性静态诊断" aria-label="Doctor 诊断">
+                    <svg class="i sm"><use href="#route"/></svg>预检报告
+                  </button>
+                  <button class="btn quiet compact" onclick="switchView('dependencies')" data-tip="查看 PE 导入表与依赖项解析" aria-label="依赖分析">
+                    <svg class="i sm"><use href="#layers"/></svg>依赖表
+                  </button>
                   <button class="btn icon" onclick="sendCmd({cmd:'export_doctor_report'})" data-tip="导出诊断报告 (.json/.txt)" aria-label="导出报告">
                     <svg class="i sm"><use href="#download"/></svg>
                   </button>
@@ -755,8 +850,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
                 <button class="btn neutral" onclick="sendCmd({cmd:'browse_dll'})"><svg class="i sm"><use href="#folder"/></svg>浏览...</button>
               </div>
               <div class="dropzone" id="dropZone">
-                <span>支持将 <code>.dll</code> 或 <code>.bin</code> 文件直接拖入窗口完成加载与静态预检</span>
-                <span class="chip outline">Drag &amp; Drop</span>
+                <span>拖放 <code>.dll</code> 或 <code>.bin</code> 载荷文件至此处释放</span>
               </div>
             </div>
 
@@ -781,10 +875,9 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
           <div class="panel-card" style="flex:1">
             <div class="section-head">
               <div class="section-title">
-                <span>注入方法选择</span>
-                <span class="chip outline">6 种核心机制</span>
+                <span>注入机制</span>
+                <span class="chip outline">6 种</span>
               </div>
-              <span style="font-size:12px;color:var(--text-3)">点击卡片切换当前生效机制</span>
             </div>
             <div class="pcard-list" id="methodCardsContainer"></div>
           </div>
@@ -796,8 +889,9 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
                 <svg class="i sm"><use href="#terminal"/></svg>
                 <span>最近活动日志</span>
               </div>
-              <div style="display:flex;gap:4px">
+              <div style="display:flex;align-items:center;gap:4px">
                 <button class="btn quiet compact" onclick="switchView('logs')">查看完整日志</button>
+                <button class="btn icon" onclick="sendCmd({cmd:'copy_logs'})" data-tip="复制日志到剪贴板" data-tip-pos="top" aria-label="复制全部日志"><svg class="i sm"><use href="#copy"/></svg></button>
                 <button class="btn icon" onclick="sendCmd({cmd:'clear_logs'})" data-tip="清空日志" data-tip-pos="top" aria-label="清空"><svg class="i sm"><use href="#trash"/></svg></button>
               </div>
             </div>
@@ -815,7 +909,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
         <div class="stat"><div class="k">活跃进程总数</div><div class="v" id="statProcTotal">0</div><div class="d">实时快照</div></div>
         <div class="stat"><div class="k">64 位进程 (x64)</div><div class="v" id="statProcX64">0</div><div class="d">PE32+ 架构</div></div>
         <div class="stat"><div class="k">32 位进程 (x86)</div><div class="v" id="statProcX86">0</div><div class="d">WOW64 架构</div></div>
-        <div class="stat"><div class="k">其他/未知架构</div><div class="v" id="statProcRestricted">0</div><div class="d">含 ARM64 或架构查询失败</div></div>
+        <div class="stat"><div class="k">其他/未知架构</div><div class="v" id="statProcRestricted">0</div><div class="d">受限或未知</div></div>
       </div>
       <div class="panel-card" style="flex:1;overflow:hidden">
         <div class="section-head">
@@ -845,8 +939,8 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
       <div class="panel-card" style="flex:1;overflow:hidden">
         <div class="section-head">
           <div class="ptabs">
-            <button type="button" class="on" id="docTabBtnFindings" onclick="setDocTab('findings')">诊断规则与建议 (Findings)</button>
-            <button type="button" id="docTabBtnJson" onclick="setDocTab('json')">JSON 原始报告</button>
+            <button type="button" class="on" id="docTabBtnFindings" onclick="setDocTab('findings')">诊断建议</button>
+            <button type="button" id="docTabBtnJson" onclick="setDocTab('json')">JSON 报告</button>
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn neutral compact" onclick="sendCmd({cmd:'copy_doctor_json'})"><svg class="i sm"><use href="#copy"/></svg>复制 JSON</button>
@@ -860,18 +954,17 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 
     <!-- View 4: Dependencies Table -->
     <main class="view-body" id="view-dependencies" style="display:none">
-      <p style="font-size:12px;color:var(--text-2)">仅检查 DLL 所在目录的依赖候选；未找到候选不等于 Windows 无法加载该依赖。</p>
       <div class="panel-card" style="flex:1;overflow:hidden">
         <div class="section-head">
           <div class="section-title">
-            <span>PE 导入表与依赖解析状态</span>
+            <span>依赖解析表</span>
             <span class="chip outline" id="depTableCountChip">0 项</span>
           </div>
           <button class="btn neutral compact" onclick="sendCmd({cmd:'browse_dll'})"><svg class="i sm"><use href="#folder"/></svg>更换 DLL...</button>
         </div>
         <div style="flex:1;overflow-y:auto">
           <table class="log">
-            <thead><tr><th>依赖模块名称 (DLL)</th><th style="width:140px">加载方式</th><th style="width:160px">静态解析状态</th></tr></thead>
+            <thead><tr><th>依赖模块</th><th style="width:140px">加载方式</th><th style="width:160px">解析状态</th></tr></thead>
             <tbody id="depTableBody"></tbody>
           </table>
         </div>
@@ -905,6 +998,9 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 <!-- Modal Dialog (Confirm / Settings) -->
 <div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
   <div class="dialog" role="dialog" aria-modal="true">
+    <button class="dialog-close" onclick="closeModal()" aria-label="关闭">
+      <svg class="i sm"><use href="#x"/></svg>
+    </button>
     <h4 id="modalTitle">提示</h4>
     <div id="modalBody"></div>
     <div class="ft" id="modalFooter"></div>
@@ -1006,7 +1102,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     document.getElementById("sidebarToggleIcon").innerHTML = `<use href="#${ui.sidebarCollapsed ? 'chev-right' : 'chev-left'}"/>`;
     document.getElementById("sidebarToggleBtn").setAttribute("data-tip", ui.sidebarCollapsed ? "展开侧栏" : "收起侧栏");
     document.getElementById("sidebarToggleBtn").setAttribute("aria-label", ui.sidebarCollapsed ? "展开侧栏" : "收起侧栏");
-    setTimeout(syncAllThumbs, 50);
+    setTimeout(syncAllThumbs, 280);
   }
 
   function switchView(view) {
@@ -1019,16 +1115,15 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
       if (el) el.style.display = (v === view) ? "flex" : "none";
     });
     const titles = {
-      workbench: ["注入工作台", "直连注入 · 静态预检与 6 种注入机制", "plug"],
-      processes: ["目标进程浏览", "只读枚举系统活跃进程与 WOW64/PE32+ 架构", "cpu"],
-      doctor: ["DLL Doctor 静态诊断", "零权限离线 PE 头、导入表与兼容性证据分析", "route"],
-      dependencies: ["依赖项解析表", "导入动态库与延迟加载模块解析状态", "layers"],
-      logs: ["终端审计日志", "实时记录预检结果、权限状态与底层 API 调用", "terminal"]
+      workbench: ["注入工作台", "plug"],
+      processes: ["目标进程", "cpu"],
+      doctor: ["DLL Doctor", "route"],
+      dependencies: ["依赖项表", "layers"],
+      logs: ["终端日志", "terminal"]
     };
     const info = titles[view] || titles.workbench;
     document.getElementById("headerTitle").textContent = info[0];
-    document.getElementById("headerSubtitle").textContent = info[1];
-    document.getElementById("headerGlyphUse").setAttribute("href", "#" + info[2]);
+    document.getElementById("headerGlyphUse").setAttribute("href", "#" + info[1]);
     syncModeButtons();
     if (view === "logs") renderLogs();
     setTimeout(syncAllThumbs, 20);
@@ -1284,7 +1379,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 
     const fPane = document.getElementById("docFindingsPane");
     if (!pf.valid) {
-      fPane.innerHTML = `<div class="notice neutral"><svg class="i"><use href="#info"/></svg><div class="grow">请先在「注入工作台」选择或拖入一个 <code>.dll</code> 文件以生成静态诊断报告。</div></div>`;
+      fPane.innerHTML = `<div class="notice neutral"><svg class="i"><use href="#info"/></svg><div class="grow">请先在「注入工作台」选择或拖入一个 <code>.dll</code> 文件以生成静态诊断报告。</div><button class="btn neutral compact" onclick="sendCmd({cmd:'browse_dll'})"><svg class="i sm"><use href="#folder"/></svg>选择 DLL 文件...</button></div>`;
     } else if (pf.findings.length === 0) {
       fPane.innerHTML = `<div class="notice route"><svg class="i"><use href="#check-circle"/></svg><div class="grow"><div>静态检查全部通过</div><div class="t2">未发现架构不匹配、畸形头部或明显缺失的直接依赖项。</div></div></div>`;
     } else {
@@ -1485,7 +1580,6 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     document.getElementById("shellByteChip").textContent = state.shellcodeSize + " 字节";
 
     const m = METHODS.find(x => x.id === state.selectedMethod) || METHODS[0];
-    document.getElementById("modeStatusText").textContent = `当前机制：${m.title} · ${selProc ? ('目标 ' + selProc.name) : '请选定目标进程'}`;
 
     renderNotices();
     renderMethods();
@@ -1523,6 +1617,11 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
       if (e.key === "Escape" && document.getElementById("modalBackdrop").classList.contains("open")) {
         e.preventDefault();
         closeModal();
+        return;
+      }
+      if (e.key === "F5") {
+        e.preventDefault();
+        sendCmd({ cmd: "refresh_processes" });
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {

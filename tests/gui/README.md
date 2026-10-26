@@ -7,7 +7,7 @@ npm ci --ignore-scripts --no-audit --no-fund
 npm test
 ```
 
-The tests extract the embedded HTML from `src/gui_modern/cc_switch_ui.h`,
+The tests extract the embedded HTML from `apps/gui/cc_switch_ui.h`,
 launch headless Edge, and use simulated native messages. They cover layout,
 navigation, diagnostics presentation, scrolling, dialogs, and window controls.
 They do not execute injection or verify native window dragging / monitor DPI.
