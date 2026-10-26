@@ -185,7 +185,7 @@ def codex_check(exe, node, server_args, directory, cases, timeout):
     return {'method': 'app-server direct MCP RPC', 'model_requests': 0}
 
 
-def model_host_check(host, exe, node, server_args, directory, cases, timeout):
+def model_host_check(host, exe, node, server_args, directory, cases, timeout, config_path=None):
     with ModelFixture(host, cases) as fixture:
         env = clean_environment()
         if host == 'claude':
@@ -194,7 +194,7 @@ def model_host_check(host, exe, node, server_args, directory, cases, timeout):
                 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1', DISABLE_AUTOUPDATER='1')
             command = [exe, '--bare', '--print', '--output-format', 'stream-json', '--verbose',
                 '--no-session-persistence', '--setting-sources', '', '--strict-mcp-config',
-                '--mcp-config', json.dumps({'mcpServers': {NAME: {'command': node, 'args': server_args}}}),
+                '--mcp-config', str(config_path) if config_path else json.dumps({'mcpServers': {NAME: {'command': node, 'args': server_args}}}),
                 '--tools', '', '--allowedTools', 'mcp__dll_doctor__*', '--permission-mode', 'dontAsk',
                 '--model', 'claude-sonnet-4-6', 'Run the local MCP integration fixture.']
         else:
@@ -210,6 +210,9 @@ def model_host_check(host, exe, node, server_args, directory, cases, timeout):
                 OPENCODE_DISABLE_DEFAULT_PLUGINS='true', OPENCODE_DISABLE_PROJECT_CONFIG='true',
                 XDG_CONFIG_HOME=str(directory / 'config'), XDG_DATA_HOME=str(directory / 'data'),
                 XDG_CACHE_HOME=str(directory / 'cache'), XDG_STATE_HOME=str(directory / 'state'))
+            if config_path:
+                del config['mcp']
+                env.update(OPENCODE_CONFIG=str(config_path), OPENCODE_CONFIG_CONTENT=json.dumps(config))
             command = [exe, 'run', '--pure', '--format', 'json', '--model', 'fixture/fixture',
                 '--title', 'Local MCP fixture', 'Run the local MCP integration fixture.']
         proc = JsonProcess(command, directory, timeout, env)

@@ -21,7 +21,7 @@ Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析�
 | 依赖候选检查 | Doctor 的 `--search-dir <path>` 可重复指定最多 16 个目录；报告普通/延迟导入的候选与观察错误；仅检查文件属性，不模拟加载器 |
 | 可分享报告 | 诊断命令支持 `--format markdown` / `--format html`，展示证据、发现与完整 JSON 附录；HTML 单文件离线阅读 |
 | 已保存报告转换 | `report export <saved.json> --format markdown|html` 按源版本校验并保留原报告，不重新查询其中的目标 |
-| Agent 集成 | 单一权威 Windows DLL Doctor Skill；命令示例已回归验证，客户端自动触发尚未实测；7 个只读 MCP 工具；原生 Pi 本地包；Codex/Claude/OpenCode 本地 Skill 安装器 |
+| Agent 集成 | 单一权威 Windows DLL Doctor Skill；命令示例已回归验证，客户端自动触发尚未实测；7 个只读 MCP 工具；原生 Pi 本地包；Codex/Claude/OpenCode 本地 Skill 与项目 MCP 安装器 |
 
 GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
 
@@ -127,7 +127,10 @@ Codex、Claude Code 和 OpenCode 可使用 [本地 Skill 安装器](integrations
 显式选择用户/项目范围并指定可信 CLI。支持写入前预览、重复安装、内容校验和卸载；
 遇到冲突保留原文件，可捕获的安装/卸载失败会尝试回滚。
 Codex/OpenCode 的项目发现已经实测，Claude 与用户级发现尚未实测。
-此版本从源码运行；自动下载 CLI、MCP 配置及公开 npm 安装仍待实现。
+同一安装器现支持 `--integration mcp` 写入这三个客户端的项目配置，保留其他设置，
+提供目录授权、握手/工具校验、冲突保护和卸载。支持版本、运行依赖与命令见安装器说明；
+实际客户端加载方式及测试边界见 [MCP 安装器交付记录](docs/MCP_INSTALLER_DELIVERY.md)。
+此版本从源码运行；自动下载 CLI、用户级 MCP 及公开 npm 安装仍待实现。
 
 需要构建产物时，可下载成功 Windows CI 的 `cli-distribution-msvc-x64` / `msvc-x86` 产物。
 归档附带 SHA-256 与版本/架构清单，安装器支持 `--manifest` 在启动 CLI 前核对文件。
@@ -183,7 +186,7 @@ dll_test/              原 Demo 与第三方反射式样例
 tests/                 Win32 回归测试、启动测试与无副作用 fixture
 integrations/skills/   权威 Agent Skill、相对引用与只读命令示例
 integrations/pi/       原生 Pi 包清单、生成脚本与本地安装说明
-integrations/installer/ 本地 Skill 安装、校验、卸载与回滚
+integrations/installer/ 本地 Skill / 项目 MCP 安装、校验、卸载与回滚
 docs/                  基线、契约、验证记录与第三方声明
 CMakeLists.txt         构建入口
 CMakePresets.json       MSVC / 可选 MinGW 配置
@@ -194,7 +197,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 ## 后续路线
 
 1. P2：Doctor、报告和权威 Skill 指令包已实现；补充真实客户端触发与回答评测。
-2. P3/P4：本地 stdio MCP、Pi 包、Skill 安装器及 CLI 分发校验已实现；继续自动下载、客户端选择和 MCP 安装。
+2. P3/P4：本地 stdio MCP、Pi 包、Skill / 项目 MCP 安装器及 CLI 分发校验已实现；继续自动下载、客户端选择和用户级 MCP。
 3. P5：自有测试程序的 DLL 生命周期实验与结果对比。
 
 旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。
@@ -229,9 +232,11 @@ is available with tested CLI examples. Project discovery is checked with Codex, 
 Pi's resource loader in the documented versions; model behavior and Claude discovery remain unverified.
 A local read-only [stdio MCP adapter](integrations/mcp/README.md) and a locally installable
 [native Pi Skill package](integrations/pi/README.md) are available; the Pi package is not published to npm.
-A source-run [local Skill installer](integrations/installer/README.md) supports Codex, Claude Code
-and OpenCode with explicit scope/CLI selection, previews, verification and removal.
-CLI downloads, MCP setup and broader host verification remain in progress. CTest uses read-only queries,
+A source-run [local installer](integrations/installer/README.md) supports Codex, Claude Code
+and OpenCode Skill setup and project MCP configuration with explicit paths, previews, verification and removal.
+Generated MCP settings have been checked with installed clients using isolated fixtures; see the
+[validation boundaries](docs/MCP_INSTALLER_DELIVERY.md). Automatic CLI downloads, user-level MCP and
+broader host verification remain in progress. CTest uses read-only queries,
 hidden startup checks, mocks and self-owned fixtures.
 
 ## 来源与许可

@@ -107,6 +107,11 @@ ENV/
 /integrations/pi/dist/
 /integrations/pi/*.tgz
 
+# Local installer dependencies and project MCP ownership records
+/integrations/installer/node_modules/
+**/.dll-doctor/
+**/.dll-doctor-config-*.tmp
+
 # Local Skill installations carry machine-specific CLI paths
 **/.agents/skills/windows-dll-doctor/
 **/.claude/skills/windows-dll-doctor/

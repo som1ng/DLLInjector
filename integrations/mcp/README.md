@@ -20,7 +20,10 @@ npm run build
 `dist/`、`node_modules/`、报告、日志和 npm 打包产物不提交到 Git。
 包名暂定 `@som1ng/dll-doctor-mcp`，当前 `private: true`、未发布；不要使用不存在的 npm 安装命令。
 
-在 MCP 客户端中配置 stdio 进程。以下为常见的 `mcpServers` JSON 格式，路径需换成实际的绝对路径；
+Codex、Claude Code 和 OpenCode 的项目配置可以使用 [本地安装器](../installer/README.md#项目级-mcp-配置)
+生成、校验和卸载；需要显式选择已验证的客户端版本、可信 CLI、构建入口和授权目录。
+
+也可在 MCP 客户端中手动配置 stdio 进程。以下为常见的 `mcpServers` JSON 格式，路径需换成实际的绝对路径；
 不同客户端的配置文件位置和字段格式以其文档为准：
 
 ```json

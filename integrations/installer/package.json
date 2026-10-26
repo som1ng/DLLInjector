@@ -1,10 +1,19 @@
 {
   "name": "@som1ng/dll-doctor-installer",
-  "version": "0.1.0-dev.2",
+  "version": "0.1.0-dev.3",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "Local Windows DLL Doctor Skill installer",
-  "engines": { "node": ">=22.19.0" },
-  "scripts": { "test": "node --test tests/*.test.mjs" }
+  "description": "Local Windows DLL Doctor Skill and project MCP installer",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "jsonc-parser": "3.3.1",
+    "smol-toml": "1.9.1"
+  }
 }
