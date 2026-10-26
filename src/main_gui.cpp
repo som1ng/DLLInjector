@@ -43,6 +43,45 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     }
 
     switch (uMsg) {
+    case WM_NCCALCSIZE: {
+        if (wParam == TRUE) {
+            NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
+            if (IsZoomed(hwnd)) {
+                HMONITOR hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO mi = { sizeof(mi) };
+                if (GetMonitorInfoW(hMon, &mi)) {
+                    params->rgrc[0] = mi.rcWork;
+                }
+            }
+            return 0;
+        }
+        return 0;
+    }
+
+    case WM_NCHITTEST: {
+        if (!IsZoomed(hwnd)) {
+            POINT pt = { (short)LOWORD(lParam), (short)HIWORD(lParam) };
+            RECT rc;
+            GetWindowRect(hwnd, &rc);
+
+            const int border = 8;
+            bool left   = pt.x < rc.left + border;
+            bool right  = pt.x >= rc.right - border;
+            bool top    = pt.y < rc.top + border;
+            bool bottom = pt.y >= rc.bottom - border;
+
+            if (top && left) return HTTOPLEFT;
+            if (top && right) return HTTOPRIGHT;
+            if (bottom && left) return HTBOTTOMLEFT;
+            if (bottom && right) return HTBOTTOMRIGHT;
+            if (left) return HTLEFT;
+            if (right) return HTRIGHT;
+            if (bottom) return HTBOTTOM;
+            if (top) return HTTOP;
+        }
+        return HTCLIENT;
+    }
+
     case WM_CREATE: {
         // Retain hidden dummy controls for CTest smoke test verification
         // ID 101: Process list (ListBox)
@@ -87,6 +126,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         if (wParam != SIZE_MINIMIZED) {
             if (gui::webview_host::IsActive()) {
                 gui::webview_host::OnResize(hwnd);
+                gui::PushWebViewState();
             } else {
                 d3d::OnResize((UINT)LOWORD(lParam), (UINT)HIWORD(lParam));
             }
@@ -140,7 +180,7 @@ WNDCLASSEXW wc = { sizeof(wc) };
 
     HWND hwnd = CreateWindowExW(
         0, CLASS_NAME,
-        L"", // Empty title bar text to remove duplicate native title and align with CC Switch
+        L"Rondo",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 1140, 760,
         NULL, NULL, hInstance, NULL
@@ -148,19 +188,29 @@ WNDCLASSEXW wc = { sizeof(wc) };
 
     if (!hwnd) return 1;
 
-    // Blank small icon on the native title bar so no redundant icon/text is drawn on the caption
-    // (aligning with CC Switch's integrated titlebar design), while keeping high-res icon for Taskbar/Alt+Tab
-    static const BYTE kBlankAndMask[] = { 0xFF, 0xFF, 0xFF, 0xFF };
-    static const BYTE kBlankXorMask[] = { 0x00, 0x00, 0x00, 0x00 };
-    HICON hBlankIcon = CreateIcon(hInstance, 1, 1, 1, 1, kBlankAndMask, kBlankXorMask);
-    if (hBlankIcon) {
-        SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hBlankIcon);
-    }
+    // Load real high-resolution Rondo icons for both Big (32x32) and Small (16x16)
+    // This ensures Windows 11 Taskbar, Alt+Tab, and Task Switcher display the crisp Rondo logo!
+    HICON hIconBig = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(1), IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR);
+    HICON hIconSmall = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(1), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
+    if (!hIconBig) hIconBig = LoadIconW(hInstance, MAKEINTRESOURCEW(1));
+    if (!hIconSmall) hIconSmall = hIconBig;
 
-    // Apply Immersive Dark Mode to Windows title bar (Windows 10 1809+ / Windows 11)
+    SendMessageW(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIconBig);
+    SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIconSmall);
+
+    // Extend DWM frame into client area so Windows renders native drop shadows & rounded corners
+    MARGINS margins = { 0, 0, 1, 0 };
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
+
+    // Apply Immersive Dark Mode to Windows title bar / DWM frame
     BOOL darkMode = TRUE;
     DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &darkMode, sizeof(darkMode));
     DwmSetWindowAttribute(hwnd, 19 /* fallback */, &darkMode, sizeof(darkMode));
+
+    // Force frame recalculation for frameless custom title bar
+    SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
@@ -191,8 +241,7 @@ WNDCLASSEXW wc = { sizeof(wc) };
             DispatchMessageW(&msg);
         }
         gui::webview_host::Shutdown();
-        if (hBlankIcon) DestroyIcon(hBlankIcon);
-        DestroyWindow(hwnd);
+                DestroyWindow(hwnd);
         UnregisterClassW(CLASS_NAME, hInstance);
         return 0;
     }
@@ -256,8 +305,7 @@ WNDCLASSEXW wc = { sizeof(wc) };
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
 
-    if (hBlankIcon) DestroyIcon(hBlankIcon);
-    d3d::CleanupD3D();
+        d3d::CleanupD3D();
     DestroyWindow(hwnd);
     UnregisterClassW(CLASS_NAME, hInstance);
 

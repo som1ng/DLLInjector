@@ -1074,6 +1074,7 @@ void PushWebViewState(const std::string& toastMsg, const std::string& toastTone)
 
     std::ostringstream oss;
     oss << "{\"type\":\"state\",\"state\":{";
+    oss << "\"isMaximized\":" << (g_MainHwnd && IsZoomed(g_MainHwnd) ? "true" : "false") << ",";
 #if defined(_WIN64)
     oss << "\"hostArch\":\"x64\",";
 #else
@@ -1285,6 +1286,24 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
             BOOL darkAttr = dark ? TRUE : FALSE;
             DwmSetWindowAttribute(g_MainHwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &darkAttr, sizeof(darkAttr));
             DwmSetWindowAttribute(g_MainHwnd, 19, &darkAttr, sizeof(darkAttr));
+        }
+    } else if (cmd == "window_min") {
+        if (g_MainHwnd) ShowWindow(g_MainHwnd, SW_MINIMIZE);
+    } else if (cmd == "window_max_toggle") {
+        if (g_MainHwnd) {
+            if (IsZoomed(g_MainHwnd)) {
+                ShowWindow(g_MainHwnd, SW_RESTORE);
+            } else {
+                ShowWindow(g_MainHwnd, SW_MAXIMIZE);
+            }
+            PushWebViewState();
+        }
+    } else if (cmd == "window_close") {
+        if (g_MainHwnd) PostMessageW(g_MainHwnd, WM_CLOSE, 0, 0);
+    } else if (cmd == "window_drag") {
+        if (g_MainHwnd) {
+            ReleaseCapture();
+            SendMessageW(g_MainHwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
         }
     }
 }
