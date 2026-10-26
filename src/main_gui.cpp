@@ -129,17 +129,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     }
 
     const wchar_t CLASS_NAME[] = L"InjectorWindowClass";
-    WNDCLASSEXW wc = { sizeof(wc) };
+WNDCLASSEXW wc = { sizeof(wc) };
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
     wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
     wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
+    wc.hIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(1));
     RegisterClassExW(&wc);
 
     HWND hwnd = CreateWindowExW(
         0, CLASS_NAME,
-        L"DLL Injector",
+        L"Rondo — Process Diagnostics & DLL Injection Platform",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 1140, 760,
         NULL, NULL, hInstance, NULL
@@ -151,8 +152,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     BOOL darkMode = TRUE;
     DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &darkMode, sizeof(darkMode));
     DwmSetWindowAttribute(hwnd, 19 /* fallback */, &darkMode, sizeof(darkMode));
-
-    // Respect nCmdShow: if SW_HIDE is requested (such as in smoke tests), window remains hidden!
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 

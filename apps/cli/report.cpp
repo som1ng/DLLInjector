@@ -1,12 +1,14 @@
 #include "cli.h"
+#include "banner.h"
 #include "dllinjector/text.h"
 #include "dllinjector/version.h"
+#include "dllinjector/injector.h"
 #include <sstream>
 
 namespace dllinjector::cli {
 namespace {
 constexpr char Help[] =
-    "DLLInjector read-only process and PE CLI\n"
+    "Rondo (DLLInjector) process, PE and injection CLI\n"
     "  dllinjector --help | --version\n"
     "  dllinjector process list [options]\n"
     "  dllinjector process inspect --pid <PID> [options]\n"
@@ -14,6 +16,8 @@ constexpr char Help[] =
     "  dllinjector pe inspect <path> [options]\n"
     "  dllinjector doctor <path> [--target-arch x86|x64] [options]\n"
     "  dllinjector report export <saved.json> --json | --format markdown|html [options]\n"
+    "  dllinjector inject --dll <path> --method <method> --pid <PID> [options]\n"
+    "  dllinjector inject --dll <path> --method hijack --target-dir <path> [options]\n"
     "Options (before or after command):\n"
     "  --json                   One versioned JSON result on stdout\n"
     "  --format <markdown|html> Diagnostic report document; mutually exclusive with --json\n"
@@ -22,7 +26,12 @@ constexpr char Help[] =
     "  --verbose                Debug diagnostics on stderr\n"
     "  --target-arch <x86|x64>   Doctor only: declared target process architecture\n"
     "  --search-dir <path>      Doctor only: inspect dependency candidates here; repeat up to 16 times\n"
-    "Exit codes: 0 no blocking findings, 1 malformed PE/Doctor blocking finding,\n"
+    "Inject options:\n"
+    "  --dll <path>             DLL file path to inject\n"
+    "  --method <method>        crt, apc, hook, reflective, hijack or syscall\n"
+    "  --target-dir <path>      Hijack only: target EXE directory for DLL deployment\n"
+    "  --force                  Bypass preflight warning/mismatch checks\n"
+    "Exit codes: 0 no blocking findings / success, 1 malformed PE/Doctor blocking finding,\n"
     "            2 usage, 3 unavailable/access denied,\n"
     "            4 internal/unsupported/output failure, 5 query timeout.\n"
     "Timeout is cooperative; it cannot interrupt an in-flight Win32 call or output sink.\n"
@@ -33,7 +42,9 @@ constexpr char Help[] =
     "Doctor status=success means diagnosis completed; error findings still exit 1.\n"
     "Search directories are explicit observations in the caller's filesystem view, not loader resolution.\n"
     "Report export validates a local JSON snapshot (schemas 1.0-1.6, 16 MiB max); no target is inspected.\n"
-    "Export exits 0 on conversion success, even if the supplied report records diagnostic errors.\n";
+    "Export exits 0 on conversion success, even if the supplied report records diagnostic errors.\n"
+    "Inject performs DLL injection into a target process with Core preflight validation.\n"
+    "Syscall method is experimental and only available in non-MSVC builds.\n";
 
 std::string Utf8(const std::wstring& text) {
     auto result = ToUtf8(text);
@@ -251,6 +262,27 @@ std::string Data(const Report& report) {
         return out + "],\"imports\":" + ImportLibraries(pe->imports) + ",\"delay_imports\":" +
             ImportLibraries(pe->delay_imports) + ",\"exports\":" + ExportTable(pe->exports) + "}";
     }
+    if (const auto* inject = std::get_if<InjectionOutcome>(&report.data)) {
+        std::string out = "{\"scope\":\"injection_routine\",\"method\":" + Quote(inject->method_name) +
+            ",\"dll_path\":" + Quote(Utf8(inject->dll_path)) +
+            ",\"target_pid\":" + Number(inject->pid) +
+            ",\"target_dir\":" + (inject->target_dir ? Quote(Utf8(*inject->target_dir)) : "null") +
+            ",\"preflight_passed\":" + Bool(inject->preflight_passed) +
+            ",\"executed\":" + Bool(inject->executed) +
+            ",\"success\":" + Bool(inject->success) +
+            ",\"message\":" + Quote(inject->message) +
+            ",\"preflight\":[";
+        bool first = true;
+        for (const auto& item : inject->preflight) {
+            if (!first) out += ',';
+            first = false;
+            out += "{\"check\":" + Quote(item.check_name) +
+                   ",\"status\":" + Quote(item.status) +
+                   ",\"message\":" + Quote(item.message) + "}";
+        }
+        out += "]}";
+        return out;
+    }
     return "null";
 }
 }
@@ -305,6 +337,25 @@ Report Execute(const Options& options) {
         else report.errors.push_back(result.error());
         break;
     }
+    case Command::Inject: {
+        report.command = "inject";
+        report.pid = options.pid;
+        report.path = options.dll_path;
+        InjectionRequest req;
+        req.method = *options.injection_method;
+        req.dll_path = *options.dll_path;
+        req.pid = options.pid;
+        req.target_dir = options.target_dir;
+        req.force = options.force;
+        auto result = ExecuteInjection(req);
+        if (result) {
+            report.accepted = true;
+            report.data = std::move(result.value());
+        } else {
+            report.errors.push_back(result.error());
+        }
+        break;
+    }
     }
     return report;
 }
@@ -331,6 +382,8 @@ std::vector<FindingEvidence> ReportEvidence(const Report& report) {
         return {{"runtime_observation", "Toolhelp loader snapshot; may change, excludes data-file loads, may contain truncated/lossy text, and does not verify DLL initialization."}};
     if (report.command == "process.list" || report.command == "process.inspect")
         return {{"runtime_observation", "Read-only Windows metadata; not a guarantee of continued process lifetime."}};
+    if (report.command == "inject")
+        return {{"runtime_execution", "Injection routine execution against specified target. Result depends on target permissions, architecture compatibility, and security controls."}};
     return {};
 }
 
@@ -359,6 +412,7 @@ Result<std::string> Render(const Report& report, bool json) {
                 ",\"errors\":" + Errors(report.errors) + ",\"duration_ms\":" + std::to_string(report.duration_ms) + "}\n";
         }
         std::ostringstream out;
+        out << AsciiBanner << '\n';
         if (!report.errors.empty()) {
             for (const auto& error : report.errors)
                 out << CategoryName(error.category) << " at " << error.stage << ": " << error.message << '\n';
@@ -419,9 +473,10 @@ Result<std::string> Render(const Report& report, bool json) {
                 out << s.name << '\t' << Address(s.virtual_address) << '\t' << s.virtual_size << '\t'
                     << s.raw_offset << '\t' << s.raw_size << '\n';
             out << "DIRECTORY_INDEX\tADDRESS_KIND\tADDRESS\tSIZE\tFILE_OFFSET\n";
-            for (const auto& d : pe->directories)
+            for (const auto& d : pe->directories) {
                 out << d.index << '\t' << (d.is_file_offset ? "file_offset" : "rva") << '\t'
                     << Address(d.address) << '\t' << d.size_bytes << '\t' << Number(d.file_offset) << '\n';
+            }
             for (const auto& kind : {false, true}) {
                 out << (kind ? "DELAY_IMPORTS" : "IMPORTS") << "\nDLL\tNAME_OR_ORDINAL\tHINT\n";
                 for (const auto& lib : (kind ? pe->delay_imports : pe->imports)) {
@@ -444,6 +499,16 @@ Result<std::string> Render(const Report& report, bool json) {
                 }
             }
             out << "No dependency resolution, signature or loadability verification.\n";
+        } else if (const auto* inject = std::get_if<InjectionOutcome>(&report.data)) {
+            out << "DLL Injection routine (" << inject->method_name << ")\n"
+                << "DLL: " << Utf8(inject->dll_path) << '\n';
+            if (inject->pid) out << "Target PID: " << *inject->pid << '\n';
+            if (inject->target_dir) out << "Target Directory: " << Utf8(*inject->target_dir) << '\n';
+            out << "Preflight checks:\n";
+            for (const auto& item : inject->preflight) {
+                out << "  [" << item.status << "] " << item.check_name << ": " << item.message << '\n';
+            }
+            out << "Result: " << (inject->success ? "SUCCESS" : "FAILED") << " - " << inject->message << '\n';
         }
         return out.str();
     } catch (const Error& error) { return error; }

@@ -9,7 +9,7 @@ inline std::string GetCcSwitchUiHtml() {
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<title>DLL Injector</title>
+<title>Rondo — Process Diagnostics & DLL Injection Platform</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   /* ============================================================
@@ -480,8 +480,8 @@ inline std::string GetCcSwitchUiHtml() {
   <nav class="sidebar" id="sidebar" aria-label="主导航">
     <div class="sidebar-top">
       <div class="brand">
-        <span class="brand-logo"><svg class="i sm"><use href="#shuffle"/></svg></span>
-        <span style="overflow:hidden;text-overflow:ellipsis">DLL Injector</span>
+        <span class="brand-logo"><img src="assets/logo.png" style="width:20px;height:20px;border-radius:4px;object-fit:contain" onerror="this.outerHTML='<svg class=\'i sm\'><use href=\'#shuffle\'/></svg>'"/></span>
+        <span style="overflow:hidden;text-overflow:ellipsis">Rondo</span>
       </div>
       <button class="btn icon" id="sidebarToggleBtn" onclick="toggleSidebar()" data-tip="收起侧栏" data-tip-pos="right" aria-label="收起侧栏">
         <svg class="i" id="sidebarToggleIcon"><use href="#chev-left"/></svg>

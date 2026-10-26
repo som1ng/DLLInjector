@@ -18,10 +18,29 @@ target_include_directories(dllinjector_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
 target_compile_definitions(dllinjector_core PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 
+add_library(injector_utils STATIC src/utils.cpp)
+target_include_directories(injector_utils PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
+target_compile_definitions(injector_utils PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
+target_link_libraries(injector_utils PUBLIC dllinjector_core comdlg32 advapi32)
+
+add_library(injector_methods STATIC
+    src/methods/method_crt.cpp
+    src/methods/method_apc.cpp
+    src/methods/method_hook.cpp
+    src/methods/method_reflective.cpp
+    src/methods/method_hijack.cpp
+    core/injector/injector.cpp
+)
+target_include_directories(injector_methods PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
+target_compile_definitions(injector_methods PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600 DLLINJECTOR_HAS_SYSCALL=0)
+target_link_libraries(injector_methods PUBLIC dllinjector_core injector_utils user32 shlwapi)
+
 add_library(cli_support STATIC apps/cli/parser.cpp apps/cli/report.cpp apps/cli/document.cpp apps/cli/saved_report.cpp)
-target_link_libraries(cli_support PUBLIC dllinjector_core)
+target_link_libraries(cli_support PUBLIC dllinjector_core injector_methods)
 target_include_directories(cli_support PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/apps/cli")
-target_include_directories(cli_support PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core" "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_include_directories(cli_support PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core" "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_include_directories(cli_support SYSTEM PRIVATE "${jsoncons_SOURCE_DIR}/include")
 target_compile_definitions(cli_support PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 if(MSVC)
@@ -30,19 +49,14 @@ if(MSVC)
 elseif(MINGW)
     set_source_files_properties(apps/cli/saved_report.cpp PROPERTIES COMPILE_OPTIONS -Wa,-mbig-obj)
 endif()
-add_executable(dllinjector_cli apps/cli/main.cpp)
+set(APP_RC "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.rc")
+add_executable(dllinjector_cli apps/cli/main.cpp ${APP_RC})
 target_link_libraries(dllinjector_cli PRIVATE cli_support)
 target_include_directories(dllinjector_cli PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
 target_compile_definitions(dllinjector_cli PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 # Windows filenames are case-insensitive: preserve the legacy GUI path.
 set_target_properties(dllinjector_cli PROPERTIES OUTPUT_NAME dllinjector
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/cli")
-
-add_library(injector_utils STATIC src/utils.cpp)
-target_include_directories(injector_utils PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
-target_compile_definitions(injector_utils PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
-target_link_libraries(injector_utils PUBLIC dllinjector_core comdlg32 advapi32)
 
 add_library(imgui STATIC
     third_party/imgui/imgui.cpp
@@ -57,7 +71,6 @@ target_include_directories(imgui PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends"
 )
 target_compile_definitions(imgui PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
-
 # Retain the legacy sources. The GNU x64 syscall experiment is deliberately
 # outside this validated MSVC/MinGW GUI build; no assembly port is implied.
 add_executable(DLLInjector WIN32
@@ -68,11 +81,7 @@ add_executable(DLLInjector WIN32
     src/gui_modern/preflight.cpp
     src/gui_modern/d3d11_renderer.cpp
     src/gui_modern/gui_app.cpp
-    src/methods/method_crt.cpp
-    src/methods/method_apc.cpp
-    src/methods/method_hook.cpp
-    src/methods/method_reflective.cpp
-    src/methods/method_hijack.cpp
+    ${APP_RC}
 )
 target_include_directories(DLLInjector PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -80,9 +89,11 @@ target_include_directories(DLLInjector PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends"
     "${CMAKE_CURRENT_SOURCE_DIR}/core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 target_compile_definitions(DLLInjector PRIVATE DLLINJECTOR_HAS_SYSCALL=0 UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 target_link_libraries(DLLInjector PRIVATE
+    injector_methods
     injector_utils
     imgui
     user32 gdi32 comctl32 shlwapi shell32 ole32 d3d11 dxgi d3dcompiler dwmapi
@@ -93,7 +104,7 @@ add_library(demo_dll SHARED dll_test/dll_demo1.cpp)
 target_link_libraries(demo_dll PRIVATE user32)
 
 if(MSVC)
-    foreach(target dllinjector_core cli_support dllinjector_cli injector_utils DLLInjector demo_target demo_dll imgui)
+foreach(target dllinjector_core injector_methods cli_support dllinjector_cli injector_utils DLLInjector demo_target demo_dll imgui)
         target_compile_options(${target} PRIVATE /utf-8)
     endforeach()
 elseif(MINGW)
@@ -215,6 +226,9 @@ if(BUILD_TESTING)
     add_test(NAME skill.discovery-checks COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/agent_discovery_tests.py")
     set_tests_properties(skill.discovery-checks PROPERTIES TIMEOUT 30)
+    add_test(NAME cli.inject COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/inject_contract.py"
+        "$<TARGET_FILE:dllinjector_cli>" "$<TARGET_FILE:noop_fixture>" "$<TARGET_FILE:demo_target>" "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(cli.inject PROPERTIES TIMEOUT 30)
 
     foreach(case picker architecture-modern architecture-errors architecture-legacy privileges live-process unicode-file)
         add_test(NAME utils.${case} COMMAND utils_tests "${case}")
@@ -225,3 +239,4 @@ if(BUILD_TESTING)
     add_test(NAME smoke.fixture COMMAND smoke_tests fixture "$<TARGET_FILE:noop_fixture>")
     set_tests_properties(smoke.gui smoke.demo smoke.fixture PROPERTIES TIMEOUT 20)
 endif()
+

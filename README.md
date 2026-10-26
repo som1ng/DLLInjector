@@ -1,4 +1,10 @@
-# DLLInjector（二次开发中）
+<p align="center">
+  <img src="assets/logo.png" alt="Rondo Logo" width="180" />
+</p>
+
+# Rondo (DLLInjector 2.0)
+
+> **Rondo** 是一个基于现代 C++ 的 Windows 系统编程、DLL 加载诊断与逆向工程分析平台，提供全功能 CLI、现代 GUI (WebView2 + cc-switch 设计系统)、Agent Skills 与 MCP 协议支持。
 
 Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。
 

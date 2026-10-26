@@ -3,8 +3,11 @@
   "configurations": [
     {
       "name": "Windows MSVC x64",
-      "compilerPath": "cl.exe",
+      "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.42.34433/bin/Hostx64/x64/cl.exe",
       "includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/apps/cli",
+        "${workspaceFolder}/core",
         "${workspaceFolder}/src"
       ],
       "defines": [
