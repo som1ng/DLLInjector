@@ -59,8 +59,10 @@ jobs:
           name: windows-${{ matrix.architecture }}-${{ matrix.configuration }}
           if-no-files-found: error
           path: |
+            build/${{ matrix.architecture }}/${{ matrix.configuration }}/Rondo.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/DLLInjector.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/cli/dllinjector.exe
+            build/${{ matrix.architecture }}/${{ matrix.configuration }}/cli/rondo.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/demo_target.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/demo_dll.dll
             docs/BASELINE.md

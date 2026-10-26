@@ -98,6 +98,22 @@ target_link_libraries(DLLInjector PRIVATE
     imgui
     user32 gdi32 comctl32 shlwapi shell32 ole32 d3d11 dxgi d3dcompiler dwmapi
 )
+set_target_properties(DLLInjector PROPERTIES OUTPUT_NAME Rondo)
+add_custom_target(Rondo DEPENDS DLLInjector)
+
+add_custom_command(TARGET DLLInjector POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:DLLInjector>"
+        "$<TARGET_FILE_DIR:DLLInjector>/DLLInjector.exe"
+    COMMENT "Mirroring Rondo.exe to DLLInjector.exe for legacy compatibility"
+)
+
+add_custom_command(TARGET dllinjector_cli POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:dllinjector_cli>"
+        "$<TARGET_FILE_DIR:dllinjector_cli>/rondo.exe"
+    COMMENT "Mirroring dllinjector.exe to rondo.exe"
+)
 
 add_executable(demo_target dll_test/demo.c)
 add_library(demo_dll SHARED dll_test/dll_demo1.cpp)

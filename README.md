@@ -45,8 +45,8 @@ cmake --build --preset msvc-x64-debug --parallel
 ctest --preset msvc-x64-debug
 ```
 
-GUI 位于 `build/msvc-x64/Debug/DLLInjector.exe`；CLI 位于
-`build/msvc-x64/Debug/cli/dllinjector.exe`。Windows 文件名不区分大小写，因此二者分目录存放。
+GUI 位于 `build/msvc-x64/Release/Rondo.exe`（亦生成 `DLLInjector.exe` 兼容旧调用）；CLI 位于
+`build/msvc-x64/Release/cli/rondo.exe`（兼容 `dllinjector.exe`）。Windows 文件名不区分大小写，因此二者分目录存放。
 只构建、不运行测试时，可在配置命令后加 `-DBUILD_TESTING=OFF`，无需 Python。
 离线构建可预先解压经校验的 jsoncons 1.10.0 归档，并在配置时增加
 `-DFETCHCONTENT_SOURCE_DIR_JSONCONS=C:/deps/jsoncons-1.10.0`；本地覆盖目录由调用方负责核对版本与完整性。
