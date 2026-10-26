@@ -1,4 +1,5 @@
 #include "cli.h"
+#include "banner.h"
 #include "dllinjector/text.h"
 #include "dllinjector/version.h"
 #include "dllinjector/injector.h"
@@ -7,7 +8,7 @@
 namespace dllinjector::cli {
 namespace {
 constexpr char Help[] =
-    "DLLInjector process, PE and injection CLI\n"
+    "Rondo (DLLInjector) process, PE and injection CLI\n"
     "  dllinjector --help | --version\n"
     "  dllinjector process list [options]\n"
     "  dllinjector process inspect --pid <PID> [options]\n"
@@ -411,6 +412,7 @@ Result<std::string> Render(const Report& report, bool json) {
                 ",\"errors\":" + Errors(report.errors) + ",\"duration_ms\":" + std::to_string(report.duration_ms) + "}\n";
         }
         std::ostringstream out;
+        out << AsciiBanner << '\n';
         if (!report.errors.empty()) {
             for (const auto& error : report.errors)
                 out << CategoryName(error.category) << " at " << error.stage << ": " << error.message << '\n';

@@ -103,6 +103,10 @@ ENV/
 /integrations/mcp/dist/
 /integrations/mcp/*.tgz
 
+# Browser regression dependencies and generated output
+/tests/gui/node_modules/
+/tests/gui/test-results/
+
 # Pi package resources are generated from the canonical Skill
 /integrations/pi/dist/
 /integrations/pi/*.tgz

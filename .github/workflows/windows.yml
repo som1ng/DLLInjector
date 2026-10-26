@@ -39,6 +39,7 @@ jobs:
           cache-dependency-path: |
             integrations/mcp/package-lock.json
             integrations/installer/package-lock.json
+            tests/gui/package-lock.json
       - name: Install MCP dependencies
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         working-directory: integrations/mcp
@@ -54,6 +55,15 @@ jobs:
       - name: Test MCP host validation fixtures
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         run: python tests/mcp_hosts_tests.py
+      - name: Install GUI test dependencies
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: tests/gui
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Test GUI layout and interactions in Edge
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: tests/gui
+        run: npm test
+
       - name: Test Pi package build and archive
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         working-directory: integrations/pi
@@ -95,8 +105,10 @@ jobs:
           name: windows-${{ matrix.architecture }}-${{ matrix.configuration }}
           if-no-files-found: error
           path: |
+            build/${{ matrix.architecture }}/${{ matrix.configuration }}/Rondo.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/DLLInjector.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/cli/dllinjector.exe
+            build/${{ matrix.architecture }}/${{ matrix.configuration }}/cli/rondo.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/demo_target.exe
             build/${{ matrix.architecture }}/${{ matrix.configuration }}/demo_dll.dll
             docs/BASELINE.md

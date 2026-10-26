@@ -49,7 +49,8 @@ if(MSVC)
 elseif(MINGW)
     set_source_files_properties(apps/cli/saved_report.cpp PROPERTIES COMPILE_OPTIONS -Wa,-mbig-obj)
 endif()
-add_executable(dllinjector_cli apps/cli/main.cpp)
+set(APP_RC "${CMAKE_CURRENT_SOURCE_DIR}/assets/app.rc")
+add_executable(dllinjector_cli apps/cli/main.cpp ${APP_RC})
 target_link_libraries(dllinjector_cli PRIVATE cli_support)
 target_include_directories(dllinjector_cli PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
 target_compile_definitions(dllinjector_cli PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
@@ -57,20 +58,69 @@ target_compile_definitions(dllinjector_cli PRIVATE UNICODE _UNICODE NOMINMAX _WI
 set_target_properties(dllinjector_cli PROPERTIES OUTPUT_NAME dllinjector
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/cli")
 
+add_library(imgui STATIC
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/backends/imgui_impl_win32.cpp
+    third_party/imgui/backends/imgui_impl_dx11.cpp
+)
+target_include_directories(imgui PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends"
+)
+target_compile_definitions(imgui PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 # Retain the legacy sources. The GNU x64 syscall experiment is deliberately
 # outside this validated MSVC/MinGW GUI build; no assembly port is implied.
 add_executable(DLLInjector WIN32
     src/main_gui.cpp
+    src/gui_modern/webview_host.cpp
+    src/gui_modern/gui_theme.cpp
+    src/gui_modern/gui_logger.cpp
+    src/gui_modern/preflight.cpp
+    src/gui_modern/d3d11_renderer.cpp
+    src/gui_modern/gui_app.cpp
+    ${APP_RC}
 )
-target_compile_definitions(DLLInjector PRIVATE DLLINJECTOR_HAS_SYSCALL=0)
-target_link_libraries(DLLInjector PRIVATE injector_methods injector_utils user32 gdi32 comctl32 shlwapi)
+target_include_directories(DLLInjector PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui_modern"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+target_compile_definitions(DLLInjector PRIVATE DLLINJECTOR_HAS_SYSCALL=0 UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
+target_link_libraries(DLLInjector PRIVATE
+    injector_methods
+    injector_utils
+    imgui
+    user32 gdi32 comctl32 shlwapi shell32 ole32 d3d11 dxgi d3dcompiler dwmapi
+)
+set_target_properties(DLLInjector PROPERTIES OUTPUT_NAME Rondo)
+add_custom_target(Rondo DEPENDS DLLInjector)
+
+add_custom_command(TARGET DLLInjector POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:DLLInjector>"
+        "$<TARGET_FILE_DIR:DLLInjector>/DLLInjector.exe"
+    COMMENT "Mirroring Rondo.exe to DLLInjector.exe for legacy compatibility"
+)
+
+add_custom_command(TARGET dllinjector_cli POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:dllinjector_cli>"
+        "$<TARGET_FILE_DIR:dllinjector_cli>/rondo.exe"
+    COMMENT "Mirroring dllinjector.exe to rondo.exe"
+)
 
 add_executable(demo_target dll_test/demo.c)
 add_library(demo_dll SHARED dll_test/dll_demo1.cpp)
 target_link_libraries(demo_dll PRIVATE user32)
 
 if(MSVC)
-    foreach(target dllinjector_core injector_methods cli_support dllinjector_cli injector_utils DLLInjector demo_target demo_dll)
+foreach(target dllinjector_core injector_methods cli_support dllinjector_cli injector_utils DLLInjector demo_target demo_dll imgui)
         target_compile_options(${target} PRIVATE /utf-8)
     endforeach()
 elseif(MINGW)
@@ -107,6 +157,10 @@ if(BUILD_TESTING)
     add_executable(utils_tests tests/utils_tests.cpp)
     target_include_directories(utils_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
     target_link_libraries(utils_tests PRIVATE injector_utils)
+    add_executable(gui_preflight_tests tests/gui_preflight_tests.cpp src/gui_modern/preflight.cpp)
+    target_link_libraries(gui_preflight_tests PRIVATE injector_utils)
+    add_test(NAME gui.preflight COMMAND gui_preflight_tests "$<TARGET_FILE:noop_fixture>")
+    set_tests_properties(gui.preflight PROPERTIES TIMEOUT 15)
 
     add_library(noop_fixture SHARED tests/fixtures/noop_plugin.cpp)
     add_executable(module_host tests/fixtures/module_host.cpp)
@@ -120,7 +174,7 @@ if(BUILD_TESTING)
         target_link_libraries(delay_fixture PRIVATE noop_fixture delayimp)
         target_link_options(delay_fixture PRIVATE /DELAYLOAD:noop_fixture.dll)
         set(pe_delay_fixture "$<TARGET_FILE:delay_fixture>")
-        foreach(target core_tests module_tests pe_tests pe_tables_tests doctor_tests dependency_tests report_fixtures module_host utils_tests noop_fixture smoke_tests delay_fixture)
+        foreach(target core_tests module_tests pe_tests pe_tables_tests doctor_tests dependency_tests report_fixtures module_host utils_tests gui_preflight_tests noop_fixture smoke_tests delay_fixture)
             target_compile_options(${target} PRIVATE /utf-8 /W4)
         endforeach()
     elseif(MINGW)
@@ -133,6 +187,7 @@ if(BUILD_TESTING)
         target_link_options(module_host PRIVATE -municode -static)
         target_link_options(core_tests PRIVATE -static)
         target_link_options(utils_tests PRIVATE -static)
+        target_link_options(gui_preflight_tests PRIVATE -municode -static)
         target_link_options(noop_fixture PRIVATE -static)
         target_link_options(smoke_tests PRIVATE -municode -static)
     endif()
