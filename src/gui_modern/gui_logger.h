@@ -33,6 +33,7 @@ public:
 
     void Clear();
     std::string GetAllAsText() const;
+    std::vector<LogEntry> GetEntriesSnapshot() const;
 
     void RenderConsole(const char* title, float height = 180.0f, ImFont* monoFont = nullptr);
 

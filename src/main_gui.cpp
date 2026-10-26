@@ -25,17 +25,22 @@
 #include "gui_modern/d3d11_renderer.h"
 #include "gui_modern/gui_theme.h"
 #include "gui_modern/gui_app.h"
+#include "gui_modern/webview_host.h"
+#include "gui_modern/cc_switch_ui.h"
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "ole32.lib")
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // Window Procedure
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam))
-        return true;
+    if (!gui::webview_host::IsActive() && ImGui::GetCurrentContext() != nullptr) {
+        if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam))
+            return true;
+    }
 
     switch (uMsg) {
     case WM_CREATE: {
@@ -80,9 +85,19 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
     case WM_SIZE:
         if (wParam != SIZE_MINIMIZED) {
-            d3d::OnResize((UINT)LOWORD(lParam), (UINT)HIWORD(lParam));
+            if (gui::webview_host::IsActive()) {
+                gui::webview_host::OnResize(hwnd);
+            } else {
+                d3d::OnResize((UINT)LOWORD(lParam), (UINT)HIWORD(lParam));
+            }
         }
         return 0;
+
+    case WM_MOVE:
+        if (gui::webview_host::IsActive()) {
+            gui::webview_host::OnMove();
+        }
+        break;
 
     case WM_SYSCOMMAND:
         if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
@@ -90,6 +105,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         break;
 
     case WM_CLOSE:
+        if (gui::webview_host::IsActive()) {
+            gui::webview_host::Shutdown();
+        }
         DestroyWindow(hwnd);
         return 0;
 
@@ -121,9 +139,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
 
     HWND hwnd = CreateWindowExW(
         0, CLASS_NAME,
-        L"⚡ DLL INJECTOR — Arc Dark Geek Edition",
+        L"DLL Injector",
         WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 1120, 780,
+        CW_USEDEFAULT, CW_USEDEFAULT, 1140, 760,
         NULL, NULL, hInstance, NULL
     );
 
@@ -134,22 +152,56 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &darkMode, sizeof(darkMode));
     DwmSetWindowAttribute(hwnd, 19 /* fallback */, &darkMode, sizeof(darkMode));
 
-    // Initialize DirectX 11
+    // Respect nCmdShow: if SW_HIDE is requested (such as in smoke tests), window remains hidden!
+    ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
+
+    // Fast path for hidden smoke tests (no GPU or WebView2 child processes spawned)
+    if (!IsWindowVisible(hwnd)) {
+        MSG msg;
+        while (GetMessageW(&msg, NULL, 0, 0) > 0) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        DestroyWindow(hwnd);
+        UnregisterClassW(CLASS_NAME, hInstance);
+        return 0;
+    }
+
+    // Initialize GUI Application State
+    gui::InitGuiApp(hwnd);
+
+    // Primary UI: WebView2 with CC Switch v7 Design System
+    if (gui::webview_host::Initialize(
+            hwnd,
+            gui::GetCcSwitchUiHtml(),
+            gui::HandleWebViewMessage,
+            [](const std::wstring& dropped) { gui::OnDropFile(dropped.c_str()); })) {
+        MSG msg;
+        while (GetMessageW(&msg, NULL, 0, 0) > 0) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        gui::webview_host::Shutdown();
+        DestroyWindow(hwnd);
+        UnregisterClassW(CLASS_NAME, hInstance);
+        return 0;
+    }
+
+    // Fallback UI if WebView2 runtime is unavailable: DirectX 11 + Dear ImGui
     if (!d3d::InitD3D(hwnd)) {
         d3d::CleanupD3D();
         UnregisterClassW(CLASS_NAME, hInstance);
         return 1;
     }
 
-    // Initialize Dear ImGui with Arc design system (Dark & Light supported, Violet accent default)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    gui::ApplyTheme(gui::ThemeMode::Dark, gui::AccentPreset::Violet);
+    gui::ApplyTheme(gui::ThemeMode::Dark, gui::AccentPreset::Amber);
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    // Load High-Quality Fonts (Oversample=1 for CJK avoids massive 35MB atlas and slow startup)
     ImFontConfig font_cfg;
     font_cfg.OversampleH = 1;
     font_cfg.OversampleV = 1;
@@ -164,20 +216,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
         gui::g_MainFont = io.Fonts->AddFontDefault();
     }
 
-    // Use main CJK font for console as well to support full Chinese character logs without fallback issues
     gui::g_MonoFont = gui::g_MainFont;
 
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(d3d::g_pd3dDevice, d3d::g_pd3dDeviceContext);
 
-    // Initialize GUI Application State
-    gui::InitGuiApp();
-
-    // Respect nCmdShow: if SW_HIDE is requested (such as in smoke tests), window remains hidden!
-    ShowWindow(hwnd, nCmdShow);
-    UpdateWindow(hwnd);
-
-    // Main Message & Render Loop
+    // Main Message & Render Loop (Fallback)
     bool done = false;
     while (!done) {
         MSG msg;
@@ -189,25 +233,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
         }
         if (done) break;
 
-        // When window is hidden (e.g., automated smoke test), wait for messages without GPU rendering
-        if (!IsWindowVisible(hwnd)) {
-            WaitMessage();
-            continue;
-        }
-
-        // When window is minimized, sleep briefly to avoid 100% CPU spin without VSync
         if (IsIconic(hwnd)) {
             Sleep(16);
             continue;
         }
 
-        // Render Frame
         d3d::BeginFrame();
         gui::RenderGuiFrame();
         d3d::EndFrame();
     }
 
-    // Cleanup resources
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

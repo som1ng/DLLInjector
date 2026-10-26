@@ -60,10 +60,10 @@ void ApplyTheme(ThemeMode mode, AccentPreset accent) {
             theme::AccentActive = isDark ? ImVec4(0.240f, 0.780f, 0.560f, 1.0f) : ImVec4(0.031f, 0.486f, 0.329f, 1.0f); // #087C54
             break;
         case AccentPreset::Amber:
-            // Seed #F3AD20
-            theme::Accent       = isDark ? ImVec4(1.000f, 0.796f, 0.384f, 1.0f) : ImVec4(0.953f, 0.678f, 0.125f, 1.0f); // #FFCB62 / #F3AD20
-            theme::AccentHover  = isDark ? ImVec4(1.000f, 0.850f, 0.480f, 1.0f) : ImVec4(0.850f, 0.600f, 0.100f, 1.0f);
-            theme::AccentActive = isDark ? ImVec4(0.920f, 0.720f, 0.300f, 1.0f) : ImVec4(0.612f, 0.388f, 0.000f, 1.0f); // #9C6300
+            // CC Switch v7 Action Orange (#F97316 light / #EA580C dark)
+            theme::Accent       = isDark ? ImVec4(0.918f, 0.345f, 0.047f, 1.0f) : ImVec4(0.976f, 0.451f, 0.086f, 1.0f);
+            theme::AccentHover  = isDark ? ImVec4(0.941f, 0.427f, 0.122f, 1.0f) : ImVec4(0.918f, 0.384f, 0.039f, 1.0f);
+            theme::AccentActive = isDark ? ImVec4(0.761f, 0.255f, 0.047f, 1.0f) : ImVec4(0.761f, 0.255f, 0.047f, 1.0f);
             break;
         case AccentPreset::Neutral:
         default:
@@ -80,35 +80,35 @@ void ApplyTheme(ThemeMode mode, AccentPreset accent) {
     theme::StatusDanger  = isDark ? ImVec4(1.000f, 0.576f, 0.525f, 1.0f) : ImVec4(0.945f, 0.373f, 0.333f, 1.0f); // #FF9386 / #F15F55
     theme::StatusSpecial = isDark ? ImVec4(0.655f, 0.545f, 1.000f, 1.0f) : ImVec4(0.467f, 0.278f, 1.000f, 1.0f);
 
-    // 3. Surface & Text Tokens (Arc Tokens from docs.tkcode.si)
+    // 3. Surface & Text Tokens (CC Switch v7 tokens)
     if (isDark) {
-        // Dark Mode: Deep neutral dark surfaces (#0D0D11, #18181B, #222226)
-        theme::Surface0       = ImVec4(0.051f, 0.051f, 0.067f, 1.00f); // #0D0D11 - Background
-        theme::Surface1       = ImVec4(0.094f, 0.094f, 0.106f, 1.00f); // #18181B - Card / Panel
-        theme::Surface2       = ImVec4(0.133f, 0.133f, 0.149f, 1.00f); // #222226 - Input / Well
-        theme::SurfaceHover   = ImVec4(0.165f, 0.165f, 0.188f, 1.00f); // #2A2A30
-        theme::SurfaceActive  = ImVec4(0.196f, 0.196f, 0.227f, 1.00f); // #32323A
-        theme::BorderSubtle   = ImVec4(0.149f, 0.149f, 0.169f, 0.85f); // #26262B - 1px Subtle
-        theme::BorderStrong   = ImVec4(0.227f, 0.227f, 0.259f, 1.00f); // #3A3A42
+        // Dark Mode: #161618 sidebar, #1C1C1E app, #26262A subtle, #2E2E33 card
+        theme::Surface0       = ImVec4(0.110f, 0.110f, 0.118f, 1.00f); // #1C1C1E - --bg-app
+        theme::Surface1       = ImVec4(0.180f, 0.180f, 0.200f, 1.00f); // #2E2E33 - --bg-card
+        theme::Surface2       = ImVec4(0.149f, 0.149f, 0.165f, 1.00f); // #26262A - --bg-subtle
+        theme::SurfaceHover   = ImVec4(0.192f, 0.192f, 0.212f, 1.00f); // #313136 - --bg-selected
+        theme::SurfaceActive  = ImVec4(0.243f, 0.243f, 0.271f, 1.00f); // #3E3E45
+        theme::BorderSubtle   = ImVec4(0.243f, 0.243f, 0.271f, 1.00f); // #3E3E45 - --border
+        theme::BorderStrong   = ImVec4(0.290f, 0.290f, 0.322f, 1.00f); // #4A4A52 - --border-strong
 
-        theme::TextPrimary    = ImVec4(0.957f, 0.957f, 0.961f, 1.00f); // #F4F4F5 - Foreground
-        theme::TextSecondary  = ImVec4(0.631f, 0.631f, 0.667f, 1.00f); // #A1A1AA - Secondary
-        theme::TextMuted      = ImVec4(0.443f, 0.443f, 0.478f, 1.00f); // #71717A - Muted
-        theme::TextDisabled   = ImVec4(0.247f, 0.247f, 0.275f, 1.00f); // #3F3F46
+        theme::TextPrimary    = ImVec4(0.894f, 0.894f, 0.906f, 1.00f); // #E4E4E7 - --text-1
+        theme::TextSecondary  = ImVec4(0.671f, 0.671f, 0.702f, 1.00f); // #ABABB3 - --text-2
+        theme::TextMuted      = ImVec4(0.604f, 0.604f, 0.635f, 1.00f); // #9A9AA2 - --text-3
+        theme::TextDisabled   = ImVec4(0.435f, 0.435f, 0.467f, 1.00f); // #6F6F77
     } else {
-        // Light Mode: Clean off-white & pure white surfaces (#FBFBFB, #FFFFFF, #F4F4F5)
-        theme::Surface0       = ImVec4(0.984f, 0.984f, 0.984f, 1.00f); // #FBFBFB - Background
-        theme::Surface1       = ImVec4(1.000f, 1.000f, 1.000f, 1.00f); // #FFFFFF - Card / Panel
-        theme::Surface2       = ImVec4(0.957f, 0.957f, 0.961f, 1.00f); // #F4F4F5 - Input / Well
-        theme::SurfaceHover   = ImVec4(0.918f, 0.925f, 0.937f, 1.00f); // #EAECEF
-        theme::SurfaceActive  = ImVec4(0.875f, 0.882f, 0.902f, 1.00f); // #DFE1E6
-        theme::BorderSubtle   = ImVec4(0.880f, 0.880f, 0.895f, 0.90f); // #ECECEE - 1px Subtle
-        theme::BorderStrong   = ImVec4(0.831f, 0.831f, 0.847f, 1.00f); // #D4D4D8
+        // Light Mode: #FFFFFF app/card, #F5F5F7 sidebar, #EFEFF2 subtle
+        theme::Surface0       = ImVec4(0.961f, 0.961f, 0.969f, 1.00f); // #F5F5F7 - --bg-sidebar
+        theme::Surface1       = ImVec4(1.000f, 1.000f, 1.000f, 1.00f); // #FFFFFF - --bg-card
+        theme::Surface2       = ImVec4(0.937f, 0.937f, 0.949f, 1.00f); // #EFEFF2 - --bg-subtle
+        theme::SurfaceHover   = ImVec4(0.894f, 0.894f, 0.918f, 1.00f); // #E4E4EA - --bg-selected
+        theme::SurfaceActive  = ImVec4(0.812f, 0.812f, 0.839f, 1.00f); // #CFCFD6
+        theme::BorderSubtle   = ImVec4(0.894f, 0.894f, 0.914f, 1.00f); // #E4E4E9 - --border
+        theme::BorderStrong   = ImVec4(0.812f, 0.812f, 0.839f, 1.00f); // #CFCFD6 - --border-strong
 
-        theme::TextPrimary    = ImVec4(0.094f, 0.094f, 0.106f, 1.00f); // #18181B - Foreground
-        theme::TextSecondary  = ImVec4(0.322f, 0.322f, 0.357f, 1.00f); // #52525B - Secondary
-        theme::TextMuted      = ImVec4(0.443f, 0.443f, 0.478f, 1.00f); // #71717A - Muted
-        theme::TextDisabled   = ImVec4(0.631f, 0.631f, 0.667f, 1.00f); // #A1A1AA
+        theme::TextPrimary    = ImVec4(0.094f, 0.094f, 0.106f, 1.00f); // #18181B - --text-1
+        theme::TextSecondary  = ImVec4(0.322f, 0.322f, 0.357f, 1.00f); // #52525B - --text-2
+        theme::TextMuted      = ImVec4(0.396f, 0.396f, 0.431f, 1.00f); // #65656E - --text-3
+        theme::TextDisabled   = ImVec4(0.533f, 0.533f, 0.565f, 1.00f); // #888890
     }
 
     // 4. ImGui Geometry & Style

@@ -69,6 +69,11 @@ std::string Logger::GetAllAsText() const {
     return oss.str();
 }
 
+std::vector<LogEntry> Logger::GetEntriesSnapshot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return entries_;
+}
+
 void Logger::RenderConsole(const char* title, float height, ImFont* monoFont) {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface1);
     ImGui::BeginChild(title, ImVec2(0, height), true, ImGuiWindowFlags_NoScrollbar);

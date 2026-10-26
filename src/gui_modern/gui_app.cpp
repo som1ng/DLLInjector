@@ -2,11 +2,14 @@
 #include "gui_theme.h"
 #include "gui_logger.h"
 #include "preflight.h"
+#include "webview_host.h"
 #include "methods/injector_methods.h"
 #include "dllinjector/text.h"
 #include <commdlg.h>
+#include <dwmapi.h>
 #include <shlwapi.h>
 #include <fstream>
+#include <sstream>
 #include <algorithm>
 #include <cctype>
 
@@ -82,6 +85,89 @@ char g_HexInputBuf[8192] = "";
 std::vector<unsigned char> g_ParsedHexBytes;
 
 bool g_DebugPrivilegeActive = false;
+HWND g_MainHwnd = nullptr;
+
+std::string JsonEscapeStr(const std::string& input) {
+    std::string out;
+    out.reserve(input.size() + 16);
+    for (unsigned char c : input) {
+        switch (c) {
+            case '"':  out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b";  break;
+            case '\f': out += "\\f";  break;
+            case '\n': out += "\\n";  break;
+            case '\r': out += "\\r";  break;
+            case '\t': out += "\\t";  break;
+            default:
+                if (c < 0x20) {
+                    char buf[8];
+                    std::snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned int>(c));
+                    out += buf;
+                } else {
+                    out += static_cast<char>(c);
+                }
+                break;
+        }
+    }
+    return out;
+}
+
+std::string ExtractJsonStringField(const std::string& json, const char* key) {
+    std::string pattern = std::string("\"") + key + "\"";
+    size_t pos = json.find(pattern);
+    if (pos == std::string::npos) return "";
+    pos = json.find(':', pos + pattern.size());
+    if (pos == std::string::npos) return "";
+    pos = json.find('"', pos + 1);
+    if (pos == std::string::npos) return "";
+    ++pos;
+    std::string out;
+    while (pos < json.size()) {
+        char c = json[pos++];
+        if (c == '"') break;
+        if (c == '\\' && pos < json.size()) {
+            char esc = json[pos++];
+            switch (esc) {
+                case '"':  out += '"'; break;
+                case '\\': out += '\\'; break;
+                case '/':  out += '/'; break;
+                case 'n':  out += '\n'; break;
+                case 'r':  out += '\r'; break;
+                case 't':  out += '\t'; break;
+                default:   out += esc; break;
+            }
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
+int ExtractJsonIntField(const std::string& json, const char* key, int defaultVal = 0) {
+    std::string pattern = std::string("\"") + key + "\"";
+    size_t pos = json.find(pattern);
+    if (pos == std::string::npos) return defaultVal;
+    pos = json.find(':', pos + pattern.size());
+    if (pos == std::string::npos) return defaultVal;
+    ++pos;
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) ++pos;
+    if (pos >= json.size()) return defaultVal;
+    return std::atoi(json.c_str() + pos);
+}
+
+bool ExtractJsonBoolField(const std::string& json, const char* key, bool defaultVal = false) {
+    std::string pattern = std::string("\"") + key + "\"";
+    size_t pos = json.find(pattern);
+    if (pos == std::string::npos) return defaultVal;
+    pos = json.find(':', pos + pattern.size());
+    if (pos == std::string::npos) return defaultVal;
+    ++pos;
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) ++pos;
+    if (json.compare(pos, 4, "true") == 0) return true;
+    if (json.compare(pos, 5, "false") == 0) return false;
+    return defaultVal;
+}
 
 // Helpers
 std::string ToLower(const std::string& str) {
@@ -112,6 +198,28 @@ std::wstring Utf8ToWide(std::string_view utf8) {
     std::wstring out(needed, L'\0');
     MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), out.data(), needed);
     return out;
+}
+
+bool CopyUtf8ToClipboard(HWND owner, const std::string& utf8Text) {
+    std::wstring wide = Utf8ToWide(utf8Text);
+    if (!OpenClipboard(owner)) return false;
+    EmptyClipboard();
+    size_t bytes = (wide.size() + 1) * sizeof(wchar_t);
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if (!hMem) {
+        CloseClipboard();
+        return false;
+    }
+    void* ptr = GlobalLock(hMem);
+    if (ptr) {
+        memcpy(ptr, wide.c_str(), bytes);
+        GlobalUnlock(hMem);
+        SetClipboardData(CF_UNICODETEXT, hMem);
+    } else {
+        GlobalFree(hMem);
+    }
+    CloseClipboard();
+    return true;
 }
 
 std::wstring GetProcessPath(DWORD pid) {
@@ -236,8 +344,9 @@ void RefreshProcesses() {
 
 } // namespace
 
-void InitGuiApp() {
-    Logger::Instance().Info("DLL Injector (Dear ImGui + DirectX 11) 初始化完成。");
+void InitGuiApp(HWND mainHwnd) {
+    g_MainHwnd = mainHwnd;
+    Logger::Instance().Info("DLL Injector (CC Switch v7 WebView2 / Modern UI) 初始化完成。");
     #if defined(_WIN64)
     Logger::Instance().Info("当前宿主构建架构: 64-bit (x64)");
     #else
@@ -262,6 +371,9 @@ void OnDropFile(const wchar_t* path) {
             Logger::Instance().Info("已通过拖拽载入 DLL: " + u8.value());
         }
         TriggerPreflight();
+        if (webview_host::IsActive()) {
+            PushWebViewState("已通过拖放载入 DLL 并完成静态预检", "ok");
+        }
     } else {
         g_CurrentPayloadMode = PayloadMode::Shellcode;
         auto u8 = dllinjector::ToUtf8(p);
@@ -270,6 +382,9 @@ void OnDropFile(const wchar_t* path) {
             auto data = utils::ReadFileToBuffer(p);
             g_ParsedHexBytes = data;
             Logger::Instance().Info("已通过拖拽载入二进制载荷 (" + std::to_string(data.size()) + " 字节)");
+        }
+        if (webview_host::IsActive()) {
+            PushWebViewState("已通过拖放载入二进制载荷 (" + std::to_string(g_ParsedHexBytes.size()) + " 字节)", "ok");
         }
     }
 }
@@ -710,12 +825,14 @@ static void RenderMethodsGrid() {
     ImGui::PopStyleColor();
 }
 
-static void ExecuteInjection() {
+static bool ExecuteInjectionInternal(bool showModal, std::string& outToast, std::string& outTone) {
     auto proc = GetSelectedProcessItem();
     if (!proc) {
         Logger::Instance().Error("注入停止: 请先在左侧选择目标进程！");
-        MessageBoxW(NULL, L"请先在左侧列表中选择一个目标进程！", L"未选定目标", MB_ICONWARNING);
-        return;
+        outToast = "请先选择一个目标进程";
+        outTone = "err";
+        if (showModal) MessageBoxW(NULL, L"请先在左侧列表中选择一个目标进程！", L"未选定目标", MB_ICONWARNING);
+        return false;
     }
 
     // Architecture Check
@@ -728,24 +845,30 @@ static void ExecuteInjection() {
     bool targetIs64 = (proc->arch == utils::ProcessArchitecture::X64);
     if (proc->arch == utils::ProcessArchitecture::Unknown) {
         Logger::Instance().Error("注入停止: 目标进程架构未知或权限不足。");
-        MessageBoxW(NULL, L"无法确认目标进程架构，已停止操作。", L"架构未知", MB_ICONERROR);
-        return;
+        outToast = "目标进程架构未知或权限受限，可先尝试启用 SeDebug 提权";
+        outTone = "err";
+        if (showModal) MessageBoxW(NULL, L"无法确认目标进程架构，已停止操作。", L"架构未知", MB_ICONERROR);
+        return false;
     }
 
     if (amI64 != targetIs64) {
         std::string errMsg = "架构冲突: 注入器为 " + std::string(amI64 ? "64位" : "32位") +
             "，目标进程为 " + std::string(targetIs64 ? "64位" : "32位") + "。";
         Logger::Instance().Error(errMsg);
-        MessageBoxW(NULL, L"架构不匹配！注入器与目标进程位数必须一致。", L"架构错误", MB_ICONERROR);
-        return;
+        outToast = errMsg;
+        outTone = "err";
+        if (showModal) MessageBoxW(NULL, L"架构不匹配！注入器与目标进程位数必须一致。", L"架构错误", MB_ICONERROR);
+        return false;
     }
 
     // Syscall experimental guard
     #if !DLLINJECTOR_HAS_SYSCALL
     if (g_SelectedMethod == MethodID::SYSCALL) {
         Logger::Instance().Warn("Direct Syscall 源码已保留，但未纳入当前验证构建的测试范围。");
-        MessageBoxW(NULL, L"Direct Syscall 源码已保留，但未纳入本构建的验证范围。", L"功能不可用", MB_ICONINFORMATION);
-        return;
+        outToast = "Direct Syscall 在当前构建中作为实验性源码保留";
+        outTone = "warn";
+        if (showModal) MessageBoxW(NULL, L"Direct Syscall 源码已保留，但未纳入本构建的验证范围。", L"功能不可用", MB_ICONINFORMATION);
+        return false;
     }
     #endif
 
@@ -755,8 +878,10 @@ static void ExecuteInjection() {
     if (g_CurrentPayloadMode == PayloadMode::Dll) {
         if (g_CurrentDllPath.empty() || GetFileAttributesW(g_CurrentDllPath.c_str()) == INVALID_FILE_ATTRIBUTES) {
             Logger::Instance().Error("注入停止: DLL 文件路径无效或文件不存在。");
-            MessageBoxW(NULL, L"请选择有效的目标 .dll 文件！", L"文件错误", MB_ICONERROR);
-            return;
+            outToast = "请选择有效的目标 .dll 文件";
+            outTone = "err";
+            if (showModal) MessageBoxW(NULL, L"请选择有效的目标 .dll 文件！", L"文件错误", MB_ICONERROR);
+            return false;
         }
 
         // Preflight warning
@@ -812,8 +937,10 @@ static void ExecuteInjection() {
         // Shellcode Mode
         if (g_ParsedHexBytes.empty()) {
             Logger::Instance().Error("注入停止: Shellcode 载荷数据为空！请载入 .bin 文件或输入合法十六进制。");
-            MessageBoxW(NULL, L"载荷数据为空！请检查 Hex 格式或 .bin 文件。", L"载荷错误", MB_ICONERROR);
-            return;
+            outToast = "Shellcode 载荷数据为空，请检查十六进制输入或 .bin 文件";
+            outTone = "err";
+            if (showModal) MessageBoxW(NULL, L"载荷数据为空！请检查 Hex 格式或 .bin 文件。", L"载荷错误", MB_ICONERROR);
+            return false;
         }
 
         Logger::Instance().Info("开始对目标 PID " + std::to_string(pid) + " 执行 Shellcode 注入 (" +
@@ -842,11 +969,22 @@ static void ExecuteInjection() {
 
     if (success) {
         Logger::Instance().Success("[成功] 注入请求已提交！(底层 API 成功返回，预期效果视目标保护机制而定)");
-        MessageBoxW(NULL, L"请求已提交，底层 API 执行成功！", L"注入成功", MB_ICONINFORMATION);
+        outToast = "已向 PID " + std::to_string(pid) + " (" + proc->name_utf8 + ") 提交注入请求";
+        outTone = "ok";
+        if (showModal) MessageBoxW(NULL, L"请求已提交，底层 API 执行成功！", L"注入成功", MB_ICONINFORMATION);
     } else {
-        Logger::Instance().Error("[失败] 注入执行失败！GetLastError: " + std::to_string(GetLastError()));
-        MessageBoxW(NULL, L"注入失败，详情请查看终端控制台日志。", L"执行失败", MB_ICONERROR);
+        DWORD err = GetLastError();
+        Logger::Instance().Error("[失败] 注入执行失败！GetLastError: " + std::to_string(err));
+        outToast = "注入执行失败 (Win32 Error " + std::to_string(err) + ")，详情见终端日志";
+        outTone = "err";
+        if (showModal) MessageBoxW(NULL, L"注入失败，详情请查看终端控制台日志。", L"执行失败", MB_ICONERROR);
     }
+    return success;
+}
+
+static void ExecuteInjection() {
+    std::string toast, tone;
+    ExecuteInjectionInternal(true, toast, tone);
 }
 
 static void RenderActionBar() {
@@ -924,6 +1062,231 @@ void RenderGuiFrame() {
     ImGui::End();
 
     ImGui::PopStyleVar(3);
+}
+
+void PushWebViewState(const std::string& toastMsg, const std::string& toastTone) {
+    if (!webview_host::IsActive()) return;
+
+    auto selProc = GetSelectedProcessItem();
+    std::string doctorJson = g_Preflight.valid
+        ? PreflightDoctor::GenerateJsonReport(g_Preflight, selProc ? selProc->pid : 0)
+        : "";
+
+    std::ostringstream oss;
+    oss << "{\"type\":\"state\",\"state\":{";
+#if defined(_WIN64)
+    oss << "\"hostArch\":\"x64\",";
+#else
+    oss << "\"hostArch\":\"x86\",";
+#endif
+    oss << "\"debugPriv\":" << (g_DebugPrivilegeActive ? "true" : "false") << ",";
+    oss << "\"hasSyscall\":" << (DLLINJECTOR_HAS_SYSCALL ? "true" : "false") << ",";
+    oss << "\"payloadMode\":\"" << (g_CurrentPayloadMode == PayloadMode::Dll ? "dll" : "shellcode") << "\",";
+    oss << "\"selectedMethod\":" << static_cast<int>(g_SelectedMethod) << ",";
+    oss << "\"selectedPid\":" << g_SelectedPid << ",";
+    oss << "\"dllPath\":\"" << JsonEscapeStr(g_DllPathBuf) << "\",";
+    oss << "\"binPath\":\"" << JsonEscapeStr(g_BinPathBuf) << "\",";
+    oss << "\"shellcodeSize\":" << g_ParsedHexBytes.size() << ",";
+
+    // Preflight object
+    std::string matchStr = "WAIT";
+    if (g_Preflight.matchStatus == ArchMatchStatus::Match) matchStr = "MATCH";
+    else if (g_Preflight.matchStatus == ArchMatchStatus::Mismatch) matchStr = "MISMATCH";
+
+    oss << "\"preflight\":{";
+    oss << "\"valid\":" << (g_Preflight.valid ? "true" : "false") << ",";
+    oss << "\"dllArch\":\"" << JsonEscapeStr(g_Preflight.dllArchStr) << "\",";
+    oss << "\"pe32Plus\":" << (g_Preflight.isPe32Plus ? "true" : "false") << ",";
+    oss << "\"importCount\":" << g_Preflight.importCount << ",";
+    oss << "\"delayCount\":" << g_Preflight.delayImportCount << ",";
+    oss << "\"matchStatus\":\"" << matchStr << "\",";
+    oss << "\"blocking\":" << (g_Preflight.hasBlockingErrors ? "true" : "false") << ",";
+    oss << "\"error\":\"" << JsonEscapeStr(g_Preflight.errorMessage) << "\",";
+    oss << "\"json\":\"" << JsonEscapeStr(doctorJson) << "\",";
+
+    oss << "\"findings\":[";
+    for (size_t i = 0; i < g_Preflight.findings.size(); ++i) {
+        const auto& f = g_Preflight.findings[i];
+        if (i > 0) oss << ",";
+        oss << "{\"rule_id\":\"" << JsonEscapeStr(f.rule_id) << "\","
+            << "\"severity\":\"" << JsonEscapeStr(std::string(dllinjector::SeverityName(f.severity))) << "\","
+            << "\"confidence\":\"" << JsonEscapeStr(f.confidence) << "\","
+            << "\"message\":\"" << JsonEscapeStr(f.message) << "\","
+            << "\"next_step\":\"" << JsonEscapeStr(f.recommended_next_step) << "\"}";
+    }
+    oss << "],";
+
+    oss << "\"dependencies\":[";
+    for (size_t i = 0; i < g_Preflight.dependencies.size(); ++i) {
+        const auto& d = g_Preflight.dependencies[i];
+        if (i > 0) oss << ",";
+        oss << "{\"name\":\"" << JsonEscapeStr(d.name) << "\","
+            << "\"delay\":" << (d.delay_import ? "true" : "false") << ","
+            << "\"status\":\"" << JsonEscapeStr(std::string(dllinjector::DependencyStatusName(d.status))) << "\"}";
+    }
+    oss << "]},";
+
+    // Processes array
+    oss << "\"processes\":[";
+    for (size_t i = 0; i < g_Processes.size(); ++i) {
+        const auto& p = g_Processes[i];
+        if (i > 0) oss << ",";
+        oss << "{\"pid\":" << p.pid << ","
+            << "\"name\":\"" << JsonEscapeStr(p.name_utf8) << "\","
+            << "\"arch\":\"" << JsonEscapeStr(p.archStr) << "\"}";
+    }
+    oss << "],";
+
+    // Logs array
+    auto logs = Logger::Instance().GetEntriesSnapshot();
+    oss << "\"logs\":[";
+    for (size_t i = 0; i < logs.size(); ++i) {
+        const auto& l = logs[i];
+        const char* lvl = "INFO";
+        switch (l.level) {
+            case LogLevel::Info:    lvl = "INFO"; break;
+            case LogLevel::Success: lvl = "SUCCESS"; break;
+            case LogLevel::Warn:    lvl = "WARN"; break;
+            case LogLevel::Error:   lvl = "ERROR"; break;
+            case LogLevel::Doctor:  lvl = "DOCTOR"; break;
+        }
+        if (i > 0) oss << ",";
+        oss << "{\"time\":\"" << JsonEscapeStr(l.timestamp) << "\","
+            << "\"level\":\"" << lvl << "\","
+            << "\"msg\":\"" << JsonEscapeStr(l.message) << "\"}";
+    }
+    oss << "]}";
+
+    if (!toastMsg.empty()) {
+        oss << ",\"toast\":{\"msg\":\"" << JsonEscapeStr(toastMsg) << "\","
+            << "\"tone\":\"" << JsonEscapeStr(toastTone) << "\"}";
+    }
+    oss << "}";
+
+    webview_host::PostJsonMessage(oss.str());
+}
+
+void HandleWebViewMessage(const std::string& jsonMessage) {
+    std::string cmd = ExtractJsonStringField(jsonMessage, "cmd");
+    if (cmd.empty()) return;
+
+    if (cmd == "init") {
+        PushWebViewState();
+    } else if (cmd == "refresh_processes") {
+        RefreshProcesses();
+        PushWebViewState("已刷新活跃进程列表 (" + std::to_string(g_Processes.size()) + " 个)", "ok");
+    } else if (cmd == "select_process") {
+        int pid = ExtractJsonIntField(jsonMessage, "pid", -1);
+        g_SelectedPid = pid;
+        auto sel = GetSelectedProcessItem();
+        if (sel) {
+            Logger::Instance().Info("已选定目标进程: " + sel->name_utf8 +
+                " (PID: " + std::to_string(sel->pid) + ", 架构: " + sel->archStr + ")");
+        }
+        TriggerPreflight();
+        PushWebViewState();
+    } else if (cmd == "set_payload_mode") {
+        std::string mode = ExtractJsonStringField(jsonMessage, "mode");
+        if (mode == "shellcode") {
+            g_CurrentPayloadMode = PayloadMode::Shellcode;
+            if (g_SelectedMethod == MethodID::HOOK ||
+                g_SelectedMethod == MethodID::REFLECTIVE ||
+                g_SelectedMethod == MethodID::HIJACK) {
+                g_SelectedMethod = MethodID::CRT;
+            }
+            PushWebViewState("已切换到 Shellcode 载荷模式", "ok");
+        } else {
+            g_CurrentPayloadMode = PayloadMode::Dll;
+            TriggerPreflight();
+            PushWebViewState("已切换到 DLL 动态库注入模式", "ok");
+        }
+    } else if (cmd == "select_method") {
+        int m = ExtractJsonIntField(jsonMessage, "method", 0);
+        if (m >= 0 && m <= 5) {
+            g_SelectedMethod = static_cast<MethodID>(m);
+            Logger::Instance().Info(std::string("已切换注入技术: ") + g_MethodCards[m].title);
+            PushWebViewState(std::string("已切换到 ") + g_MethodCards[m].title, "ok");
+        }
+    } else if (cmd == "browse_dll") {
+        std::wstring file = OpenFileDialog(L"Dynamic Link Library (*.dll)\0*.dll\0All Files (*.*)\0*.*\0", L"选择注入 DLL");
+        if (!file.empty()) {
+            g_CurrentDllPath = file;
+            auto u8 = dllinjector::ToUtf8(file);
+            if (u8) std::snprintf(g_DllPathBuf, sizeof(g_DllPathBuf), "%s", u8.value().c_str());
+            TriggerPreflight();
+            PushWebViewState("已加载 DLL 载荷并完成静态预检", "ok");
+        }
+    } else if (cmd == "set_dll_path") {
+        std::string clean = TrimPathString(ExtractJsonStringField(jsonMessage, "path"));
+        std::snprintf(g_DllPathBuf, sizeof(g_DllPathBuf), "%s", clean.c_str());
+        g_CurrentDllPath = Utf8ToWide(clean);
+        TriggerPreflight();
+        PushWebViewState();
+    } else if (cmd == "browse_bin") {
+        std::wstring file = OpenFileDialog(L"Binary Files (*.bin)\0*.bin\0All Files (*.*)\0*.*\0", L"选择载荷文件");
+        if (!file.empty()) {
+            auto u8 = dllinjector::ToUtf8(file);
+            if (u8) std::snprintf(g_BinPathBuf, sizeof(g_BinPathBuf), "%s", u8.value().c_str());
+            g_ParsedHexBytes = utils::ReadFileToBuffer(file);
+            Logger::Instance().Info("已载入 " + std::to_string(g_ParsedHexBytes.size()) + " 字节 Shellcode。");
+            PushWebViewState("已载入 " + std::to_string(g_ParsedHexBytes.size()) + " 字节二进制载荷", "ok");
+        }
+    } else if (cmd == "set_hex") {
+        std::string hex = ExtractJsonStringField(jsonMessage, "hex");
+        std::snprintf(g_HexInputBuf, sizeof(g_HexInputBuf), "%s", hex.c_str());
+        g_ParsedHexBytes = ParseHexInput(hex);
+        PushWebViewState();
+    } else if (cmd == "enable_debug_priv") {
+        if (utils::EnableDebugPrivilege()) {
+            g_DebugPrivilegeActive = true;
+            Logger::Instance().Success("已成功提升进程令牌权限 (SeDebugPrivilege)。");
+            RefreshProcesses();
+            PushWebViewState("已启用 SeDebugPrivilege 调试权限", "ok");
+        } else {
+            Logger::Instance().Error("提升 SeDebugPrivilege 权限失败 (需以管理员身份运行)。");
+            PushWebViewState("提权失败：请以管理员身份运行程序", "err");
+        }
+    } else if (cmd == "inject") {
+        std::string toast, tone;
+        ExecuteInjectionInternal(false, toast, tone);
+        PushWebViewState(toast, tone);
+    } else if (cmd == "copy_doctor_json") {
+        auto proc = GetSelectedProcessItem();
+        std::string json = PreflightDoctor::GenerateJsonReport(g_Preflight, proc ? proc->pid : 0);
+        CopyUtf8ToClipboard(g_MainHwnd, json);
+        Logger::Instance().Success("已复制 Core Doctor 诊断 JSON 到系统剪贴板。");
+        PushWebViewState("已复制 Core Doctor 诊断 JSON", "ok");
+    } else if (cmd == "export_doctor_report") {
+        std::wstring savePath = SaveFileDialog(L"JSON Report (*.json)\0*.json\0Text Report (*.txt)\0*.txt\0", L"json", L"保存诊断报告");
+        if (!savePath.empty()) {
+            auto proc = GetSelectedProcessItem();
+            std::string content = (savePath.find(L".json") != std::wstring::npos) ?
+                PreflightDoctor::GenerateJsonReport(g_Preflight, proc ? proc->pid : 0) :
+                PreflightDoctor::GenerateTextReport(g_Preflight, proc ? proc->pid : 0);
+            std::ofstream ofs(savePath.c_str(), std::ios::binary);
+            if (ofs) {
+                ofs.write(content.data(), content.size());
+                Logger::Instance().Success("已成功导出诊断报告。");
+                PushWebViewState("已成功导出诊断报告文件", "ok");
+            } else {
+                Logger::Instance().Error("保存诊断报告失败，无法写入目标文件。");
+                PushWebViewState("导出报告失败：无法写入文件", "err");
+            }
+        }
+    } else if (cmd == "clear_logs") {
+        Logger::Instance().Clear();
+        PushWebViewState("已清空终端日志", "ok");
+    } else if (cmd == "copy_logs") {
+        CopyUtf8ToClipboard(g_MainHwnd, Logger::Instance().GetAllAsText());
+        PushWebViewState("已复制全部日志到剪贴板", "ok");
+    } else if (cmd == "set_theme") {
+        bool dark = ExtractJsonBoolField(jsonMessage, "dark", true);
+        if (g_MainHwnd) {
+            BOOL darkAttr = dark ? TRUE : FALSE;
+            DwmSetWindowAttribute(g_MainHwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &darkAttr, sizeof(darkAttr));
+            DwmSetWindowAttribute(g_MainHwnd, 19, &darkAttr, sizeof(darkAttr));
+        }
+    }
 }
 
 } // namespace gui

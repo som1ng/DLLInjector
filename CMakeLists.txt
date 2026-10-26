@@ -62,6 +62,7 @@ target_compile_definitions(imgui PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0
 # outside this validated MSVC/MinGW GUI build; no assembly port is implied.
 add_executable(DLLInjector WIN32
     src/main_gui.cpp
+    src/gui_modern/webview_host.cpp
     src/gui_modern/gui_theme.cpp
     src/gui_modern/gui_logger.cpp
     src/gui_modern/preflight.cpp
@@ -84,7 +85,7 @@ target_compile_definitions(DLLInjector PRIVATE DLLINJECTOR_HAS_SYSCALL=0 UNICODE
 target_link_libraries(DLLInjector PRIVATE
     injector_utils
     imgui
-    user32 gdi32 comctl32 shlwapi shell32 d3d11 dxgi d3dcompiler dwmapi
+    user32 gdi32 comctl32 shlwapi shell32 ole32 d3d11 dxgi d3dcompiler dwmapi
 )
 
 add_executable(demo_target dll_test/demo.c)
