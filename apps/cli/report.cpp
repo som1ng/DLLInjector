@@ -8,7 +8,7 @@
 namespace dllinjector::cli {
 namespace {
 constexpr char Help[] =
-    "DLLInjector process, PE and injection CLI\n"
+    "Rondo (DLLInjector) process, PE and injection CLI\n"
     "  dllinjector --help | --version\n"
     "  dllinjector process list [options]\n"
     "  dllinjector process inspect --pid <PID> [options]\n"
