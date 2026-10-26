@@ -154,3 +154,13 @@ The private browser test package under `tests/gui` uses Playwright 1.60.0
 and playwright-core 1.60.0, copyright Microsoft Corporation, under Apache-2.0.
 Source and license: https://github.com/microsoft/playwright/tree/v1.60.0
 These are development dependencies and are not bundled into Rondo.exe.
+
+## Local project MCP installer
+
+`integrations/installer/package-lock.json` pins the MCP-mode dependency graph.
+Runtime dependencies are `@modelcontextprotocol/client` 2.4.0 (Apache-2.0),
+`jsonc-parser` 3.3.1 (MIT), and `smol-toml` 1.9.1 (BSD-3-Clause), with their
+transitive dependencies. Installed packages retain their upstream licenses in
+ignored `node_modules`; no dependency source or bundle is vendored here.
+The source installer remains private and `UNLICENSED`. Skill-only operation
+does not import these dependencies.

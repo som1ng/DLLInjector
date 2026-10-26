@@ -107,6 +107,21 @@ ENV/
 /tests/gui/node_modules/
 /tests/gui/test-results/
 
+# Pi package resources are generated from the canonical Skill
+/integrations/pi/dist/
+/integrations/pi/*.tgz
+
+# Local installer dependencies and project MCP ownership records
+/integrations/installer/node_modules/
+**/.dll-doctor/
+**/.dll-doctor-config-*.tmp
+
+# Local Skill installations carry machine-specific CLI paths
+**/.agents/skills/windows-dll-doctor/
+**/.claude/skills/windows-dll-doctor/
+**/.dll-doctor-stage-*/
+**/.dll-doctor-installer.lock
+
 # --------------------------------------------------------------------
 # 7. 操作系统临时文件
 # --------------------------------------------------------------------

@@ -2,14 +2,16 @@
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 
-const [packageDir, cwd, agentDir, trust] = process.argv.slice(2);
+const [packageDir, cwd, agentDir, trust, mode] = process.argv.slice(2);
 const load = (file) => import(pathToFileURL(join(packageDir, 'dist/core', file)).href);
 const { DefaultResourceLoader } = await load('resource-loader.js');
 const { SettingsManager } = await load('settings-manager.js');
 const { formatSkillsForPrompt } = await load('skills.js');
 const loader = new DefaultResourceLoader({
     cwd, agentDir,
-    settingsManager: SettingsManager.inMemory({}, { projectTrusted: trust === 'true' }),
+    settingsManager: mode === 'packages'
+        ? SettingsManager.create(cwd, agentDir, { projectTrusted: trust === 'true' })
+        : SettingsManager.inMemory({}, { projectTrusted: trust === 'true' }),
     noExtensions: true,
     disabledBuiltinExtensions: ['mcp'],
     noPromptTemplates: true,

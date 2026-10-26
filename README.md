@@ -27,7 +27,7 @@ Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析�
 | 依赖候选检查 | Doctor 的 `--search-dir <path>` 可重复指定最多 16 个目录；报告普通/延迟导入的候选与观察错误；仅检查文件属性，不模拟加载器 |
 | 可分享报告 | 诊断命令支持 `--format markdown` / `--format html`，展示证据、发现与完整 JSON 附录；HTML 单文件离线阅读 |
 | 已保存报告转换 | `report export <saved.json> --format markdown|html` 按源版本校验并保留原报告，不重新查询其中的目标 |
-| Agent 集成 | 单一权威 Windows DLL Doctor Skill 与手动接入说明；命令示例已回归验证，客户端自动触发尚未实测；7 个只读 MCP 工具已实现，Agent 宿主接入实测 / 安装器继续推进 |
+| Agent 集成 | 单一权威 Windows DLL Doctor Skill；命令示例已回归验证，客户端自动触发尚未实测；7 个只读 MCP 工具；原生 Pi 本地包；Codex/Claude/OpenCode 本地 Skill 与项目 MCP 安装器 |
 
 GUI 启动不再自动申请 Debug Privilege。现有方法返回的 `true` 只用于显示“请求已提交，预期效果尚未验证”，不能证明 DLL 已完成初始化。旧反射式及部署代码的 PE 边界检查等已知问题记录在基线报告中，不能直接作为未来 Doctor 解析器使用。
 
@@ -45,8 +45,9 @@ cmake --build --preset msvc-x64-debug --parallel
 ctest --preset msvc-x64-debug
 ```
 
-GUI 位于 `build/msvc-x64/Release/Rondo.exe`（亦生成 `DLLInjector.exe` 兼容旧调用）；CLI 位于
-`build/msvc-x64/Release/cli/rondo.exe`（兼容 `dllinjector.exe`）。Windows 文件名不区分大小写，因此二者分目录存放。
+GUI 位于 `build/msvc-x64/Debug/Rondo.exe`（亦生成 `DLLInjector.exe` 兼容旧调用）；CLI 位于
+`build/msvc-x64/Debug/cli/rondo.exe`（兼容 `dllinjector.exe`）。Release 构建将路径中的 `Debug` 换为 `Release`。
+界面使用 WebView2 与 CC Switch 风格；[界面复查记录](docs/UI_BUGS.md) 区分已验证项目和剩余限制。
 只构建、不运行测试时，可在配置命令后加 `-DBUILD_TESTING=OFF`，无需 Python。
 离线构建可预先解压经校验的 jsoncons 1.10.0 归档，并在配置时增加
 `-DFETCHCONTENT_SOURCE_DIR_JSONCONS=C:/deps/jsoncons-1.10.0`；本地覆盖目录由调用方负责核对版本与完整性。
@@ -125,6 +126,25 @@ HTML 不需要联网或脚本；两种格式将名称和路径作为文字展示
 已用 Codex、OpenCode 的实际发现接口和 Pi 的资源加载器验证项目 Skill 发现及负例；
 范围和复现命令见接入说明。Claude Code 的发现尚未实测。
 
+Pi 用户也可通过 [原生 Pi 包](integrations/pi/README.md) 安装同一份 Skill。
+已验证 Pi `1.4.0` 的本地目录与独立归档安装、重复安装、发现和卸载，覆盖用户/项目两种范围。
+包尚未发布到 npm，CLI 需另行准备；具体结果见 [Pi 交付记录](docs/PI_PACKAGE_DELIVERY.md)。
+
+Codex、Claude Code 和 OpenCode 可使用 [本地 Skill 安装器](integrations/installer/README.md)，
+显式选择用户/项目范围并指定可信 CLI。支持写入前预览、重复安装、内容校验和卸载；
+遇到冲突保留原文件，可捕获的安装/卸载失败会尝试回滚。
+Codex/OpenCode 的项目发现已经实测，Claude 与用户级发现尚未实测。
+同一安装器现支持 `--integration mcp` 写入这三个客户端的项目配置，保留其他设置，
+提供目录授权、握手/工具校验、冲突保护和卸载。支持版本、运行依赖与命令见安装器说明；
+实际客户端加载方式及测试边界见 [MCP 安装器交付记录](docs/MCP_INSTALLER_DELIVERY.md)。
+`list-agents` 可以列出本机候选路径，`setup --agent auto` 由用户确认一个客户端；
+脚本需使用 `--select`，路径歧义时明确指定 `--client`。详见 [选择流程与实测](docs/AGENT_SELECTION_DELIVERY.md)。
+此版本从源码运行；自动下载 CLI、用户级 MCP 及公开 npm 安装仍待实现。
+
+需要构建产物时，可下载成功 Windows CI 的 `cli-distribution-msvc-x64` / `msvc-x86` 产物。
+归档附带 SHA-256 与版本/架构清单，安装器支持 `--manifest` 在启动 CLI 前核对文件。
+获取、运行库要求和验证边界见 [CLI 下载归档与校验](docs/CLI_DISTRIBUTION.md)。
+
 ## 其他构建组合
 
 其他已配置组合：
@@ -174,6 +194,8 @@ schemas/               版本化 JSON Schema
 dll_test/              原 Demo 与第三方反射式样例
 tests/                 Win32 回归测试、启动测试与无副作用 fixture
 integrations/skills/   权威 Agent Skill、相对引用与只读命令示例
+integrations/pi/       原生 Pi 包清单、生成脚本与本地安装说明
+integrations/installer/ 本地 Skill / 项目 MCP 安装、校验、卸载与回滚
 docs/                  基线、契约、验证记录与第三方声明
 CMakeLists.txt         构建入口
 CMakePresets.json       MSVC / 可选 MinGW 配置
@@ -184,7 +206,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 ## 后续路线
 
 1. P2：Doctor、报告和权威 Skill 指令包已实现；补充真实客户端触发与回答评测。
-2. P3/P4：本地 stdio MCP 已实现；继续实测 Agent 宿主适配和开发可回滚安装器。
+2. P3/P4：本地 stdio MCP、Pi 包、Skill / 项目 MCP 安装器、客户端确认选择及 CLI 分发校验已实现；继续自动下载、批量安装和用户级 MCP。
 3. P5：自有测试程序的 DLL 生命周期实验与结果对比。
 
 旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。
@@ -217,11 +239,19 @@ hash-checked jsoncons archive on first configuration; the CLI needs no external 
 or network at runtime. A portable [Windows DLL Doctor Skill](integrations/skills/windows-dll-doctor/SKILL.md)
 is available with tested CLI examples. Project discovery is checked with Codex, OpenCode and
 Pi's resource loader in the documented versions; model behavior and Claude discovery remain unverified.
-A local read-only [stdio MCP adapter](integrations/mcp/README.md) is available; Agent-host verification and installers remain in progress. CTest uses read-only queries,
+A local read-only [stdio MCP adapter](integrations/mcp/README.md) and a locally installable
+[native Pi Skill package](integrations/pi/README.md) are available; the Pi package is not published to npm.
+A source-run [local installer](integrations/installer/README.md) supports Codex, Claude Code
+and OpenCode Skill setup and project MCP configuration with explicit paths, previews, verification and removal.
+`list-agents` inspects local candidates without running them; `setup --agent auto` requires an interactive
+choice or explicit `--select`, with a native path to resolve ambiguous matches.
+Generated MCP settings have been checked with installed clients using isolated fixtures; see the
+[validation boundaries](docs/MCP_INSTALLER_DELIVERY.md). Automatic CLI downloads, user-level MCP and
+broader host verification remain in progress. CTest uses read-only queries,
 hidden startup checks, mocks and self-owned fixtures.
 
 ## 来源与许可
 
 仓库目前没有项目级 `LICENSE` 文件，因此不再使用 MIT 徽章或声明整个仓库采用 MIT。第三方 ReflectiveLoader 文件中的原始版权与许可头完整保留，见 [第三方声明](docs/THIRD_PARTY_NOTICES.md)。其他代码的来源核实及项目级许可是后续发布前的待办。
 
-问题与建议可通过 [GitHub Issues](https://github.com/som1ng/DLLInjector/issues) 反馈。
+问题与建议可通过 [GitHub Issues](https://github.com/som1ng/Rondo/issues) 反馈。
