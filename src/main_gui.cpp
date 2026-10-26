@@ -140,13 +140,22 @@ WNDCLASSEXW wc = { sizeof(wc) };
 
     HWND hwnd = CreateWindowExW(
         0, CLASS_NAME,
-        L"Rondo — Process Diagnostics & DLL Injection Platform",
+        L"", // Empty title bar text to remove duplicate native title and align with CC Switch
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 1140, 760,
         NULL, NULL, hInstance, NULL
     );
 
     if (!hwnd) return 1;
+
+    // Blank small icon on the native title bar so no redundant icon/text is drawn on the caption
+    // (aligning with CC Switch's integrated titlebar design), while keeping high-res icon for Taskbar/Alt+Tab
+    static const BYTE kBlankAndMask[] = { 0xFF, 0xFF, 0xFF, 0xFF };
+    static const BYTE kBlankXorMask[] = { 0x00, 0x00, 0x00, 0x00 };
+    HICON hBlankIcon = CreateIcon(hInstance, 1, 1, 1, 1, kBlankAndMask, kBlankXorMask);
+    if (hBlankIcon) {
+        SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hBlankIcon);
+    }
 
     // Apply Immersive Dark Mode to Windows title bar (Windows 10 1809+ / Windows 11)
     BOOL darkMode = TRUE;
@@ -182,6 +191,7 @@ WNDCLASSEXW wc = { sizeof(wc) };
             DispatchMessageW(&msg);
         }
         gui::webview_host::Shutdown();
+        if (hBlankIcon) DestroyIcon(hBlankIcon);
         DestroyWindow(hwnd);
         UnregisterClassW(CLASS_NAME, hInstance);
         return 0;
@@ -246,6 +256,7 @@ WNDCLASSEXW wc = { sizeof(wc) };
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
 
+    if (hBlankIcon) DestroyIcon(hBlankIcon);
     d3d::CleanupD3D();
     DestroyWindow(hwnd);
     UnregisterClassW(CLASS_NAME, hInstance);

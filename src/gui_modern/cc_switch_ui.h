@@ -9,7 +9,7 @@ inline std::string GetCcSwitchUiHtml() {
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<title>Rondo — Process Diagnostics & DLL Injection Platform</title>
+<title>Rondo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   /* ============================================================
