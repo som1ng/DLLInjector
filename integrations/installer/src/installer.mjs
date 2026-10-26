@@ -5,8 +5,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { verifyDistribution } from './distribution.mjs';
 
-export const VERSION = '0.1.0-dev.1';
+export const VERSION = '0.1.0-dev.2';
 export const NAME = 'windows-dll-doctor';
 export const FILES = ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml'];
 const BINDING = 'references/installation.json';
@@ -169,21 +170,32 @@ async function restore(directory, tree) {
 
 export async function install(command, options, context = {}) {
   if (!['setup', 'verify', 'uninstall'].includes(command)) fail('ARGUMENT', 'Unknown command.');
+  if (command !== 'setup' && options.manifest !== undefined) fail('ARGUMENT', '--manifest is only valid for setup.');
   const { root, target } = destination(options, context.home, context.env);
   await safePath(target);
   if (!(await stat(root))?.isDirectory()) fail('ROOT', 'The project/user root must already exist.');
   const parent = path.dirname(target);
   const probe = context.probe || probeCli;
   const checkpoint = context.checkpoint || (async () => {});
-  let executable;
-  if (command === 'setup') executable = await cliPath(options.cli);
+  let executable, distribution;
+  if (command === 'setup') {
+    executable = await cliPath(options.cli);
+    if (options.manifest !== undefined) {
+      try { distribution = await verifyDistribution(executable, options.manifest); }
+      catch (error) {
+        if (error.code === 'DISTRIBUTION_INVALID') fail(error.code, error.message);
+        throw error;
+      }
+    }
+  }
   const existing = await stat(target);
   if (existing && !existing.isDirectory()) fail('CONFLICT', 'Skill destination is not a directory.');
   if (existing) await snapshot(target);
   if (command === 'verify' && !existing) fail('NOT_INSTALLED', 'No managed installation exists.');
   const result = { status: 'success', command, agent: options.agent, scope: options.scope, target,
     shared_with: options.agent === 'claude' ? [] : ['codex', 'opencode'],
-    files: OWNED.map(file => path.join(target, file)), client_discovery: 'not_run' };
+    files: OWNED.map(file => path.join(target, file)), client_discovery: 'not_run',
+    distribution_checksum: distribution ? 'verified' : 'not_supplied' };
   if (options.dryRun) return { ...result, action: 'preview', cli_probe: 'not_run', exists: !!existing };
   if (command === 'verify') return { ...result, action: 'verified', cli: await verify(target, probe) };
   if (command === 'uninstall' && !existing) return { ...result, action: 'absent' };
@@ -198,7 +210,13 @@ export async function install(command, options, context = {}) {
     catch (error) { if (error.code === 'EEXIST') fail('LOCKED', 'Another installer or an interrupted operation owns the lock: ' + lockPath); throw error; }
     await safePath(target);
     if (command === 'setup') {
-      tree = await expected(await probe(executable));
+      const cli = await probe(executable);
+      if (distribution) {
+        if (cli.tool_version !== distribution.tool_version || cli.schema_version !== distribution.schema_version
+            || cli.sha256 !== distribution.sha256) fail('DISTRIBUTION_MISMATCH', 'CLI probe differs from the verified distribution.');
+        cli.distribution = distribution;
+      }
+      tree = await expected(cli);
       if (await stat(target)) {
         const current = await snapshot(target);
         if (!OWNED.every(file => current.tree[file].equals(tree[file]))) {

@@ -32,7 +32,7 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.architecture }}-${{ matrix.configuration }}
       - uses: actions/setup-node@v4
-        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        if: matrix.configuration == 'release'
         with:
           node-version: '22.22.3'
           cache: npm
@@ -62,6 +62,25 @@ jobs:
         run: |
           $env:DLL_INSTALLER_TEST_CLI = (Resolve-Path ../../build/msvc-x64/Release/cli/dllinjector.exe).Path
           npm test
+      - name: Test CLI distribution packaging
+        if: matrix.configuration == 'release'
+        run: |
+          $bundleArch = '${{ matrix.architecture }}'.Replace('msvc-', '')
+          python tests/cli_distribution_tests.py --cli build/${{ matrix.architecture }}/Release/cli/dllinjector.exe --architecture $bundleArch
+      - name: Package CLI distribution
+        if: matrix.configuration == 'release'
+        run: |
+          $bundleArch = '${{ matrix.architecture }}'.Replace('msvc-', '')
+          python integrations/installer/scripts/package_cli.py --cli build/${{ matrix.architecture }}/Release/cli/dllinjector.exe --architecture $bundleArch --revision '${{ github.sha }}' --output build/distribution/${{ matrix.architecture }}
+      - name: Upload CLI distribution
+        if: success() && matrix.configuration == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-distribution-${{ matrix.architecture }}
+          if-no-files-found: error
+          path: |
+            build/distribution/${{ matrix.architecture }}/*.zip
+            build/distribution/${{ matrix.architecture }}/*.zip.sha256
       - name: Upload review artifacts
         if: success()
         uses: actions/upload-artifact@v4

@@ -129,6 +129,10 @@ Codex、Claude Code 和 OpenCode 可使用 [本地 Skill 安装器](integrations
 Codex/OpenCode 的项目发现已经实测，Claude 与用户级发现尚未实测。
 此版本从源码运行；自动下载 CLI、MCP 配置及公开 npm 安装仍待实现。
 
+需要构建产物时，可下载成功 Windows CI 的 `cli-distribution-msvc-x64` / `msvc-x86` 产物。
+归档附带 SHA-256 与版本/架构清单，安装器支持 `--manifest` 在启动 CLI 前核对文件。
+获取、运行库要求和验证边界见 [CLI 下载归档与校验](docs/CLI_DISTRIBUTION.md)。
+
 ## 其他构建组合
 
 其他已配置组合：
@@ -190,7 +194,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 ## 后续路线
 
 1. P2：Doctor、报告和权威 Skill 指令包已实现；补充真实客户端触发与回答评测。
-2. P3/P4：本地 stdio MCP、原生 Pi 包和本地 Skill 安装器已实现；继续发行下载校验、客户端选择和 MCP 安装。
+2. P3/P4：本地 stdio MCP、Pi 包、Skill 安装器及 CLI 分发校验已实现；继续自动下载、客户端选择和 MCP 安装。
 3. P5：自有测试程序的 DLL 生命周期实验与结果对比。
 
 旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。
