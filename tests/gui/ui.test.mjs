@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 
 const { chromium } = createRequire(import.meta.url)(process.env.DLL_GUI_PLAYWRIGHT || 'playwright');
-const source = fs.readFileSync(new URL('../../src/gui_modern/cc_switch_ui.h', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../../apps/gui/cc_switch_ui.h', import.meta.url), 'utf8');
 const chunks = Object.fromEntries([...source.matchAll(/static constexpr std::string_view (\w+) = R"(\w+)\(([\s\S]*?)\)\2";/g)].map(m => [m[1], m[3]]));
 chunks.kLogoBase64 = source.match(/kLogoBase64 = "([^"]+)";/)[1];
 const html = [...source.matchAll(/html.append\((\w+)\)/g)].map(m => {

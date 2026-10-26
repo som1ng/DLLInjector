@@ -43,8 +43,8 @@ target_include_directories(cli_support PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/apps/
 target_include_directories(cli_support PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core" "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_include_directories(cli_support SYSTEM PRIVATE "${jsoncons_SOURCE_DIR}/include")
 
-add_library(gui_messages STATIC src/gui_modern/web_message.cpp)
-target_include_directories(gui_messages PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/gui_modern")
+add_library(gui_messages STATIC apps/gui/web_message.cpp)
+target_include_directories(gui_messages PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/apps/gui")
 target_include_directories(gui_messages SYSTEM PRIVATE "${jsoncons_SOURCE_DIR}/include")
 target_compile_definitions(cli_support PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 if(MSVC)
@@ -62,36 +62,17 @@ target_compile_definitions(dllinjector_cli PRIVATE UNICODE _UNICODE NOMINMAX _WI
 set_target_properties(dllinjector_cli PROPERTIES OUTPUT_NAME dllinjector
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/cli")
 
-add_library(imgui STATIC
-    third_party/imgui/imgui.cpp
-    third_party/imgui/imgui_draw.cpp
-    third_party/imgui/imgui_tables.cpp
-    third_party/imgui/imgui_widgets.cpp
-    third_party/imgui/backends/imgui_impl_win32.cpp
-    third_party/imgui/backends/imgui_impl_dx11.cpp
-)
-target_include_directories(imgui PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends"
-)
-target_compile_definitions(imgui PUBLIC UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
-# Retain the legacy sources. The GNU x64 syscall experiment is deliberately
-# outside this validated MSVC/MinGW GUI build; no assembly port is implied.
+# Modern Dedicated Desktop Host: Win32 + WebView2 (CC Switch v7 UI)
 add_executable(DLLInjector WIN32
-    src/main_gui.cpp
-    src/gui_modern/webview_host.cpp
-    src/gui_modern/gui_theme.cpp
-    src/gui_modern/gui_logger.cpp
-    src/gui_modern/preflight.cpp
-    src/gui_modern/d3d11_renderer.cpp
-    src/gui_modern/gui_app.cpp
+    apps/gui/main.cpp
+    apps/gui/webview_host.cpp
+    apps/gui/preflight.cpp
+    apps/gui/gui_app.cpp
     ${APP_RC}
 )
 target_include_directories(DLLInjector PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/apps/gui"
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui_modern"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends"
     "${CMAKE_CURRENT_SOURCE_DIR}/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
@@ -99,11 +80,10 @@ target_compile_definitions(DLLInjector PRIVATE DLLINJECTOR_HAS_SYSCALL=0 UNICODE
 target_link_libraries(DLLInjector PRIVATE
     injector_methods
     injector_utils
-    imgui
-    user32 gdi32 comctl32 shlwapi shell32 ole32 d3d11 dxgi d3dcompiler dwmapi
+    gui_messages
+    user32 gdi32 comctl32 shlwapi shell32 ole32 dwmapi
 )
 set_target_properties(DLLInjector PROPERTIES OUTPUT_NAME Rondo)
-target_link_libraries(DLLInjector PRIVATE gui_messages)
 add_custom_target(Rondo DEPENDS DLLInjector)
 
 add_custom_command(TARGET DLLInjector POST_BUILD
@@ -125,7 +105,7 @@ add_library(demo_dll SHARED dll_test/dll_demo1.cpp)
 target_link_libraries(demo_dll PRIVATE user32)
 
 if(MSVC)
-foreach(target dllinjector_core injector_methods cli_support dllinjector_cli injector_utils DLLInjector demo_target demo_dll imgui gui_messages)
+foreach(target dllinjector_core injector_methods cli_support dllinjector_cli injector_utils DLLInjector demo_target demo_dll gui_messages)
         target_compile_options(${target} PRIVATE /utf-8)
     endforeach()
 elseif(MINGW)
@@ -162,7 +142,8 @@ if(BUILD_TESTING)
     add_executable(utils_tests tests/utils_tests.cpp)
     target_include_directories(utils_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
     target_link_libraries(utils_tests PRIVATE injector_utils)
-    add_executable(gui_preflight_tests tests/gui_preflight_tests.cpp src/gui_modern/preflight.cpp)
+    add_executable(gui_preflight_tests tests/gui_preflight_tests.cpp apps/gui/preflight.cpp)
+    target_include_directories(gui_preflight_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/apps/gui")
     target_link_libraries(gui_preflight_tests PRIVATE injector_utils)
     add_test(NAME gui.preflight COMMAND gui_preflight_tests "$<TARGET_FILE:noop_fixture>")
     set_tests_properties(gui.preflight PROPERTIES TIMEOUT 15)

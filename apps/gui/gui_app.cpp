@@ -1,11 +1,12 @@
 #include "gui_app.h"
-#include "gui_theme.h"
-#include "gui_logger.h"
 #include "preflight.h"
 #include "webview_host.h"
 #include "web_message.h"
 #include "methods/injector_methods.h"
 #include "dllinjector/text.h"
+#include "utils.h"
+
+#include <windows.h>
 #include <commdlg.h>
 #include <dwmapi.h>
 #include <shlwapi.h>
@@ -14,13 +15,88 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
+#include <iomanip>
+#include <mutex>
+#include <vector>
+#include <string>
 
 namespace gui {
 
-ImFont* g_MainFont = nullptr;
-ImFont* g_MonoFont = nullptr;
+enum class LogLevel {
+    Info,
+    Success,
+    Warn,
+    Error,
+    Doctor
+};
+
+struct LogEntry {
+    std::string timestamp;
+    LogLevel level;
+    std::string message;
+};
+
+class Logger {
+public:
+    static Logger& Instance() {
+        static Logger inst;
+        return inst;
+    }
+
+    void Log(LogLevel level, const std::string& message) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto now = std::chrono::system_clock::now();
+        auto in_time_t = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&in_time_t), "%H:%M:%S");
+        entries_.push_back({ ss.str(), level, message });
+        if (entries_.size() > 500) {
+            entries_.erase(entries_.begin(), entries_.begin() + 100);
+        }
+    }
+
+    void Info(const std::string& message)    { Log(LogLevel::Info, message); }
+    void Success(const std::string& message) { Log(LogLevel::Success, message); }
+    void Warn(const std::string& message)    { Log(LogLevel::Warn, message); }
+    void Error(const std::string& message)   { Log(LogLevel::Error, message); }
+    void Doctor(const std::string& message)  { Log(LogLevel::Doctor, message); }
+
+    void Clear() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        entries_.clear();
+    }
+
+    std::string GetAllAsText() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::string out;
+        for (const auto& e : entries_) {
+            const char* lvl = "[INFO]";
+            switch (e.level) {
+                case LogLevel::Info:    lvl = "[INFO]"; break;
+                case LogLevel::Success: lvl = "[SUCCESS]"; break;
+                case LogLevel::Warn:    lvl = "[WARN]"; break;
+                case LogLevel::Error:   lvl = "[ERROR]"; break;
+                case LogLevel::Doctor:  lvl = "[DOCTOR]"; break;
+            }
+            out += "[" + e.timestamp + "] " + lvl + " " + e.message + "\r\n";
+        }
+        return out;
+    }
+
+    std::vector<LogEntry> GetEntriesSnapshot() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return entries_;
+    }
+
+private:
+    Logger() = default;
+    mutable std::mutex mutex_;
+    std::vector<LogEntry> entries_;
+};
 
 namespace {
+
 
 enum class PayloadMode {
     Dll,
@@ -289,494 +365,6 @@ void RefreshProcesses() {
     TriggerPreflight();
 }
 
-} // namespace
-
-void InitGuiApp(HWND mainHwnd) {
-    g_MainHwnd = mainHwnd;
-    Logger::Instance().Info("DLL Injector (CC Switch v7 WebView2 / Modern UI) 初始化完成。");
-    #if defined(_WIN64)
-    Logger::Instance().Info("当前宿主构建架构: 64-bit (x64)");
-    #else
-    Logger::Instance().Info("当前宿主构建架构: 32-bit (x86)");
-    #endif
-    RefreshProcesses();
-}
-
-void OnDropFile(const wchar_t* path) {
-    if (!path) return;
-    std::wstring p = TrimPathWString(path);
-    if (p.empty()) return;
-    std::wstring ext = PathFindExtensionW(p.c_str());
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
-
-    if (ext == L".dll") {
-        g_CurrentPayloadMode = PayloadMode::Dll;
-        g_CurrentDllPath = p;
-        auto u8 = dllinjector::ToUtf8(p);
-        if (u8) {
-            std::snprintf(g_DllPathBuf, sizeof(g_DllPathBuf), "%s", u8.value().c_str());
-            Logger::Instance().Info("已通过拖拽载入 DLL: " + u8.value());
-        }
-        TriggerPreflight();
-        if (webview_host::IsActive()) {
-            PushWebViewState("已通过拖放载入 DLL 并完成静态预检", "ok");
-        }
-    } else {
-        g_CurrentPayloadMode = PayloadMode::Shellcode;
-        if (g_SelectedMethod == MethodID::HOOK ||
-            g_SelectedMethod == MethodID::REFLECTIVE ||
-            g_SelectedMethod == MethodID::HIJACK) {
-            g_SelectedMethod = MethodID::CRT;
-        }
-        auto u8 = dllinjector::ToUtf8(p);
-        if (u8) {
-            std::snprintf(g_BinPathBuf, sizeof(g_BinPathBuf), "%s", u8.value().c_str());
-            auto data = utils::ReadFileToBuffer(p);
-            g_ParsedHexBytes = data;
-            Logger::Instance().Info("已通过拖拽载入二进制载荷 (" + std::to_string(data.size()) + " 字节)");
-        }
-        if (webview_host::IsActive()) {
-            PushWebViewState("已通过拖放载入二进制载荷 (" + std::to_string(g_ParsedHexBytes.size()) + " 字节)", "ok");
-        }
-    }
-}
-
-// -------------------------------------------------------------
-// UI Rendering Functions
-// -------------------------------------------------------------
-
-static void RenderHeaderBar() {
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface1);
-    ImGui::BeginChild("HeaderBar", ImVec2(0, 52), false, ImGuiWindowFlags_NoScrollbar);
-
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::Accent, "DLL INJECTOR");
-    ImGui::SameLine();
-    RenderStatusBadge("v2.0-modern", "accent");
-    ImGui::SameLine();
-    #if defined(_WIN64)
-    RenderStatusBadge("宿主: x64", "accent");
-    #else
-    RenderStatusBadge("宿主: x86", "amber");
-    #endif
-
-    ImGui::SameLine();
-    if (g_DebugPrivilegeActive) {
-        RenderStatusBadge("SeDebug: 已启用", "green");
-    } else {
-        RenderStatusBadge("SeDebug: 未提权", "amber");
-        ImGui::SameLine();
-        if (ImGui::SmallButton("启用提权")) {
-            if (utils::EnableDebugPrivilege()) {
-                g_DebugPrivilegeActive = true;
-                Logger::Instance().Success("已成功提升进程令牌权限 (SeDebugPrivilege)。");
-            } else {
-                Logger::Instance().Error("提升 SeDebugPrivilege 权限失败 (需管理员权限运行)。");
-            }
-        }
-    }
-
-    // Theme Switcher & Arc Accent Presets (Strictly NO BLUE)
-    ImGui::SameLine();
-    const bool isDark = (gui::GetCurrentThemeMode() == gui::ThemeMode::Dark);
-    if (ImGui::SmallButton(isDark ? "浅色模式" : "深色模式")) {
-        gui::ToggleTheme();
-    }
-
-    ImGui::SameLine();
-    const char* accentLabel = "重点色: 紫罗兰";
-    switch (gui::GetCurrentAccent()) {
-        case gui::AccentPreset::Violet:  accentLabel = "重点色: 紫罗兰"; break;
-        case gui::AccentPreset::Green:   accentLabel = "重点色: 翡翠绿"; break;
-        case gui::AccentPreset::Amber:   accentLabel = "重点色: 琥珀金"; break;
-        case gui::AccentPreset::Neutral: accentLabel = "重点色: 极简灰"; break;
-    }
-    if (ImGui::SmallButton(accentLabel)) {
-        switch (gui::GetCurrentAccent()) {
-            case gui::AccentPreset::Violet:  gui::SetAccent(gui::AccentPreset::Green); break;
-            case gui::AccentPreset::Green:   gui::SetAccent(gui::AccentPreset::Amber); break;
-            case gui::AccentPreset::Amber:   gui::SetAccent(gui::AccentPreset::Neutral); break;
-            case gui::AccentPreset::Neutral: gui::SetAccent(gui::AccentPreset::Violet); break;
-        }
-    }
-
-    // Right-aligned Payload Mode Selector
-    float modeWidth = 260.0f;
-    float avail = ImGui::GetContentRegionAvail().x;
-    if (avail > modeWidth) {
-        ImGui::SameLine(ImGui::GetWindowWidth() - modeWidth - 16.0f);
-    } else {
-        ImGui::SameLine();
-    }
-
-    if (RenderSegmentButton("DLL 注入模式", g_CurrentPayloadMode == PayloadMode::Dll, ImVec2(125, 30))) {
-        g_CurrentPayloadMode = PayloadMode::Dll;
-        TriggerPreflight();
-    }
-    ImGui::SameLine(0, 6);
-    if (RenderSegmentButton("Shellcode 模式", g_CurrentPayloadMode == PayloadMode::Shellcode, ImVec2(125, 30))) {
-        g_CurrentPayloadMode = PayloadMode::Shellcode;
-        // In Shellcode mode, if selected method only supports DLL, switch to CRT
-        if (g_SelectedMethod == MethodID::HOOK ||
-            g_SelectedMethod == MethodID::REFLECTIVE ||
-            g_SelectedMethod == MethodID::HIJACK) {
-            g_SelectedMethod = MethodID::CRT;
-        }
-    }
-
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-}
-
-static void RenderProcessListPane(float width) {
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface1);
-    ImGui::BeginChild("ProcessPane", ImVec2(width, 0), true);
-
-    // Section Title & Refresh
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::Accent, "目标进程");
-    ImGui::SameLine();
-    std::string countBadge = std::to_string(g_Processes.size()) + " 个";
-    RenderStatusBadge(countBadge.c_str(), "muted");
-
-    ImGui::SameLine(ImGui::GetWindowWidth() - 75.0f);
-    if (ImGui::SmallButton("刷新")) {
-        RefreshProcesses();
-    }
-
-    // Search filter with clear button
-    if (g_SearchFilter[0] != '\0') {
-        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 32.0f);
-        ImGui::InputTextWithHint("##SearchFilter", "输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
-        ImGui::SameLine();
-        if (ImGui::SmallButton("X")) {
-            g_SearchFilter[0] = '\0';
-        }
-    } else {
-        ImGui::SetNextItemWidth(-1.0f);
-        ImGui::InputTextWithHint("##SearchFilter", "输入进程名或 PID 实时过滤...", g_SearchFilter, sizeof(g_SearchFilter));
-    }
-
-    // Arch filter tabs
-    if (RenderSegmentButton("全部", g_ArchFilterTab == 0, ImVec2(80, 24))) g_ArchFilterTab = 0;
-    ImGui::SameLine(0, 4);
-    if (RenderSegmentButton("64位", g_ArchFilterTab == 1, ImVec2(80, 24))) g_ArchFilterTab = 1;
-    ImGui::SameLine(0, 4);
-    if (RenderSegmentButton("32位", g_ArchFilterTab == 2, ImVec2(80, 24))) g_ArchFilterTab = 2;
-
-    ImGui::Separator();
-
-    // Process Table
-    float footerHeight = 65.0f;
-    ImGui::BeginChild("ProcessTableChild", ImVec2(0, -footerHeight), false);
-
-    if (ImGui::BeginTable("ProcessTable", 4,
-                          ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg |
-                          ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersInnerV)) {
-        ImGui::TableSetupColumn("PID", ImGuiTableColumnFlags_WidthFixed, 60.0f);
-        ImGui::TableSetupColumn("进程名称", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("架构", ImGuiTableColumnFlags_WidthFixed, 65.0f);
-        ImGui::TableSetupColumn("匹配", ImGuiTableColumnFlags_WidthFixed, 65.0f);
-        ImGui::TableHeadersRow();
-
-        std::string filterLower = ToLower(g_SearchFilter);
-
-        for (const auto& proc : g_Processes) {
-            // Apply Arch Tab
-            if (g_ArchFilterTab == 1 && proc.arch != utils::ProcessArchitecture::X64) continue;
-            if (g_ArchFilterTab == 2 && proc.arch != utils::ProcessArchitecture::X86) continue;
-
-            // Apply Search Query
-            if (!filterLower.empty()) {
-                std::string pidStr = std::to_string(proc.pid);
-                std::string nameLower = ToLower(proc.name_utf8);
-                if (nameLower.find(filterLower) == std::string::npos &&
-                    pidStr.find(filterLower) == std::string::npos) {
-                    continue;
-                }
-            }
-
-            ImGui::TableNextRow();
-            bool isSelected = (g_SelectedPid == static_cast<int>(proc.pid));
-
-            // Column 0: PID
-            ImGui::TableSetColumnIndex(0);
-            char pidBuf[32];
-            std::snprintf(pidBuf, sizeof(pidBuf), "%u", proc.pid);
-            if (ImGui::Selectable(pidBuf, isSelected, ImGuiSelectableFlags_SpanAllColumns)) {
-                g_SelectedPid = static_cast<int>(proc.pid);
-                Logger::Instance().Info("已选定目标进程: " + proc.name_utf8 + " (PID: " + std::to_string(proc.pid) + ", 架构: " + proc.archStr + ")");
-                TriggerPreflight();
-            }
-
-            // Column 1: Name
-            ImGui::TableSetColumnIndex(1);
-            ImGui::TextUnformatted(proc.name_utf8.c_str());
-
-            // Column 2: Arch
-            ImGui::TableSetColumnIndex(2);
-            if (proc.arch == utils::ProcessArchitecture::X64) {
-                RenderStatusBadge("x64", "accent");
-            } else if (proc.arch == utils::ProcessArchitecture::X86) {
-                RenderStatusBadge("x86", "amber");
-            } else {
-                RenderStatusBadge("受限", "muted");
-            }
-
-            // Column 3: Status / Compatibility
-            ImGui::TableSetColumnIndex(3);
-            if (proc.arch == utils::ProcessArchitecture::Unknown) {
-                RenderStatusBadge("受限", "muted");
-            } else if (g_Preflight.valid) {
-                if (proc.arch == g_Preflight.dllArch) {
-                    RenderStatusBadge("兼容", "green");
-                } else {
-                    RenderStatusBadge("冲突", "red");
-                }
-            } else {
-                RenderStatusBadge("待定", "muted");
-            }
-        }
-        ImGui::EndTable();
-    }
-    ImGui::EndChild(); // ProcessTableChild
-
-    // Selected Process Footer Box
-    ImGui::Separator();
-    auto selected = GetSelectedProcessItem();
-    if (selected) {
-        ImGui::TextColored(theme::Accent, "当前目标:");
-        ImGui::SameLine();
-        ImGui::TextColored(theme::TextPrimary, "%s", selected->name_utf8.c_str());
-        ImGui::SameLine();
-        std::string pBadge = "PID: " + std::to_string(selected->pid);
-        RenderStatusBadge(pBadge.c_str(), "accent");
-        ImGui::SameLine();
-        const char* archStyle = "muted";
-        if (selected->arch == utils::ProcessArchitecture::X64) archStyle = "accent";
-        else if (selected->arch == utils::ProcessArchitecture::X86) archStyle = "amber";
-        RenderStatusBadge(selected->archStr.c_str(), archStyle);
-    } else {
-        ImGui::TextColored(theme::TextDark, "尚未选择目标进程 (请在上方表格中单击选择)");
-    }
-
-    ImGui::EndChild(); // ProcessPane
-    ImGui::PopStyleColor();
-}
-
-static void RenderPayloadPane() {
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface1);
-    ImGui::BeginChild("PayloadCard", ImVec2(0, 0), true);
-
-    if (g_CurrentPayloadMode == PayloadMode::Dll) {
-        // DLL Mode
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(theme::Accent, "DLL 载荷设置");
-        ImGui::SameLine();
-        RenderStatusBadge("PE 动态库", "accent");
-
-        // File selection input
-        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
-        if (ImGui::InputTextWithHint("##DllPath", "输入或选择目标 .dll 绝对路径...", g_DllPathBuf, sizeof(g_DllPathBuf))) {
-            std::string clean = TrimPathString(g_DllPathBuf);
-            g_CurrentDllPath = Utf8ToWide(clean);
-            TriggerPreflight();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("浏览...", ImVec2(90, 0))) {
-            std::wstring file = OpenFileDialog(L"Dynamic Link Library (*.dll)\0*.dll\0All Files (*.*)\0*.*\0", L"选择注入 DLL");
-            if (!file.empty()) {
-                g_CurrentDllPath = file;
-                auto u8 = dllinjector::ToUtf8(file);
-                if (u8) std::snprintf(g_DllPathBuf, sizeof(g_DllPathBuf), "%s", u8.value().c_str());
-                TriggerPreflight();
-            }
-        }
-
-        // Drag & Drop hint zone
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface2);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 9.0f));
-        ImGui::BeginChild("DropZone", ImVec2(0, 36), true, ImGuiWindowFlags_NoScrollbar);
-        ImGui::TextColored(theme::TextDark, "  [拖放支持] 支持将 .dll 文件直接拖入本窗口任意区域完成自动加载与分析");
-        ImGui::EndChild();
-        ImGui::PopStyleVar();
-        ImGui::PopStyleColor();
-
-        // Core Doctor Preflight Card
-        if (!g_CurrentDllPath.empty()) {
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::TextColored(theme::Accent, "Core 预检报告 (Preflight Diagnostics)");
-
-            if (g_Preflight.valid) {
-                // Match Status Banner
-                if (g_Preflight.matchStatus == ArchMatchStatus::Match) {
-                    RenderStatusBadge("[兼容] 架构完全匹配 (Compatible)", "green");
-                } else if (g_Preflight.matchStatus == ArchMatchStatus::Mismatch) {
-                    RenderStatusBadge("[冲突] 架构冲突: DLL 与目标进程架构不一致", "red");
-                } else {
-                    RenderStatusBadge("[待定] 目标进程待选定 (Select Target)", "amber");
-                }
-
-                ImGui::SameLine();
-                std::string archDesc = "模块架构: " + g_Preflight.dllArchStr;
-                RenderStatusBadge(archDesc.c_str(), "cyan");
-
-                ImGui::SameLine();
-                std::string impDesc = "导入表: " + std::to_string(g_Preflight.importCount) + " 库";
-                RenderStatusBadge(impDesc.c_str(), "muted");
-
-                // Findings & Dependencies summary
-                if (!g_Preflight.findings.empty()) {
-                    ImGui::Spacing();
-                    for (const auto& f : g_Preflight.findings) {
-                        const char* style = (f.severity == dllinjector::FindingSeverity::Error) ? "red" :
-                                            (f.severity == dllinjector::FindingSeverity::Warning) ? "amber" : "cyan";
-                        RenderStatusBadge(f.rule_id.c_str(), style);
-                        ImGui::SameLine();
-                        ImGui::TextColored(theme::TextPrimary, "%s", f.message.c_str());
-                    }
-                }
-
-                // Action buttons: Copy JSON & Export Report
-                ImGui::Spacing();
-                if (ImGui::SmallButton("📋 复制 Doctor JSON")) {
-                    auto proc = GetSelectedProcessItem();
-                    std::string json = PreflightDoctor::GenerateJsonReport(g_Preflight, proc ? proc->pid : 0);
-                    ImGui::SetClipboardText(json.c_str());
-                    Logger::Instance().Success("已复制 Core Doctor 诊断 JSON 到系统剪贴板。");
-                }
-                ImGui::SameLine();
-                if (ImGui::SmallButton("💾 导出诊断报告...")) {
-                    std::wstring savePath = SaveFileDialog(L"JSON Report (*.json)\0*.json\0Text Report (*.txt)\0*.txt\0", L"json", L"保存诊断报告");
-                    if (!savePath.empty()) {
-                        auto proc = GetSelectedProcessItem();
-                        std::string content = (savePath.find(L".json") != std::wstring::npos) ?
-                            PreflightDoctor::GenerateJsonReport(g_Preflight, proc ? proc->pid : 0) :
-                            PreflightDoctor::GenerateTextReport(g_Preflight, proc ? proc->pid : 0);
-                        std::ofstream ofs(savePath.c_str(), std::ios::binary);
-                        if (ofs) {
-                            ofs.write(content.data(), content.size());
-                            auto u8Path = dllinjector::ToUtf8(savePath);
-                            Logger::Instance().Success("已成功导出报告到: " + (u8Path ? u8Path.value() : ""));
-                        } else {
-                            Logger::Instance().Error("保存诊断报告失败，无法写入目标文件。");
-                        }
-                    }
-                }
-            } else {
-                ImGui::TextColored(theme::StatusRed, "预检错误: %s", g_Preflight.errorMessage.c_str());
-            }
-        }
-    } else {
-        // Shellcode Mode
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(theme::Accent, "Shellcode / 原始机器码载荷");
-        ImGui::SameLine();
-        RenderStatusBadge("Raw Bytes", "accent");
-
-        // Optional .bin file picker
-        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
-        if (ImGui::InputTextWithHint("##BinPath", "载入 .bin 文件路径 (可选)...", g_BinPathBuf, sizeof(g_BinPathBuf))) {
-            std::wstring binPath = Utf8ToWide(TrimPathString(g_BinPathBuf));
-            if (!binPath.empty() && GetFileAttributesW(binPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
-                g_ParsedHexBytes = utils::ReadFileToBuffer(binPath);
-                Logger::Instance().Info("已从二进制文件读取 " + std::to_string(g_ParsedHexBytes.size()) + " 字节。");
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("浏览 .bin...", ImVec2(90, 0))) {
-            std::wstring file = OpenFileDialog(L"Binary Files (*.bin)\0*.bin\0All Files (*.*)\0*.*\0", L"选择载荷文件");
-            if (!file.empty()) {
-                auto u8 = dllinjector::ToUtf8(file);
-                if (u8) std::snprintf(g_BinPathBuf, sizeof(g_BinPathBuf), "%s", u8.value().c_str());
-                g_ParsedHexBytes = utils::ReadFileToBuffer(file);
-                Logger::Instance().Info("已载入 " + std::to_string(g_ParsedHexBytes.size()) + " 字节 Shellcode。");
-            }
-        }
-
-        ImGui::Spacing();
-        ImGui::TextColored(theme::TextMuted, "或在此输入十六进制 Hex (如: 90 90 CC 48 31 C0):");
-        if (ImGui::InputTextMultiline("##HexInput", g_HexInputBuf, sizeof(g_HexInputBuf), ImVec2(-1, 80))) {
-            g_ParsedHexBytes = ParseHexInput(g_HexInputBuf);
-        }
-
-        std::string hexStatus = "已解析载荷: " + std::to_string(g_ParsedHexBytes.size()) + " 字节";
-        RenderStatusBadge(hexStatus.c_str(), g_ParsedHexBytes.empty() ? "muted" : "green");
-    }
-
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-}
-
-static void RenderMethodsGrid() {
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface1);
-    ImGui::BeginChild("MethodsCard", ImVec2(0, 230), true);
-
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextColored(theme::Accent, "注入方法选择 (INJECTION METHODS)");
-    ImGui::SameLine();
-    RenderStatusBadge("6 种核心机制", "accent");
-
-    ImGui::Columns(2, "MethodGridColumns", false);
-
-    bool isDllMode = (g_CurrentPayloadMode == PayloadMode::Dll);
-
-    for (int i = 0; i < 6; ++i) {
-        const auto& card = g_MethodCards[i];
-        bool isSupported = isDllMode ? card.supportsDll : card.supportsShellcode;
-        bool isSelected = (g_SelectedMethod == card.id);
-
-        ImGui::PushID(i);
-        if (!isSupported) {
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(theme::Surface0.x, theme::Surface0.y, theme::Surface0.z, 0.40f));
-            ImGui::PushStyleColor(ImGuiCol_Border, theme::BorderSubtle);
-        } else if (isSelected) {
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(theme::Accent.x, theme::Accent.y, theme::Accent.z, 0.18f));
-            ImGui::PushStyleColor(ImGuiCol_Border, theme::Accent);
-        } else {
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, theme::Surface2);
-            ImGui::PushStyleColor(ImGuiCol_Border, theme::BorderSubtle);
-        }
-
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 6.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 3.0f));
-        ImGui::BeginChild("MethodSubCard", ImVec2(0, 54), true, ImGuiWindowFlags_NoScrollbar);
-        
-        // Card Title & Badge
-        ImGui::TextColored(isSelected ? theme::Accent : (isSupported ? theme::TextPrimary : theme::TextDisabled),
-                           "%s", card.title);
-        ImGui::SameLine();
-        if (!isSupported) {
-            RenderStatusBadge("仅 DLL", "red");
-        } else {
-            RenderStatusBadge(card.tag, card.tagStyle);
-        }
-
-        // Subtitle / description
-        ImGui::TextColored(isSupported ? theme::TextMuted : theme::TextDisabled, "%s", card.description);
-
-        bool cardHovered = isSupported && ImGui::IsWindowHovered();
-        ImGui::EndChild();
-        ImGui::PopStyleVar(2);
-        ImGui::PopStyleColor(2);
-
-        // Click detection
-        if (isSupported && (ImGui::IsItemClicked() || (cardHovered && ImGui::IsMouseClicked(0)))) {
-            g_SelectedMethod = card.id;
-            Logger::Instance().Info(std::string("已切换注入技术: ") + card.title);
-        }
-
-        ImGui::PopID();
-
-        ImGui::NextColumn();
-    }
-
-    ImGui::Columns(1);
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-}
-
 static bool ExecuteInjectionInternal(bool force, bool showModal, std::string& outToast, std::string& outTone) {
     auto proc = GetSelectedProcessItem();
     if (!proc) {
@@ -941,86 +529,56 @@ static bool ExecuteInjectionInternal(bool force, bool showModal, std::string& ou
     return success;
 }
 
-static void ExecuteInjection() {
-    std::string toast, tone;
-    ExecuteInjectionInternal(true, true, toast, tone);
+} // anonymous namespace
+
+void InitGuiApp(HWND mainHwnd) {
+    g_MainHwnd = mainHwnd;
+    Logger::Instance().Info("DLL Injector (CC Switch v7 WebView2 / Modern UI) 初始化完成。");
+    #if defined(_WIN64)
+    Logger::Instance().Info("当前宿主构建架构: 64-bit (x64)");
+    #else
+    Logger::Instance().Info("当前宿主构建架构: 32-bit (x86)");
+    #endif
+    RefreshProcesses();
 }
 
-static void RenderActionBar() {
-    auto proc = GetSelectedProcessItem();
+void OnDropFile(const wchar_t* path) {
+    if (!path) return;
+    std::wstring p = TrimPathWString(path);
+    if (p.empty()) return;
+    std::wstring ext = PathFindExtensionW(p.c_str());
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
 
-    ImGui::PushStyleColor(ImGuiCol_Button, theme::Accent);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, theme::AccentHover);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, theme::AccentActive);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
-
-    std::string btnText = "开始执行注入 (EXECUTE INJECTION)";
-    if (proc) {
-        btnText += " -> [ PID: " + std::to_string(proc->pid) + " " + proc->name_utf8 + " ]";
+    if (ext == L".dll") {
+        g_CurrentPayloadMode = PayloadMode::Dll;
+        g_CurrentDllPath = p;
+        auto u8 = dllinjector::ToUtf8(p);
+        if (u8) {
+            std::snprintf(g_DllPathBuf, sizeof(g_DllPathBuf), "%s", u8.value().c_str());
+            Logger::Instance().Info("已通过拖拽载入 DLL: " + u8.value());
+        }
+        TriggerPreflight();
+        if (webview_host::IsActive()) {
+            PushWebViewState("已通过拖放载入 DLL 并完成静态预检", "ok");
+        }
+    } else {
+        g_CurrentPayloadMode = PayloadMode::Shellcode;
+        if (g_SelectedMethod == MethodID::HOOK ||
+            g_SelectedMethod == MethodID::REFLECTIVE ||
+            g_SelectedMethod == MethodID::HIJACK) {
+            g_SelectedMethod = MethodID::CRT;
+        }
+        auto u8 = dllinjector::ToUtf8(p);
+        if (u8) {
+            std::snprintf(g_BinPathBuf, sizeof(g_BinPathBuf), "%s", u8.value().c_str());
+            auto data = utils::ReadFileToBuffer(p);
+            g_ParsedHexBytes = data;
+            Logger::Instance().Info("已通过拖拽载入二进制载荷 (" + std::to_string(data.size()) + " 字节)");
+        }
+        if (webview_host::IsActive()) {
+            PushWebViewState("已通过拖放载入二进制载荷 (" + std::to_string(g_ParsedHexBytes.size()) + " 字节)", "ok");
+        }
     }
-
-    if (ImGui::Button(btnText.c_str(), ImVec2(-1, 42))) {
-        ExecuteInjection();
-    }
-
-    ImGui::PopStyleColor(4);
-}
-
-void RenderGuiFrame() {
-    ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(io.DisplaySize);
-
-    ImGuiWindowFlags rootFlags = ImGuiWindowFlags_NoDecoration |
-                                ImGuiWindowFlags_NoMove |
-                                ImGuiWindowFlags_NoResize |
-                                ImGuiWindowFlags_NoBringToFrontOnFocus;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 12));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-
-    if (ImGui::Begin("RootAppWindow", nullptr, rootFlags)) {
-        // 1. Top Header
-        RenderHeaderBar();
-
-        ImGui::Spacing();
-
-        // 2. Middle Body: Two Column Split
-        float consoleHeight = 175.0f;
-        float middleHeight = io.DisplaySize.y - 52.0f - consoleHeight - 38.0f;
-        if (middleHeight < 310.0f) middleHeight = 310.0f;
-
-        float leftPaneWidth = 380.0f;
-
-        ImGui::BeginChild("MiddleSection", ImVec2(0, middleHeight), false);
-
-        // Left Column: Process List
-        RenderProcessListPane(leftPaneWidth);
-
-        ImGui::SameLine();
-
-        // Right Column: Payload + Methods + Inject Button
-        ImGui::BeginChild("RightSection", ImVec2(0, 0), false);
-        
-        RenderPayloadPane();
-        ImGui::Spacing();
-        RenderMethodsGrid();
-        ImGui::Spacing();
-        RenderActionBar();
-
-        ImGui::EndChild(); // RightSection
-
-        ImGui::EndChild(); // MiddleSection
-
-        ImGui::Spacing();
-
-        // 3. Bottom Terminal Console
-        Logger::Instance().RenderConsole("ConsolePanel", consoleHeight, g_MonoFont);
-    }
-    ImGui::End();
-
-    ImGui::PopStyleVar(3);
 }
 
 void PushWebViewState(const std::string& toastMsg, const std::string& toastTone) {
