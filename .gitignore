@@ -103,6 +103,10 @@ ENV/
 /integrations/mcp/dist/
 /integrations/mcp/*.tgz
 
+# Browser regression dependencies and generated output
+/tests/gui/node_modules/
+/tests/gui/test-results/
+
 # --------------------------------------------------------------------
 # 7. 操作系统临时文件
 # --------------------------------------------------------------------

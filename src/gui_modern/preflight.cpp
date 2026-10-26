@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <sstream>
 #include <iomanip>
+#include <filesystem>
 
 namespace gui {
 
@@ -56,7 +57,13 @@ PreflightResult PreflightDoctor::AnalyzeDll(const std::wstring& dllPath,
     }
 
     auto coreTargetArch = MapArch(targetArch);
-    auto docResult = dllinjector::InspectDoctorFile(dllPath, coreTargetArch, {}, 5000);
+    std::error_code pathError;
+    const auto directory = std::filesystem::absolute(dllPath, pathError).parent_path();
+    if (pathError) {
+        res.errorMessage = "无法确定 DLL 所在目录";
+        return res;
+    }
+    auto docResult = dllinjector::InspectDoctorFile(dllPath, coreTargetArch, {directory.wstring()}, 5000);
 
     if (!docResult) {
         res.valid = false;

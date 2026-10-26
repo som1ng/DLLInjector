@@ -52,6 +52,14 @@ jobs:
       - name: Test MCP host validation fixtures
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         run: python tests/mcp_hosts_tests.py
+      - name: Install GUI test dependencies
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: tests/gui
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Test GUI layout and interactions in Edge
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: tests/gui
+        run: npm test
       - name: Upload review artifacts
         if: success()
         uses: actions/upload-artifact@v4

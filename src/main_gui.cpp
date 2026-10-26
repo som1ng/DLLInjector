@@ -6,6 +6,10 @@
 #define _WIN32_WINNT 0x0600
 #endif
 
+#ifndef WM_DPICHANGED
+#define WM_DPICHANGED 0x02E0
+#endif
+
 #ifndef DLLINJECTOR_HAS_SYSCALL
 #define DLLINJECTOR_HAS_SYSCALL 0
 #endif
@@ -122,11 +126,37 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         return 0;
     }
 
+    case WM_GETMINMAXINFO: {
+        LPMINMAXINFO lpMMI = reinterpret_cast<LPMINMAXINFO>(lParam);
+        if (lpMMI) {
+            lpMMI->ptMinTrackSize.x = 880;
+            lpMMI->ptMinTrackSize.y = 600;
+        }
+        return 0;
+    }
+
+    case WM_DPICHANGED: {
+        RECT* const prcNewWindow = reinterpret_cast<RECT*>(lParam);
+        if (prcNewWindow) {
+            SetWindowPos(hwnd, NULL,
+                prcNewWindow->left, prcNewWindow->top,
+                prcNewWindow->right - prcNewWindow->left,
+                prcNewWindow->bottom - prcNewWindow->top,
+                SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+        return 0;
+    }
+
     case WM_SIZE:
         if (wParam != SIZE_MINIMIZED) {
             if (gui::webview_host::IsActive()) {
                 gui::webview_host::OnResize(hwnd);
-                gui::PushWebViewState();
+                static bool s_lastZoomed = false;
+                bool currentZoomed = (IsZoomed(hwnd) != FALSE);
+                if (currentZoomed != s_lastZoomed) {
+                    s_lastZoomed = currentZoomed;
+                    gui::PushWebViewState();
+                }
             } else {
                 d3d::OnResize((UINT)LOWORD(lParam), (UINT)HIWORD(lParam));
             }

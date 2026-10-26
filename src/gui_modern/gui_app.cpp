@@ -11,6 +11,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 
 namespace gui {
@@ -76,16 +77,17 @@ int g_ArchFilterTab = 0; // 0: 全部, 1: 64位, 2: 32位
 PayloadMode g_CurrentPayloadMode = PayloadMode::Dll;
 MethodID g_SelectedMethod = MethodID::CRT;
 
-char g_DllPathBuf[MAX_PATH] = "";
+char g_DllPathBuf[4096] = "";
 std::wstring g_CurrentDllPath;
 PreflightResult g_Preflight;
 
-char g_BinPathBuf[MAX_PATH] = "";
+char g_BinPathBuf[4096] = "";
 char g_HexInputBuf[8192] = "";
 std::vector<unsigned char> g_ParsedHexBytes;
 
 bool g_DebugPrivilegeActive = false;
 HWND g_MainHwnd = nullptr;
+static std::atomic<bool> g_IsInjecting{false};
 
 std::string JsonEscapeStr(const std::string& input) {
     std::string out;
@@ -119,8 +121,9 @@ std::string ExtractJsonStringField(const std::string& json, const char* key) {
     if (pos == std::string::npos) return "";
     pos = json.find(':', pos + pattern.size());
     if (pos == std::string::npos) return "";
-    pos = json.find('"', pos + 1);
-    if (pos == std::string::npos) return "";
+    ++pos;
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) ++pos;
+    if (pos >= json.size() || json[pos] != '"') return "";
     ++pos;
     std::string out;
     while (pos < json.size()) {
@@ -151,7 +154,7 @@ int ExtractJsonIntField(const std::string& json, const char* key, int defaultVal
     pos = json.find(':', pos + pattern.size());
     if (pos == std::string::npos) return defaultVal;
     ++pos;
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) ++pos;
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) ++pos;
     if (pos >= json.size()) return defaultVal;
     return std::atoi(json.c_str() + pos);
 }
@@ -163,7 +166,7 @@ bool ExtractJsonBoolField(const std::string& json, const char* key, bool default
     pos = json.find(':', pos + pattern.size());
     if (pos == std::string::npos) return defaultVal;
     ++pos;
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) ++pos;
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) ++pos;
     if (json.compare(pos, 4, "true") == 0) return true;
     if (json.compare(pos, 5, "false") == 0) return false;
     return defaultVal;
@@ -256,11 +259,11 @@ std::vector<unsigned char> ParseHexInput(const std::string& input) {
 }
 
 std::wstring OpenFileDialog(const wchar_t* filter, const wchar_t* title) {
-    wchar_t szFile[MAX_PATH] = L"";
+    wchar_t szFile[1024] = L"";
     OPENFILENAMEW ofn;
     ZeroMemory(&ofn, sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = NULL;
+    ofn.hwndOwner = g_MainHwnd;
     ofn.lpstrFilter = filter;
     ofn.lpstrFile = szFile;
     ofn.nMaxFile = sizeof(szFile) / sizeof(szFile[0]);
@@ -273,11 +276,11 @@ std::wstring OpenFileDialog(const wchar_t* filter, const wchar_t* title) {
 }
 
 std::wstring SaveFileDialog(const wchar_t* filter, const wchar_t* defaultExt, const wchar_t* title) {
-    wchar_t szFile[MAX_PATH] = L"";
+    wchar_t szFile[1024] = L"";
     OPENFILENAMEW ofn;
     ZeroMemory(&ofn, sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = NULL;
+    ofn.hwndOwner = g_MainHwnd;
     ofn.lpstrFilter = filter;
     ofn.lpstrFile = szFile;
     ofn.nMaxFile = sizeof(szFile) / sizeof(szFile[0]);
@@ -376,6 +379,11 @@ void OnDropFile(const wchar_t* path) {
         }
     } else {
         g_CurrentPayloadMode = PayloadMode::Shellcode;
+        if (g_SelectedMethod == MethodID::HOOK ||
+            g_SelectedMethod == MethodID::REFLECTIVE ||
+            g_SelectedMethod == MethodID::HIJACK) {
+            g_SelectedMethod = MethodID::CRT;
+        }
         auto u8 = dllinjector::ToUtf8(p);
         if (u8) {
             std::snprintf(g_BinPathBuf, sizeof(g_BinPathBuf), "%s", u8.value().c_str());
@@ -825,7 +833,7 @@ static void RenderMethodsGrid() {
     ImGui::PopStyleColor();
 }
 
-static bool ExecuteInjectionInternal(bool showModal, std::string& outToast, std::string& outTone) {
+static bool ExecuteInjectionInternal(bool force, bool showModal, std::string& outToast, std::string& outTone) {
     auto proc = GetSelectedProcessItem();
     if (!proc) {
         Logger::Instance().Error("注入停止: 请先在左侧选择目标进程！");
@@ -884,9 +892,16 @@ static bool ExecuteInjectionInternal(bool showModal, std::string& outToast, std:
             return false;
         }
 
-        // Preflight warning
+        // Preflight blocking check
         if (g_Preflight.valid && g_Preflight.hasBlockingErrors) {
-            Logger::Instance().Warn("Core Doctor 提示存在阻止性诊断项，仍尝试执行请求。");
+            if (!force) {
+                Logger::Instance().Warn("注入被安全拦截: Core Doctor 检测到阻断性严重错误，请确认后强制执行。");
+                outToast = "注入被安全拦截：存在阻断性错误，请确认后强制执行";
+                outTone = "err";
+                if (showModal) MessageBoxW(NULL, L"检测到阻断性错误 (如架构不匹配)，注入已拦截！", L"预检拦截", MB_ICONWARNING);
+                return false;
+            }
+            Logger::Instance().Warn("Core Doctor 提示存在阻止性诊断项，已由用户授权强制执行。");
         }
 
         Logger::Instance().Info("开始对目标 PID " + std::to_string(pid) + " 执行注入...");
@@ -984,7 +999,7 @@ static bool ExecuteInjectionInternal(bool showModal, std::string& outToast, std:
 
 static void ExecuteInjection() {
     std::string toast, tone;
-    ExecuteInjectionInternal(true, toast, tone);
+    ExecuteInjectionInternal(true, true, toast, tone);
 }
 
 static void RenderActionBar() {
@@ -1248,8 +1263,14 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
             PushWebViewState("提权失败：请以管理员身份运行程序", "err");
         }
     } else if (cmd == "inject") {
+        if (g_IsInjecting.exchange(true)) {
+            PushWebViewState("已有注入任务正在执行中，请稍候...", "warn");
+            return;
+        }
+        bool force = ExtractJsonBoolField(jsonMessage, "force", false);
         std::string toast, tone;
-        ExecuteInjectionInternal(false, toast, tone);
+        ExecuteInjectionInternal(force, false, toast, tone);
+        g_IsInjecting = false;
         PushWebViewState(toast, tone);
     } else if (cmd == "copy_doctor_json") {
         auto proc = GetSelectedProcessItem();

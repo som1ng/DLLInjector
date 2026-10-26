@@ -1,0 +1,8 @@
+{
+  "name": "rondo-gui-regression-tests",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": { "test": "node --test ui.test.mjs" },
+  "devDependencies": { "playwright": "1.60.0" }
+}

@@ -44,7 +44,7 @@ inline std::string GetCcSwitchUiHtml() {
 
     --success: #16a34a; --success-text: #007634; --success-soft: #e8f7ee;
     --warning: #d97706; --warning-text: #a64a00; --warning-soft: #fef3c7;
-    --danger: #dc2626;  --danger-text: #b91c1c;  --danger-soft: #fee2e2;
+    --danger: #dc2626;  --danger-solid: #dc2626;  --danger-on: #ffffff;  --danger-text: #b91c1c;  --danger-soft: #fee2e2;
 
     --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
     --shadow-md: 0 4px 12px rgba(16, 24, 40, .08), 0 1px 3px rgba(16, 24, 40, .06);
@@ -74,7 +74,7 @@ inline std::string GetCcSwitchUiHtml() {
     --stack-fill: #8b74d6; --stack-text: #b5a6e3; --stack-soft: rgba(139, 116, 214, 0.12); --stack-solid: #6a52bf; --stack-on: #ffffff;
     --success: #4ade80; --success-text: #4ade80; --success-soft: #0f2b1a;
     --warning: #fbbf24; --warning-text: #fcd34d; --warning-soft: #33260a;
-    --danger: #f87171;  --danger-text: #fca5a5;  --danger-soft: #3a1414;
+    --danger: #f87171;  --danger-solid: #b91c1c;  --danger-on: #ffffff;  --danger-text: #fca5a5;  --danger-soft: #3a1414;
     --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .08), 0 1px 2px rgba(0, 0, 0, .4);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .4);
     --shadow-lg: 0 20px 40px rgba(0, 0, 0, .5), 0 4px 12px rgba(0, 0, 0, .4);
@@ -159,19 +159,20 @@ inline std::string GetCcSwitchUiHtml() {
   /* Main Content Area & AppPageHeader (52px) */
   .main-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; background: var(--bg-app); }
   .page-header {
-    height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 16px;
-    padding: 0 18px 0 24px; border-bottom: 1px solid var(--border); background: var(--bg-app);
+    height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+    padding: 0 16px 0 20px; border-bottom: 1px solid var(--border); background: var(--bg-app);
+    min-width: 0;
   }
-  .header-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
-  .header-left .header-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .header-left .chip { flex-shrink: 0; }
+  .header-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; overflow: hidden; }
+  .header-left .header-title { min-width: 0; flex-shrink: 0; }
   #chipTargetProc { min-width: 0; max-width: 160px; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; line-height: 20px; }
   .header-glyph {
     width: 24px; height: 24px; flex-shrink: 0; border-radius: 6px; background: var(--bg-subtle); color: var(--text-1);
+    display: inline-flex; align-items: center; justify-content: center;
   }
   .header-title { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); white-space: nowrap; }
-  .header-sub { font-size: 13px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .header-sub { font-size: 12.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1; }
+  .header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
 
   /* Window Controls & Integrated Title Bar Header (CC Switch v7 Component texture) */
   .header-vdiv {
@@ -229,7 +230,7 @@ inline std::string GetCcSwitchUiHtml() {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
     height: 32px; padding: 0 14px; border-radius: var(--r-control); border: 1px solid transparent;
     font: 500 13px/20px var(--font-sans); cursor: pointer; background: transparent; color: var(--text-1);
-    transition: background-color var(--dur), filter var(--dur), color var(--dur), transform var(--dur), border-color var(--dur);
+    transition: background-color var(--dur) var(--ease), filter var(--dur) var(--ease), color var(--dur) var(--ease), transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
   }
   .btn:active:not(:disabled) { transform: scale(.96); }
   .btn.compact { height: 28px; padding: 0 11px; font-size: 12px; }
@@ -239,7 +240,8 @@ inline std::string GetCcSwitchUiHtml() {
   .btn.neutral:hover:not(:disabled) { background: var(--bg-subtle); }
   .btn.quiet { color: var(--text-2); }
   .btn.quiet:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text-1); }
-  .btn.danger { background: var(--danger); color: #fff; font-weight: 600; }
+  .btn.danger { background: var(--danger-solid); color: var(--danger-on); font-weight: 600; }
+  .btn.danger:hover:not(:disabled) { filter: brightness(1.1); }
   .btn.danger:hover:not(:disabled) { filter: brightness(1.08); }
   .btn.direct { background: var(--direct-solid); color: var(--direct-on); font-weight: 600; }
   .btn.route { background: var(--route-solid); color: var(--route-on); font-weight: 600; }
@@ -248,6 +250,7 @@ inline std::string GetCcSwitchUiHtml() {
   .btn.icon:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text-1); }
   .btn.icon.lg { width: 32px; height: 32px; }
   .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn:focus-visible, .nav-item:focus-visible, .seg button:focus-visible, .switch:focus-visible, .win-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
   /* Global HoverTip (Viewport-safe adaptive capsule) */
   .global-hovertip {
@@ -284,6 +287,7 @@ inline std::string GetCcSwitchUiHtml() {
   .chip.warning { background: var(--warning-soft); color: var(--warning-text); }
   .chip.danger { background: var(--danger-soft); color: var(--danger-text); }
   .chip.action { background: var(--action-soft); color: var(--action-text); }
+  .chip.neutral { background: var(--bg-subtle); color: var(--text-2); border: 1px solid var(--border); }
   .chip .d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
   /* Segmented Control (v7 segmented-control.tsx with sliding thumb) */
@@ -340,6 +344,11 @@ inline std::string GetCcSwitchUiHtml() {
   .input-wrap > svg.search-ic { position: absolute; left: 9px; color: var(--text-3); pointer-events: none; }
   .input-wrap > .input.with-ic { padding-left: 30px; padding-right: 28px; }
   .input-wrap > .clear-btn {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; border: 0; border-radius: 50%;
+    background: transparent; color: var(--text-3); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
   }
   .input-wrap > .clear-btn:hover { background: var(--bg-subtle); color: var(--text-1); }
 )CCS2";
@@ -387,12 +396,13 @@ inline std::string GetCcSwitchUiHtml() {
   }
   .workbench-grid > div { min-width: 0; }
   .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; flex-shrink: 0; }
+  @media (max-width: 1180px) {
+    .header-sub { display: none; }
+    #chipHostArch { display: none; }
+  }
   @media (max-width: 1000px) {
     .workbench-grid { grid-template-columns: minmax(0, 1fr); }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .page-header { height: auto; min-height: 52px; padding: 10px 18px; flex-wrap: wrap; gap: 8px; }
-    .header-left { flex-basis: 100%; }
-    .header-actions { flex-wrap: wrap; }
   }
   .panel-card {
     border: 1px solid var(--border); border-radius: var(--r-panel); background: var(--bg-card);
@@ -473,9 +483,14 @@ inline std::string GetCcSwitchUiHtml() {
   }
 
   table.log { width: 100%; border-collapse: collapse; font-size: 12px; }
-  table.log th { text-align: left; font-weight: 500; color: var(--text-2); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.log th {
+    text-align: left; font-weight: 600; color: var(--text-2); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    position: sticky; top: 0; background: var(--bg-card); z-index: 2; box-shadow: 0 1px 0 var(--border);
+  }
   table.log td { padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   table.log tr:hover td { background: var(--bg-subtle); }
+  table.log tr.selected td { background: var(--direct-soft); }
+  table.log tr.selected:hover td { background: color-mix(in srgb, var(--direct-soft) 85%, var(--bg-subtle)); }
   table.log .num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 11.5px; }
 
   /* Toast & Dialog Overlays */
@@ -504,12 +519,13 @@ inline std::string GetCcSwitchUiHtml() {
   }
   .modal-backdrop.open { display: flex; }
   .dialog {
-    width: min(440px, 92vw); border: 1px solid var(--border); border-radius: var(--r-dialog);
+    width: min(460px, 92vw); max-height: 85vh; display: flex; flex-direction: column;
+    border: 1px solid var(--border); border-radius: var(--r-dialog);
     background: var(--bg-card); box-shadow: var(--shadow-lg); padding: 20px;
   }
-  .dialog h4 { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); }
-  .dialog p { margin-top: 6px; color: var(--text-2); font-size: 13px; line-height: 20px; }
-  .dialog .ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .dialog h4 { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); flex-shrink: 0; }
+  .dialog #modalBody { overflow-y: auto; max-height: calc(85vh - 120px); margin-top: 6px; color: var(--text-2); font-size: 13px; line-height: 20px; }
+  .dialog .ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -565,17 +581,17 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 
     <div class="sidebar-scroll">
       <div class="sidebar-group-label">工作区</div>
-      <button class="nav-item active" data-view="workbench" onclick="switchView('workbench')">
+      <button class="nav-item active" data-view="workbench" onclick="switchView('workbench')" data-tip="注入工作台" data-tip-pos="right">
         <svg class="i lg"><use href="#plug"/></svg>
         <span class="nav-label">注入工作台</span>
         <span class="nav-tag chip direct" id="navModeTag">DLL</span>
       </button>
-      <button class="nav-item" data-view="processes" onclick="switchView('processes')">
+      <button class="nav-item" data-view="processes" onclick="switchView('processes')" data-tip="目标进程浏览" data-tip-pos="right">
         <svg class="i lg"><use href="#cpu"/></svg>
         <span class="nav-label">目标进程</span>
         <span class="nav-trail" id="navProcCount">0</span>
       </button>
-      <button class="nav-item" data-view="doctor" onclick="switchView('doctor')">
+      <button class="nav-item" data-view="doctor" onclick="switchView('doctor')" data-tip="DLL Doctor 静态诊断" data-tip-pos="right">
         <svg class="i lg"><use href="#route"/></svg>
         <span class="nav-label">DLL Doctor</span>
         <span class="nav-trail" id="navFindingCount">—</span>
@@ -583,12 +599,12 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 
       <div class="sidebar-divider"></div>
       <div class="sidebar-group-label">诊断与审计</div>
-      <button class="nav-item" data-view="dependencies" onclick="switchView('dependencies')">
+      <button class="nav-item" data-view="dependencies" onclick="switchView('dependencies')" data-tip="依赖项解析表" data-tip-pos="right">
         <svg class="i lg"><use href="#layers"/></svg>
         <span class="nav-label">依赖项表</span>
         <span class="nav-trail" id="navDepCount">0</span>
       </button>
-      <button class="nav-item" data-view="logs" onclick="switchView('logs')">
+      <button class="nav-item" data-view="logs" onclick="switchView('logs')" data-tip="终端审计日志" data-tip-pos="right">
         <svg class="i lg"><use href="#terminal"/></svg>
         <span class="nav-label">终端日志</span>
         <span class="nav-trail" id="navLogCount">0</span>
@@ -890,7 +906,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 <div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
   <div class="dialog" role="dialog" aria-modal="true">
     <h4 id="modalTitle">提示</h4>
-    <p id="modalBody"></p>
+    <div id="modalBody"></div>
     <div class="ft" id="modalFooter"></div>
   </div>
 </div>
@@ -958,7 +974,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     const thumb = document.getElementById(thumbId);
     if (!seg || !thumb) return;
     const active = seg.querySelector('button[aria-pressed="true"]');
-    if (!active) return;
+    if (!active || (active.offsetWidth === 0 && active.offsetHeight === 0)) return;
     thumb.style.width = active.offsetWidth + "px";
     thumb.style.height = active.offsetHeight + "px";
     thumb.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
@@ -1122,11 +1138,21 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     if (ui.guardEnabled && state.payloadMode === "dll" && state.preflight.valid && state.preflight.blocking) {
       document.getElementById("modalTitle").textContent = "发现阻断性诊断项";
       document.getElementById("modalBody").textContent = "Core Doctor 检测到当前 DLL 与目标进程存在架构冲突或严重依赖异常，强制执行可能导致目标进程崩溃。是否仍要继续执行注入？";
-      document.getElementById("modalFooter").innerHTML = `<button class="btn neutral compact" onclick="closeModal()">取消</button><button class="btn danger compact" onclick="closeModal();sendCmd({cmd:'inject',force:true})">仍然执行注入</button>`;
+      document.getElementById("modalFooter").innerHTML = `<button class="btn neutral compact" onclick="closeModal()">取消</button><button class="btn danger compact" onclick="closeModal();doInject(true)">仍然执行注入</button>`;
       document.getElementById("modalBackdrop").classList.add("open");
       return;
     }
-    sendCmd({ cmd: "inject", force: false });
+    doInject(false);
+  }
+
+  function doInject(force = false) {
+    const btn = document.getElementById("btnExecuteMain");
+    if (btn) {
+      btn.disabled = true;
+      const textSpan = document.getElementById("btnExecuteText");
+      if (textSpan) textSpan.textContent = "正在注入...";
+    }
+    sendCmd({ cmd: "inject", force });
   }
 
   function renderNotices() {
@@ -1230,7 +1256,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
       const sel = p.pid === state.selectedPid;
       const archChip = p.arch === "x64" ? `<span class="chip direct">x64</span>` :
                        (p.arch === "x86" ? `<span class="chip warning">x86</span>` : `<span class="chip outline">${esc(p.arch)}</span>`);
-      return `<tr style="${sel ? 'background:var(--direct-soft)' : ''}">
+      return `<tr class="${sel ? 'selected' : ''}">
         <td class="mono">${p.pid}</td>
         <td style="font-weight:500">${esc(p.name)}</td>
         <td>${archChip}</td>
@@ -1264,8 +1290,9 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     } else {
       fPane.innerHTML = pf.findings.map(f => {
         const tone = f.severity === "error" ? "danger" : (f.severity === "warning" ? "warning" : "neutral");
+        const iconId = f.severity === "error" ? 'circle-alert' : (f.severity === "warning" ? 'alert' : 'info');
         return `<div class="notice ${tone}">
-          <svg class="i"><use href="#${f.severity === 'error' ? 'circle-alert' : 'alert'}"/></svg>
+          <svg class="i"><use href="#${iconId}"/></svg>
           <div class="grow">
             <div style="display:flex;align-items:center;gap:8px">
               <strong>${esc(f.rule_id)}</strong>
@@ -1425,10 +1452,15 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     document.getElementById("chipPrivText").textContent = state.debugPriv ? "SeDebug 已启用" : "SeDebug 未提权";
     document.getElementById("navPrivText").textContent = state.debugPriv ? "已提权" : "提权";
 
+    const execBtn = document.getElementById("btnExecuteMain");
+    if (execBtn) {
+      execBtn.disabled = false;
+    }
+
     const selProc = state.processes.find(p => p.pid === state.selectedPid);
     const targetChip = document.getElementById("chipTargetProc");
     if (selProc) {
-      targetChip.style.display = "block";
+      targetChip.style.display = "inline-flex";
       targetChip.textContent = `${selProc.name} (PID ${selProc.pid})`;
       targetChip.title = targetChip.textContent;
       document.getElementById("btnExecuteText").textContent = `执行注入 · PID ${selProc.pid}`;
