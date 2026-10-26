@@ -1,6 +1,6 @@
 # 本地 Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.3`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.4`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 DLLInjector CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
@@ -38,6 +38,41 @@ Pi 请使用 [原生 Pi 包](../pi/README.md) 的 `pi install` / `pi remove`。
 在目标项目中启动或重新加载客户端，按客户端自己的信任和权限规则使用 Skill。
 `--verify` 检查安装文件与 CLI 的版本、内容，**不等于客户端发现或模型触发验证**。
 Codex/OpenCode 的真实项目发现另有可复现测试；Claude 和用户级发现尚未实测。
+
+## 探测与选择客户端
+
+可以先查看本机客户端候选路径，再选择一个安装目标：
+
+```powershell
+node integrations/installer/src/index.mjs list-agents
+# 终端中展示候选路径，输入编号确认一个目标；回车取消。
+node integrations/installer/src/index.mjs setup --agent auto --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --verify
+# 脚本或 CI 必须显式选择。多个同名候选时还需 --client <list-agents 中的绝对 EXE 路径>。
+node integrations/installer/src/index.mjs setup --agent auto --select claude --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --dry-run
+```
+
+`list-agents` 只读 PATH、用户 `.local/bin` 与 `%APPDATA%/npm` 中的已知原生 EXE 位置，
+支持当前 npm 包的固定 Windows 布局，不执行 `.cmd` / `.ps1`，不导入包代码或扫描整个磁盘。
+结果是**候选文件**，不是来源可信、版本兼容或客户端成功启动的证明。
+同名但不同路径会分别列出；实际来源和版本应由用户确认，MCP 正式安装还会执行已有版本校验。
+Node 架构随检测结果输出，不等同于操作系统 CPU 架构或二进制兼容性验证。
+未发现不代表未安装：自定义包装器、未覆盖的包管理器布局可以继续用显式 `--agent` 入口。
+仅有一个候选也不会自动确认；非终端输入不接受管道传入编号，缺少 `--select` 时明确失败。
+
+`--agent auto --dry-run` 不提问、不执行程序、不写文件；未选择时只列出候选，
+加 `--select` 后才预览该客户端的实际安装目标。`--select` 仅适用于 auto setup，
+verify/uninstall 仍须显式指定原客户端，避免客户端安装状态变化导致误选卸载目标。
+输出中的 `agent_detection` 描述安装器选中了哪个客户端；
+`client_discovery` 描述客户端是否发现了安装资源，二者是不同检查。
+
+MCP 也支持 auto；安装器把选中的原生路径用于版本校验，其他 MCP 参数仍需明确提供：
+
+```powershell
+node integrations/installer/src/index.mjs setup --integration mcp --agent auto --select claude --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --server 'D:\src\DLLInjector\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' --dry-run
+```
+
+需要 MCP 依赖时按“项目级 MCP 配置”说明准备。auto 一次只选择一个客户端，暂不提供批量 `all`；
+Pi 仍通过自己的原生包安装。探测范围与实际验证见 [客户端选择交付记录](../../docs/AGENT_SELECTION_DELIVERY.md)。
 
 ## 校验、更新与卸载
 
@@ -119,5 +154,9 @@ MCP 暂只支持 `--scope project`；详细边界见 [契约](../../docs/MCP_INS
 生成配置的真实宿主测试见 `tests/mcp_installer_hosts.py --help`，使用隔离临时项目和本地固定模型响应，
 不调用付费模型 API；这是显式配置加载验证，不是自动项目发现测试。
 
-CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、`auto/all` 客户端选择、
-用户级 MCP、公开 npm 分发和升级恢复仍待实现。
+两个宿主脚本增加 `--auto` 可验证“候选探测 → 显式选择 → 安装 → 客户端检查”的完整路径。
+测试所提供的客户端 EXE 必须也能被 `list-agents` 检出。
+
+CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、批量 `all`、
+用户级 MCP、公开 npm 分发和升级恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
+不能作为现有 CLI 的自动下载来源；先继续使用可信 CI 归档或源码构建。

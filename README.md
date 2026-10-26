@@ -130,6 +130,8 @@ Codex/OpenCode 的项目发现已经实测，Claude 与用户级发现尚未实�
 同一安装器现支持 `--integration mcp` 写入这三个客户端的项目配置，保留其他设置，
 提供目录授权、握手/工具校验、冲突保护和卸载。支持版本、运行依赖与命令见安装器说明；
 实际客户端加载方式及测试边界见 [MCP 安装器交付记录](docs/MCP_INSTALLER_DELIVERY.md)。
+`list-agents` 可以列出本机候选路径，`setup --agent auto` 由用户确认一个客户端；
+脚本需使用 `--select`，路径歧义时明确指定 `--client`。详见 [选择流程与实测](docs/AGENT_SELECTION_DELIVERY.md)。
 此版本从源码运行；自动下载 CLI、用户级 MCP 及公开 npm 安装仍待实现。
 
 需要构建产物时，可下载成功 Windows CI 的 `cli-distribution-msvc-x64` / `msvc-x86` 产物。
@@ -197,7 +199,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 ## 后续路线
 
 1. P2：Doctor、报告和权威 Skill 指令包已实现；补充真实客户端触发与回答评测。
-2. P3/P4：本地 stdio MCP、Pi 包、Skill / 项目 MCP 安装器及 CLI 分发校验已实现；继续自动下载、客户端选择和用户级 MCP。
+2. P3/P4：本地 stdio MCP、Pi 包、Skill / 项目 MCP 安装器、客户端确认选择及 CLI 分发校验已实现；继续自动下载、批量安装和用户级 MCP。
 3. P5：自有测试程序的 DLL 生命周期实验与结果对比。
 
 旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。
@@ -234,6 +236,8 @@ A local read-only [stdio MCP adapter](integrations/mcp/README.md) and a locally 
 [native Pi Skill package](integrations/pi/README.md) are available; the Pi package is not published to npm.
 A source-run [local installer](integrations/installer/README.md) supports Codex, Claude Code
 and OpenCode Skill setup and project MCP configuration with explicit paths, previews, verification and removal.
+`list-agents` inspects local candidates without running them; `setup --agent auto` requires an interactive
+choice or explicit `--select`, with a native path to resolve ambiguous matches.
 Generated MCP settings have been checked with installed clients using isolated fixtures; see the
 [validation boundaries](docs/MCP_INSTALLER_DELIVERY.md). Automatic CLI downloads, user-level MCP and
 broader host verification remain in progress. CTest uses read-only queries,

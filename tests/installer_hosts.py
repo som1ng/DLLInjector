@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--cli', required=True, type=Path)
     parser.add_argument('--codex')
     parser.add_argument('--opencode')
+    parser.add_argument('--auto', action='store_true', help='exercise installer candidate discovery and explicit auto selection')
     args = parser.parse_args()
     if not args.codex and not args.opencode:
         parser.error('select at least one installed client')
@@ -40,12 +41,18 @@ def main():
                 def installer(command):
                     arguments = [node, str(ENTRY), command, '--agent', name, '--scope', 'project', '--project', str(project)]
                     if command == 'setup':
+                        if args.auto:
+                            arguments[arguments.index('--agent') + 1] = 'auto'
+                            arguments += ['--select', name, '--client', native_executable(client)]
                         arguments += ['--cli', str(args.cli.resolve()), '--verify']
                     outcome = subprocess.run(arguments, capture_output=True, timeout=30,
                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
                     if outcome.returncode:
                         raise RuntimeError('installer failed during host check')
-                    return json.loads(outcome.stdout)
+                    data = json.loads(outcome.stdout)
+                    if command == 'setup' and args.auto and data['agent_detection']['agent'] != name:
+                        raise RuntimeError('auto selection chose the wrong client')
+                    return data
 
                 installed = installer('setup')
                 fixture = {'cwd': project, 'path': Path(installed['target']) / 'SKILL.md',
@@ -66,7 +73,8 @@ def main():
                 discover()
                 results.append({'client': name, 'version': observed['version'],
                     'checks': ['installed-project-discovery', 'repeat', 'uninstalled-absence']})
-        print(json.dumps({'status': 'passed', 'results': results, 'model_evaluation': 'not_run'}, indent=2))
+        print(json.dumps({'status': 'passed', 'installer_auto_selection': args.auto,
+            'results': results, 'model_evaluation': 'not_run'}, indent=2))
         return 0
     except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
         print(json.dumps({'status': 'failed', 'message': 'Installer/client discovery failed; check installed client compatibility and local paths.'}))
