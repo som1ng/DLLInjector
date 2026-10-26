@@ -59,11 +59,12 @@ tracked. They were not used as build verification artifacts; local copies are re
 Resolve project-level licensing and any remaining source attribution before
 publishing a new release.
 
-## jsoncons (saved JSON reports)
+## jsoncons (saved JSON reports and GUI messages)
 
 The native CLI uses jsoncons **1.10.0** for JSON parsing and Draft 2020-12
 validation against this project's embedded schemas. Upstream:
 <https://github.com/danielaparker/jsoncons/tree/v1.10.0>.
+The native GUI also reuses this version for parsing WebView command messages.
 `cmake/ReportSchemas.cmake` downloads the versioned source archive into the
 ignored build cache and checks SHA-256
 `c829350a2eece662beb378143e2ab1c1cbb07d703687bf168626665a8a7d8bc1`.

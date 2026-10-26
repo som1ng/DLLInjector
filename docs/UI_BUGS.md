@@ -1,10 +1,10 @@
 # Rondo (DLL Injector) UI 与交互缺陷清单与修复报告 (Audit & Resolution Report)
 
-> **2026-10-26 复查**：界面回归 14/14、MSVC x64 Release GUI 构建、`gui.preflight` / `smoke.gui` 2/2 和真实 WebView2 只读诊断检查通过。下表保留原审计记录；BUG-03 与 BUG-19 仍有未完成部分，不能视为全部关闭。此前报告的其他架构结果不代表本轮复查结果。
+> **2026-10-26 复查**：界面回归 14/14、MSVC x64 Release GUI 构建、`gui.preflight` / `smoke.gui` 2/2 和真实 WebView2 只读诊断检查通过。下表保留原审计记录；BUG-03 仍有未完成部分，不能视为全部关闭。此前报告的其他架构结果不代表本轮复查结果。
 
 本轮真实窗口检查只枚举进程并静态检查自有 `noop_fixture.dll`，得到 3 项依赖诊断；没有执行注入。浏览器测试使用模拟宿主消息，补充了 880×600 双主题按钮边界、最大化状态、长弹窗、折叠侧栏及边缘提示框检查，并修正最大化按钮的无障碍名称。
 
-尚未关闭的宿主问题：BUG-03 的执行函数仍同步运行，原子标志不等于异步任务或排队请求去重；本轮未验证注入执行路径。BUG-19 只增加了空白处理，仍未实现 Unicode 转义解码和严格顶层字段解析，后续以独立后端分支补齐。多显示器 DPI 切换尚未实机验证。
+尚未关闭的宿主问题：BUG-03 的执行函数仍同步运行，原子标志不等于异步任务或排队请求去重；本轮未验证注入执行路径。BUG-19 已在后端分支补齐严格 JSON 解析、Unicode 转义和重复字段校验，见 [消息契约](GUI_MESSAGE_CONTRACT.md)。多显示器 DPI 切换尚未实机验证。
 
 本文档汇总了针对 UI 布局、C++ 宿主交互、CC Switch v7 设计系统规范的全量缺陷扫描及代码级修复详情。
 
@@ -16,7 +16,7 @@
 | :---: | :---: | :---: | :--- | :--- | :---: |
 | **BUG-01** | **P0** | 布局崩塌 | 默认 1140x760 窗口下 `.page-header` 超宽，右上角窗口控制按钮与执行按钮被挤出屏幕被裁切 | `src/gui_modern/cc_switch_ui.h:161-175, 605-655` | **✅ 已修复** |
 | **BUG-02** | **P0** | 业务安全 | `inject` 命令参数 `force` 被 C++ 宿主完全忽略，底层预检阻断防护缺失 | `src/gui_modern/gui_app.cpp:888-890, 1250-1253` | **✅ 已修复** |
-| **BUG-03** | **P0** | 稳定性 | 注入与底层等待在 UI 主线程同步阻塞 1~2 秒，且前端缺少防连击锁导致多重注入风险 | `src/gui_modern/gui_app.cpp:895-968, cc_switch_ui.h` | **✅ 已修复** |
+| **BUG-03** | **P0** | 稳定性 | 注入与底层等待在 UI 主线程同步阻塞 1~2 秒，且前端缺少防连击锁导致多重注入风险 | `src/gui_modern/gui_app.cpp:895-968, cc_switch_ui.h` | **部分修复：执行仍同步** |
 | **BUG-04** | **P0** | 窗体边界 | Win32 原生窗口未响应 `WM_GETMINMAXINFO`，可被随意缩小至破坏性尺寸坍塌 | `src/main_gui.cpp:39-160` | **✅ 已修复** |
 | **BUG-05** | **P1** | 无障碍视觉 | 深色模式下危险按钮文字对比度仅 1.84:1，严重发虚不可读（WCAG AA 违规） | `src/gui_modern/cc_switch_ui.h:77, 242` | **✅ 已修复** |
 | **BUG-06** | **P1** | 视觉缺失 | 状态芯片缺失 `.chip.neutral` 令牌样式导致 Doctor 建议项呈现为裸字 | `src/gui_modern/cc_switch_ui.h:270-279, 1253` | **✅ 已修复** |
@@ -293,7 +293,7 @@
 #### BUG-19: 手写 `ExtractJson*Field` 解析器子串碰撞与 Unicode 转义缺失
 - **文件**: `src/gui_modern/gui_app.cpp`
 - **代码行号**: 第 116–170 行
-- **修复方案**: 规范冒号后 token 扫描逻辑，避免跨字段误匹配，并对 `\uXXXX` 解码为有效 UTF-8。
+- **实现**: `web_message.cpp` 使用 jsoncons 一次性解析完整消息，先验证字段与 Unicode，再交由宿主分派。契约和回归范围见 [GUI_MESSAGE_CONTRACT.md](GUI_MESSAGE_CONTRACT.md)。
 
 #### BUG-20: 缺乏统一贝塞尔曲线 `var(--ease)` 与键盘 `:focus-visible` 焦点轮廓
 - **文件**: `src/gui_modern/cc_switch_ui.h`

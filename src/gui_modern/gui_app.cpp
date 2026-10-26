@@ -3,6 +3,7 @@
 #include "gui_logger.h"
 #include "preflight.h"
 #include "webview_host.h"
+#include "web_message.h"
 #include "methods/injector_methods.h"
 #include "dllinjector/text.h"
 #include <commdlg.h>
@@ -113,63 +114,6 @@ std::string JsonEscapeStr(const std::string& input) {
         }
     }
     return out;
-}
-
-std::string ExtractJsonStringField(const std::string& json, const char* key) {
-    std::string pattern = std::string("\"") + key + "\"";
-    size_t pos = json.find(pattern);
-    if (pos == std::string::npos) return "";
-    pos = json.find(':', pos + pattern.size());
-    if (pos == std::string::npos) return "";
-    ++pos;
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) ++pos;
-    if (pos >= json.size() || json[pos] != '"') return "";
-    ++pos;
-    std::string out;
-    while (pos < json.size()) {
-        char c = json[pos++];
-        if (c == '"') break;
-        if (c == '\\' && pos < json.size()) {
-            char esc = json[pos++];
-            switch (esc) {
-                case '"':  out += '"'; break;
-                case '\\': out += '\\'; break;
-                case '/':  out += '/'; break;
-                case 'n':  out += '\n'; break;
-                case 'r':  out += '\r'; break;
-                case 't':  out += '\t'; break;
-                default:   out += esc; break;
-            }
-        } else {
-            out += c;
-        }
-    }
-    return out;
-}
-
-int ExtractJsonIntField(const std::string& json, const char* key, int defaultVal = 0) {
-    std::string pattern = std::string("\"") + key + "\"";
-    size_t pos = json.find(pattern);
-    if (pos == std::string::npos) return defaultVal;
-    pos = json.find(':', pos + pattern.size());
-    if (pos == std::string::npos) return defaultVal;
-    ++pos;
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) ++pos;
-    if (pos >= json.size()) return defaultVal;
-    return std::atoi(json.c_str() + pos);
-}
-
-bool ExtractJsonBoolField(const std::string& json, const char* key, bool defaultVal = false) {
-    std::string pattern = std::string("\"") + key + "\"";
-    size_t pos = json.find(pattern);
-    if (pos == std::string::npos) return defaultVal;
-    pos = json.find(':', pos + pattern.size());
-    if (pos == std::string::npos) return defaultVal;
-    ++pos;
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) ++pos;
-    if (json.compare(pos, 4, "true") == 0) return true;
-    if (json.compare(pos, 5, "false") == 0) return false;
-    return defaultVal;
 }
 
 // Helpers
@@ -1183,8 +1127,12 @@ void PushWebViewState(const std::string& toastMsg, const std::string& toastTone)
 }
 
 void HandleWebViewMessage(const std::string& jsonMessage) {
-    std::string cmd = ExtractJsonStringField(jsonMessage, "cmd");
-    if (cmd.empty()) return;
+    const auto message = ParseWebMessage(jsonMessage);
+    if (!message) {
+        Logger::Instance().Warn("已忽略格式无效的界面消息");
+        return;
+    }
+    const auto& cmd = message->command;
 
     if (cmd == "init") {
         PushWebViewState();
@@ -1192,7 +1140,7 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
         RefreshProcesses();
         PushWebViewState("已刷新活跃进程列表 (" + std::to_string(g_Processes.size()) + " 个)", "ok");
     } else if (cmd == "select_process") {
-        int pid = ExtractJsonIntField(jsonMessage, "pid", -1);
+        int pid = message->pid;
         g_SelectedPid = pid;
         auto sel = GetSelectedProcessItem();
         if (sel) {
@@ -1202,7 +1150,7 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
         TriggerPreflight();
         PushWebViewState();
     } else if (cmd == "set_payload_mode") {
-        std::string mode = ExtractJsonStringField(jsonMessage, "mode");
+        std::string mode = message->mode;
         if (mode == "shellcode") {
             g_CurrentPayloadMode = PayloadMode::Shellcode;
             if (g_SelectedMethod == MethodID::HOOK ||
@@ -1217,7 +1165,7 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
             PushWebViewState("已切换到 DLL 动态库注入模式", "ok");
         }
     } else if (cmd == "select_method") {
-        int m = ExtractJsonIntField(jsonMessage, "method", 0);
+        int m = message->method;
         if (m >= 0 && m <= 5) {
             g_SelectedMethod = static_cast<MethodID>(m);
             Logger::Instance().Info(std::string("已切换注入技术: ") + g_MethodCards[m].title);
@@ -1233,7 +1181,7 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
             PushWebViewState("已加载 DLL 载荷并完成静态预检", "ok");
         }
     } else if (cmd == "set_dll_path") {
-        std::string clean = TrimPathString(ExtractJsonStringField(jsonMessage, "path"));
+        std::string clean = TrimPathString(message->path);
         std::snprintf(g_DllPathBuf, sizeof(g_DllPathBuf), "%s", clean.c_str());
         g_CurrentDllPath = Utf8ToWide(clean);
         TriggerPreflight();
@@ -1248,7 +1196,7 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
             PushWebViewState("已载入 " + std::to_string(g_ParsedHexBytes.size()) + " 字节二进制载荷", "ok");
         }
     } else if (cmd == "set_hex") {
-        std::string hex = ExtractJsonStringField(jsonMessage, "hex");
+        std::string hex = message->hex;
         std::snprintf(g_HexInputBuf, sizeof(g_HexInputBuf), "%s", hex.c_str());
         g_ParsedHexBytes = ParseHexInput(hex);
         PushWebViewState();
@@ -1267,7 +1215,7 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
             PushWebViewState("已有注入任务正在执行中，请稍候...", "warn");
             return;
         }
-        bool force = ExtractJsonBoolField(jsonMessage, "force", false);
+        bool force = message->force;
         std::string toast, tone;
         ExecuteInjectionInternal(force, false, toast, tone);
         g_IsInjecting = false;
@@ -1302,7 +1250,7 @@ void HandleWebViewMessage(const std::string& jsonMessage) {
         CopyUtf8ToClipboard(g_MainHwnd, Logger::Instance().GetAllAsText());
         PushWebViewState("已复制全部日志到剪贴板", "ok");
     } else if (cmd == "set_theme") {
-        bool dark = ExtractJsonBoolField(jsonMessage, "dark", true);
+        bool dark = message->dark;
         if (g_MainHwnd) {
             BOOL darkAttr = dark ? TRUE : FALSE;
             DwmSetWindowAttribute(g_MainHwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &darkAttr, sizeof(darkAttr));
