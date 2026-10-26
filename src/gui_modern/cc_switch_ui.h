@@ -1444,6 +1444,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
         sq.style.display = newState.isMaximized ? "none" : "block";
         res.style.display = newState.isMaximized ? "block" : "none";
         btn.setAttribute("data-tip", newState.isMaximized ? "向下还原" : "最大化");
+        btn.setAttribute("aria-label", newState.isMaximized ? "向下还原" : "最大化");
       }
     }
     document.getElementById("chipHostArch").textContent = "宿主 " + state.hostArch;

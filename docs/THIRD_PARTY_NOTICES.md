@@ -147,3 +147,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+
+## Playwright (GUI regression tests)
+
+The private browser test package under `tests/gui` uses Playwright 1.60.0
+and playwright-core 1.60.0, copyright Microsoft Corporation, under Apache-2.0.
+Source and license: https://github.com/microsoft/playwright/tree/v1.60.0
+These are development dependencies and are not bundled into Rondo.exe.

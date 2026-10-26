@@ -126,3 +126,48 @@ test('an unavailable method stays disabled in its card and information dialog', 
   assert.equal(await page.locator('#modalFooter .solid').isDisabled(), true);
   assert.equal(await page.evaluate(() => window.commands.some(command => command.cmd === 'select_method' || command.cmd === 'inject')), false);
 });
+
+test('window controls remain visible at the minimum window size in both themes', async () => {
+  await page.setViewportSize({ width: 880, height: 600 });
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { setTheme(theme); applyState({ selectedPid: 100 }); }, theme);
+    for (const selector of ['#btnExecuteMain', '.win-btn.close', '#btnWinMax']) {
+      const box = await page.locator(selector).boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= 880 && box.y + box.height <= 600);
+    }
+  }
+});
+
+test('maximize state updates the icon, tooltip, and accessible action name', async () => {
+  for (const maximized of [true, false]) {
+    await page.evaluate(isMaximized => applyState({ isMaximized }), maximized);
+    assert.equal(await page.locator('#btnWinMax').getAttribute('aria-label'), maximized ? '向下还原' : '最大化');
+    assert.equal(await page.locator('#btnWinMax').getAttribute('data-tip'), maximized ? '向下还原' : '最大化');
+    assert.equal(await page.locator('#maxIconRestore').isVisible(), maximized);
+    assert.equal(await page.locator('#maxIconSquare').isVisible(), !maximized);
+  }
+  await page.locator('#btnWinMax').click();
+  assert.equal(await page.evaluate(() => commands.at(-1).cmd), 'window_max_toggle');
+});
+
+test('long modal content scrolls while its footer remains reachable', async () => {
+  await page.setViewportSize({ width: 880, height: 600 });
+  await page.evaluate(() => { openSettingsModal(); modalBody.innerHTML = '<p>long content</p>'.repeat(200); });
+  const body = await page.locator('#modalBody').evaluate(e => ({ height: e.clientHeight, content: e.scrollHeight }));
+  assert.ok(body.content > body.height);
+  const footer = await page.locator('#modalFooter').boundingBox();
+  assert.ok(footer.y >= 0 && footer.y + footer.height <= 600);
+  await page.locator('#modalFooter button').click();
+  assert.equal(await page.locator('#modalBackdrop').isVisible(), false);
+});
+
+test('collapsed navigation and edge controls show tooltips inside the viewport', async () => {
+  await page.setViewportSize({ width: 880, height: 600 });
+  await page.locator('#sidebarToggleBtn').click();
+  for (const selector of ['.nav-item[data-view="doctor"]', '.win-btn.close']) {
+    await page.locator(selector).hover();
+    assert.equal(await page.locator('#globalHoverTip').getAttribute('aria-hidden'), 'false');
+    const box = await page.locator('#globalHoverTip').boundingBox();
+    assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= 880 && box.y + box.height <= 600);
+  }
+});
