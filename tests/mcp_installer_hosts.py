@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--cli', type=Path, required=True)
     parser.add_argument('--server', type=Path, required=True)
     parser.add_argument('--dll', type=Path, required=True)
+    parser.add_argument('--auto', action='store_true', help='exercise installer candidate discovery and explicit auto selection')
     args = parser.parse_args()
     selected = {agent: getattr(args, agent) for agent in ('codex', 'claude', 'opencode') if getattr(args, agent)}
     if not selected:
@@ -44,12 +45,18 @@ def main():
                     argv = [node, str(ROOT / 'integrations/installer/src/index.mjs'), command,
                         '--integration', 'mcp', '--agent', agent, '--scope', 'project', '--project', str(project)]
                     if command == 'setup':
+                        if args.auto:
+                            argv[argv.index('--agent') + 1] = 'auto'
+                            argv += ['--select', agent]
                         argv += ['--client', client, '--cli', cli, '--server', server, '--allow-root', str(project), '--verify']
                     result = subprocess.run(argv, capture_output=True, timeout=60, creationflags=NO_WINDOW)
                     if result.returncode:
                         code = json.loads(result.stderr).get('code', 'UNKNOWN')
                         raise RuntimeError('MCP installer failed: ' + code)
-                    return json.loads(result.stdout)
+                    data = json.loads(result.stdout)
+                    if command == 'setup' and args.auto and data['agent_detection']['agent'] != agent:
+                        raise RuntimeError('auto selection chose the wrong client')
+                    return data
 
                 installed = installer('setup')
                 config_file = Path(installed['config'])
@@ -87,7 +94,8 @@ def main():
                     raise RuntimeError('uninstall changed unrelated host configuration')
                 details['preserved_host_fields'] = sorted(unrelated)
                 checks.append({'client': agent, 'tools_discovered': 7, 'tool_checks': [case['label'] for case in cases], **details})
-        print(json.dumps({'status': 'passed', 'external_model_calls': 0, 'project_auto_discovery': 'not_tested', 'checks': checks}, indent=2))
+        print(json.dumps({'status': 'passed', 'installer_auto_selection': args.auto,
+            'external_model_calls': 0, 'project_auto_discovery': 'not_tested', 'checks': checks}, indent=2))
         return 0
     except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         message = str(error) if isinstance(error, RuntimeError) else 'Installer/host check failed; verify installed versions, paths and generated configuration.'
