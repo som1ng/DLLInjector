@@ -190,7 +190,7 @@ test('batch entry rejects unsupported operations and MCP options without writing
   for (const extra of [['verify'], ['uninstall'], ['setup', '--integration', 'mcp'], ['setup', '--select', 'codex']]) {
     assert.throws(() => execFileSync(process.execPath, [entry, ...extra, '--agent', 'all', '--scope', 'project', '--project', f.root],
       { windowsHide: true, stdio: 'pipe' }), error => {
-      assert.equal(JSON.parse(error.stderr).code, 'ARGUMENT');
+      assert.equal(JSON.parse(error.stderr).code, extra.includes('mcp') ? 'MCP_ARGUMENT' : 'ARGUMENT');
       return true;
     });
   }

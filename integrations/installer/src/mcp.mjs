@@ -150,6 +150,10 @@ export async function installMcp(command, options, context = {}) {
   }
   const configPath = path.join(project, relative), stateDir = path.join(project, '.dll-doctor');
   const receiptPath = path.join(stateDir, 'mcp-' + options.agent + '.json');
+  const rollback = context.rollbackState;
+  if (rollback && (command !== 'uninstall' || rollback.config !== configPath || rollback.receipt !== receiptPath)) {
+    fail('MCP_ARGUMENT', 'Batch rollback must match the original configuration and receipt paths.');
+  }
   const configBefore = await read(configPath), receiptBefore = await read(receiptPath, 65536);
   const source = text(configBefore);
   const parsed = inspectConfig(options.agent, source ?? (options.agent === 'codex' ? '' : '{}'));
@@ -188,6 +192,9 @@ export async function installMcp(command, options, context = {}) {
   } else {
     const removed = removeEntry(options.agent, source, record);
     configAfter = removed === null ? null : Buffer.from(removed);
+    // Restore exact original bytes only if nobody has edited the configuration
+    // since this batch installed it. Otherwise preserve later unrelated fields.
+    if (rollback && same(configBefore, rollback.configAfter)) configAfter = rollback.configBefore;
     receiptAfter = null;
   }
   if (options.dryRun) return { ...result, action: 'preview', executable_probes: 'not_run',
@@ -201,10 +208,13 @@ export async function installMcp(command, options, context = {}) {
     try { lock = await fs.open(lockPath, 'wx'); }
     catch (error) { if (error.code === 'EEXIST') fail('MCP_LOCKED', 'Another or interrupted MCP installation owns the local lock.'); throw error; }
     if (!same(await read(configPath), configBefore) || !same(await read(receiptPath), receiptBefore)) fail('MCP_CONCURRENT', 'Configuration changed during preflight.');
+    if (rollback && !same(receiptBefore, rollback.receiptAfter)) fail('MCP_CONCURRENT', 'Another installation replaced the batch entry; preserving it.');
     for (const [file, before, after] of [[configPath, configBefore, configAfter], [receiptPath, receiptBefore, receiptAfter]]) {
       journal.push({ file, before, after });
       await replace(file, before, after, made);
-      await context.checkpoint?.(file === configPath ? 'config-written' : 'receipt-written');
+      await context.checkpoint?.(file === configPath ? 'config-written' : 'receipt-written',
+        command === 'setup' && file === receiptPath
+          ? { config: configPath, receipt: receiptPath, configBefore, configAfter, receiptAfter } : undefined);
     }
     if (command === 'setup' && options.verify) await verifyRuntime(options.agent, runtime, context);
     return { ...result, action: command === 'setup' ? 'installed' : 'removed',
