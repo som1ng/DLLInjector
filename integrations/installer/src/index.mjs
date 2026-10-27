@@ -19,6 +19,8 @@ try {
       + 'MCP supports project scope only; --allow-processes is optional. Skill is the default integration.\n'
       + 'list-agents: find native client candidates without starting them.\n'
       + 'setup --agent auto: choose one detected client interactively; scripts require --select <agent>.\n'
+      + 'setup --agent all: install Skills for all three supported clients, deduplicating the shared directory.\n'
+      + 'All supports Skill setup only; use explicit agents for verify/uninstall and MCP.\n'
       + 'Use --client <native.exe> with --select if several paths match. --dry-run never prompts.\n'
       + 'version\nPi: use integrations/pi. Local source installer; no downloads.');
   } else if (positionals.length === 1 && positionals[0] === 'version' && Object.keys(values).length === 0) {
@@ -34,8 +36,8 @@ try {
     }
     if (process.platform !== 'win32') throw new InstallError('PLATFORM', 'This installer supports Windows only.');
     const integration = values.integration ?? 'skill';
-    if ((values.agent === 'auto' && command !== 'setup') || (values.select !== undefined && values.agent !== 'auto')) {
-      throw new InstallError('ARGUMENT', 'Auto selection is for setup only; verify/uninstall require an explicit agent.');
+    if ((['auto', 'all'].includes(values.agent) && command !== 'setup') || (values.select !== undefined && values.agent !== 'auto')) {
+      throw new InstallError('ARGUMENT', 'Auto/all selection is for setup only; verify/uninstall require an explicit agent.');
     }
     if (!['skill', 'mcp'].includes(integration) || (integration === 'skill'
         && ((values.client !== undefined && values.agent !== 'auto') || values.server !== undefined || values['allow-root'] !== undefined || values['allow-processes']))) {
@@ -45,6 +47,7 @@ try {
     const options = { ...values, dryRun: values['dry-run'], allowRoot: values['allow-root'], allowProcesses: values['allow-processes'] };
     const result = values.agent === 'auto'
       ? await (await import('./agents.mjs')).setupAuto(options)
+      : values.agent === 'all' ? await (await import('./batch.mjs')).setupAll(options)
       : await (integration === 'mcp' ? (await import('./mcp.mjs')).installMcp : install)(command, options);
     console.log(JSON.stringify(result, null, 2));
   }

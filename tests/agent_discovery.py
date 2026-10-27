@@ -18,11 +18,12 @@ class DiscoveryError(RuntimeError):
     pass
 
 
-def verify_observation(rows, expected_path, description, present, diagnostics=()):
+def verify_observation(rows, expected_path, description, present, diagnostics=(), alternative_paths=()):
     """A global skill with the same name must never substitute for our fixture."""
     if not isinstance(rows, list):
         raise DiscoveryError('client returned an invalid skills collection')
     expected_path = expected_path.resolve()
+    expected_paths = {expected_path, *(Path(value).resolve() for value in alternative_paths)}
     matches = []
     for row in rows:
         if not isinstance(row, dict) or not isinstance(row.get('path'), str) or not row['path']:
@@ -32,7 +33,7 @@ def verify_observation(rows, expected_path, description, present, diagnostics=()
             # Some clients also list virtual/plugin resource URIs. They cannot
             # prove discovery of the filesystem fixture and must not be resolved against cwd.
             continue
-        if path.resolve() == expected_path:
+        if path.resolve() in expected_paths:
             matches.append(row)
     if len(matches) != int(present):
         raise DiscoveryError('project skill presence/count does not match the fixture')
@@ -50,8 +51,9 @@ def verify_observation(rows, expected_path, description, present, diagnostics=()
         if not path.is_absolute():
             continue
         path = path.resolve()
-        if path == expected_path or expected_path.parent in path.parents:
+        if any(path == expected or expected.parent in path.parents for expected in expected_paths):
             raise DiscoveryError('client reported a diagnostic for the project skill')
+    return Path(matches[0]['path']).resolve() if present else None
 
 
 def run(args, cwd, timeout, env=None):
@@ -122,10 +124,10 @@ def codex_discovery(exe, fixtures, timeout):
             if len(entries) != 1 or Path(entries[0]['cwd']).resolve() != fixture['cwd']:
                 raise DiscoveryError('Codex returned a different workspace')
             entry = entries[0]
-            verify_observation(entry['skills'], fixture['path'], fixture['description'],
-                               fixture['present'], entry['errors'])
+            observed_path = verify_observation(entry['skills'], fixture['path'], fixture['description'],
+                               fixture['present'], entry['errors'], fixture.get('alternative_paths', ()))
             if fixture['present']:
-                match = next(s for s in entry['skills'] if Path(s['path']).resolve() == fixture['path'])
+                match = next(s for s in entry['skills'] if Path(s['path']).resolve() == observed_path)
                 if match.get('scope') != 'repo':
                     raise DiscoveryError('Codex did not discover the skill in repository scope')
         return {'client': 'codex', 'version': version, 'checks': ['project', 'absent'],
@@ -157,7 +159,8 @@ def opencode_discovery(exe, fixtures, base, timeout):
             raise DiscoveryError('OpenCode returned an invalid skills collection')
         # Listing confirms discovery; OpenCode does not expose an enabled field here.
         rows = [dict(s, path=s['location'], enabled=True) for s in raw]
-        verify_observation(rows, fixture['path'], fixture['description'], fixture['present'])
+        verify_observation(rows, fixture['path'], fixture['description'], fixture['present'],
+                           alternative_paths=fixture.get('alternative_paths', ()))
     return {'client': 'opencode', 'version': version, 'checks': ['project', 'absent'],
             'method': 'debug skill --pure (discovery only; permissions not tested)'}
 

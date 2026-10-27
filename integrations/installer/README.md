@@ -1,6 +1,6 @@
 # 本地 Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.4`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.5`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 DLLInjector CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
@@ -32,7 +32,7 @@ node integrations/installer/src/index.mjs setup --agent codex --scope project --
 
 用户级改用 `--scope user`，同时省略 `--project`。项目目录必须已存在；省略 `--project` 时使用当前目录。
 客户端可以交叉读取兼容目录，**Codex/OpenCode 共用一份安装，卸载会影响读取它的所有客户端**。
-不应为同一个项目反复安装多份同名 Skill。Claude 自定义 `CLAUDE_CONFIG_DIR` 的用户级安装暂不支持。
+同一目录不应反复安装多份同名 Skill。Claude 自定义 `CLAUDE_CONFIG_DIR` 的用户级安装暂不支持。
 Pi 请使用 [原生 Pi 包](../pi/README.md) 的 `pi install` / `pi remove`。
 
 在目标项目中启动或重新加载客户端，按客户端自己的信任和权限规则使用 Skill。
@@ -71,8 +71,29 @@ MCP 也支持 auto；安装器把选中的原生路径用于版本校验，其�
 node integrations/installer/src/index.mjs setup --integration mcp --agent auto --select claude --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --server 'D:\src\DLLInjector\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' --dry-run
 ```
 
-需要 MCP 依赖时按“项目级 MCP 配置”说明准备。auto 一次只选择一个客户端，暂不提供批量 `all`；
+需要 MCP 依赖时按“项目级 MCP 配置”说明准备。auto 一次只选择一个客户端；
 Pi 仍通过自己的原生包安装。探测范围与实际验证见 [客户端选择交付记录](../../docs/AGENT_SELECTION_DELIVERY.md)。
+
+## 批量安装 Skill
+
+`setup --agent all` 明确选择 Codex、Claude Code 和 OpenCode 的 Skill 目录，不要求这些客户端
+已被探测到。支持项目和用户两种范围；Codex/OpenCode 共用的目录只安装一次，结果列出两个
+实际目标及其覆盖的客户端。Pi 与 MCP 配置继续使用各自入口。
+
+```powershell
+node integrations/installer/src/index.mjs setup --agent all --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --dry-run
+node integrations/installer/src/index.mjs setup --agent all --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --verify
+# 校验和卸载仍明确指定客户端；Codex/OpenCode 共用目录只选其中一个。
+node integrations/installer/src/index.mjs verify --agent codex --scope project --project 'D:\work\my-app'
+node integrations/installer/src/index.mjs verify --agent claude --scope project --project 'D:\work\my-app'
+```
+
+先预检全部目标，再依次安装。后续目标失败会撤回本次新增安装，原有相同安装保持不变；
+相同 Skill 和 CLI 绑定可以复用早期安装器的有效收据，不因安装器版本号变化而重写文件。
+用户并发修改或锁/权限异常导致回滚无法完成时，会返回 `ROLLBACK_INCOMPLETE` 和目标路径，
+请保留现场检查。批量操作不保证跨目录原子可见性或强制结束后的自动恢复。
+卸载使用上述两个显式 agent，将 `verify` 换为 `uninstall`；不支持 `uninstall --agent all`。
+契约及实测边界见 [批量安装契约](../../docs/BATCH_SKILL_CONTRACT.md) 和 [交付记录](../../docs/BATCH_SKILL_DELIVERY.md)。
 
 ## 校验、更新与卸载
 
@@ -156,7 +177,9 @@ MCP 暂只支持 `--scope project`；详细边界见 [契约](../../docs/MCP_INS
 
 两个宿主脚本增加 `--auto` 可验证“候选探测 → 显式选择 → 安装 → 客户端检查”的完整路径。
 测试所提供的客户端 EXE 必须也能被 `list-agents` 检出。
+`tests/installer_hosts.py --all` 验证批量安装后的单份发现、重复安装和两个目录卸载后不可见，
+与 `--auto` 互斥；不调用模型 API。
 
-CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、批量 `all`、
+CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、MCP 批量配置、
 用户级 MCP、公开 npm 分发和升级恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
 不能作为现有 CLI 的自动下载来源；先继续使用可信 CI 归档或源码构建。

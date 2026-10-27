@@ -51,6 +51,25 @@ class DiscoveryChecks(unittest.TestCase):
         with self.assertRaises(DiscoveryError):
             self.check([self.good, self.good])
 
+    def test_batch_discovery_requires_exactly_one_of_the_installed_paths(self):
+        other_path = self.path.parents[3] / '.claude/skills/windows-dll-doctor/SKILL.md'
+        other = dict(self.good, path=str(other_path))
+        for row in [self.good, other]:
+            self.assertEqual(verify_observation([row], self.path, self.description, True,
+                alternative_paths=[other_path]), Path(row['path']))
+        for rows in [[], [self.good, other], [dict(self.good, path=str(self.path.parent / 'global.md'))]]:
+            with self.assertRaises(DiscoveryError):
+                verify_observation(rows, self.path, self.description, True, alternative_paths=[other_path])
+
+    def test_batch_absence_and_diagnostics_cover_both_installed_paths(self):
+        other_path = self.path.parents[3] / '.claude/skills/windows-dll-doctor/SKILL.md'
+        with self.assertRaises(DiscoveryError):
+            verify_observation([dict(self.good, path=str(other_path))], self.path, self.description, False,
+                alternative_paths=[other_path])
+        with self.assertRaises(DiscoveryError):
+            verify_observation([self.good], self.path, self.description, True,
+                diagnostics=[{'path': str(other_path)}], alternative_paths=[other_path])
+
     def test_target_diagnostic_is_not_silently_ignored(self):
         with self.assertRaises(DiscoveryError):
             self.check([self.good], diagnostics=[{'path': str(self.path), 'message': 'invalid'}])

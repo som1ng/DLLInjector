@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from './distribution.mjs';
 
-export const VERSION = '0.1.0-dev.4';
+export const VERSION = '0.1.0-dev.5';
 export const NAME = 'windows-dll-doctor';
 export const FILES = ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml'];
 const BINDING = 'references/installation.json';
@@ -219,7 +219,9 @@ export async function install(command, options, context = {}) {
       tree = await expected(cli);
       if (await stat(target)) {
         const current = await snapshot(target);
-        if (!OWNED.every(file => current.tree[file].equals(tree[file]))) {
+        // Receipt format/ownership and hashes were checked by snapshot. An
+        // installer version change alone does not change the installed content.
+        if (![...FILES, BINDING].every(file => current.tree[file].equals(tree[file]))) {
           fail('CONFLICT', 'A different managed version or CLI binding exists; uninstall explicitly before setup.');
         }
         if (options.verify) await verify(target, probe);
