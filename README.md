@@ -2,9 +2,9 @@
   <img src="assets/logo.png" alt="Rondo Logo" width="180" />
 </p>
 
-# Rondo (DLLInjector 2.0)
+# Rondo (二次开发中)
 
-> **Rondo** 是一个基于现代 C++ 的 Windows 系统编程、DLL 加载诊断与逆向工程分析平台，提供全功能 CLI、现代 GUI (WebView2 + cc-switch 设计系统)、Agent Skills 与 MCP 协议支持。
+> **Rondo** 是一个基于现代 C++ 的 Windows 系统编程、DLL 加载诊断与逆向工程分析平台，提供全功能 CLI、现代 GUI (WebView2 原生内嵌界面)、Agent Skills 与 MCP 协议支持。
 
 Windows C++ DLL 实验项目，正在向 **DLL / PE 诊断、只读进程分析与 Agent 本地工具**演进。
 
@@ -47,7 +47,7 @@ ctest --preset msvc-x64-debug
 
 GUI 位于 `build/msvc-x64/Debug/Rondo.exe`（亦生成 `DLLInjector.exe` 兼容旧调用）；CLI 位于
 `build/msvc-x64/Debug/cli/rondo.exe`（兼容 `dllinjector.exe`）。Release 构建将路径中的 `Debug` 换为 `Release`。
-界面使用 WebView2 与 CC Switch 风格；[界面复查记录](docs/UI_BUGS.md) 区分已验证项目和剩余限制。
+界面基于现代原生 WebView2 架构；[界面复查记录](docs/UI_BUGS.md) 区分已验证项目和剩余限制。
 只构建、不运行测试时，可在配置命令后加 `-DBUILD_TESTING=OFF`，无需 Python。
 离线构建可预先解压经校验的 jsoncons 1.10.0 归档，并在配置时增加
 `-DFETCHCONTENT_SOURCE_DIR_JSONCONS=C:/deps/jsoncons-1.10.0`；本地覆盖目录由调用方负责核对版本与完整性。

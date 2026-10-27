@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 
 const { chromium } = createRequire(import.meta.url)(process.env.DLL_GUI_PLAYWRIGHT || 'playwright');
-const source = fs.readFileSync(new URL('../../apps/gui/cc_switch_ui.h', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../../apps/gui/ui_view.h', import.meta.url), 'utf8');
 const chunks = Object.fromEntries([...source.matchAll(/static constexpr std::string_view (\w+) = R"(\w+)\(([\s\S]*?)\)\2";/g)].map(m => [m[1], m[3]]));
 chunks.kLogoBase64 = source.match(/kLogoBase64 = "([^"]+)";/)[1];
 const html = [...source.matchAll(/html.append\((\w+)\)/g)].map(m => {
@@ -193,3 +193,16 @@ test('inline process refresh and F5 shortcut dispatch refresh_processes command'
   assert.equal(await page.evaluate(() => commands.at(-1)?.cmd), 'refresh_processes');
 });
 
+test('collapsed sidebar settles at 56px and method cards align text and active dot', async () => {
+  await page.locator('#sidebarToggleBtn').click();
+  await page.waitForTimeout(300);
+  const sidebarWidth = await page.locator('.sidebar').evaluate(el => el.getBoundingClientRect().width);
+  assert.equal(Math.round(sidebarWidth), 56);
+
+  // Check method cards logo and active indicator
+  const firstCard = page.locator('#methodCardsContainer .pcard').first();
+  const logo = firstCard.locator('.logo');
+  assert.equal(await logo.textContent(), 'CRT');
+  const activeDot = firstCard.locator('.active-dot');
+  assert.equal(await activeDot.count(), 1);
+});
