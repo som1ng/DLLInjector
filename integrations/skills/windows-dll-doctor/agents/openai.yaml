@@ -1,4 +1,4 @@
 interface:
-  display_name: "Windows DLL Doctor"
+  display_name: "Rondo DLL Doctor"
   short_description: "Diagnose Windows DLL failures using local evidence"
   default_prompt: "Use $windows-dll-doctor to investigate this DLL load failure and explain the evidence and remaining uncertainty."

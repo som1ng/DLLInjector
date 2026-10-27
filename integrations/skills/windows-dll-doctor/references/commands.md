@@ -6,8 +6,8 @@ PowerShell 用变量传递参数，避免拼接命令字符串或 `Invoke-Expres
 不要覆盖 PowerShell 的只读 `$PID`；这里使用 `$targetProcessId`。
 
 ```powershell
-# 按实际可信位置设置；也可从 $env:DLLINJECTOR_CLI 读取后核实。
-$doctorCli = 'C:\tools\dll-doctor\cli\dllinjector.exe'
+# 按实际可信位置设置；也可从 $env:RONDO_CLI 读取后核实。
+$doctorCli = 'C:\tools\Rondo\cli\rondo.exe'
 $dllPath = 'C:\lab\plugin.dll'
 $targetArchitecture = 'x64' # 仅在目标进程架构已确认时设置
 $searchDirectory = 'C:\lab\deps' # 仅检查这一显式目录

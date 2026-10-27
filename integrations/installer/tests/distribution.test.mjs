@@ -41,6 +41,18 @@ async function fixture(t, arch = 'x64') {
 }
 
 for (const arch of ['x86', 'x64']) {
+  test('Rondo ' + arch + ' manifest uses only rondo.exe while legacy manifests remain valid', async t => {
+    const f = await fixture(t, arch);
+    const cli = path.join(path.dirname(f.cli), 'rondo.exe');
+    await fs.rename(f.cli, cli);
+    const manifest = { ...f.manifest, product: 'rondo-cli', files: { 'rondo.exe': f.manifest.files['dllinjector.exe'] } };
+    await fs.writeFile(f.manifestPath, JSON.stringify(manifest));
+    assert.equal((await verifyDistribution(cli, f.manifestPath)).architecture, arch);
+    assert.equal((await install('setup', { ...f.options, cli, dryRun: true }, f.context)).distribution_checksum, 'verified');
+    manifest.product = 'dll-doctor-cli';
+    await fs.writeFile(f.manifestPath, JSON.stringify(manifest));
+    await assert.rejects(verifyDistribution(cli, f.manifestPath), { code: 'DISTRIBUTION_INVALID' });
+  });
   test('verified ' + arch + ' distribution previews without execution and binds its identity', async t => {
     const f = await fixture(t, arch);
     const preview = await install('setup', { ...f.options, dryRun: true }, f.context);

@@ -1,11 +1,11 @@
-# DLL Doctor MCP（本地 stdio）
+# Rondo MCP（本地 stdio）
 
 让支持 MCP 的 Agent 调用 Windows DLL Doctor 的只读诊断能力：PE 元数据、依赖候选、
 进程与模块查询、DLL 预检、已保存报告读取。服务不执行注入或提权。
 
 ## 构建与启动
 
-需要 Windows、Node.js 22+、已构建的 **DLLInjector CLI 2.0.0-dev.9**。
+需要 Windows、Node.js 22+、已构建的 **Rondo CLI 2.0.0-dev.9**。
 从仓库根目录执行：
 
 ```powershell
@@ -18,7 +18,10 @@ npm run build
 
 构建/安装时下载依赖，安装后的服务运行无需网络，也不调用模型 API。
 `dist/`、`node_modules/`、报告、日志和 npm 打包产物不提交到 Git。
-包名暂定 `@som1ng/dll-doctor-mcp`，当前 `private: true`、未发布；不要使用不存在的 npm 安装命令。
+包名暂定 `@som1ng/rondo-mcp`，当前 `private: true`、未发布；不要使用不存在的 npm 安装命令。
+
+也可安装 [完整 Rondo npm 归档](../npm/README.md)，使用 `rondo mcp --allow-root <目录>`；
+包内自带 CLI、已构建服务和依赖，无需传 `--cli`。公开包名 `@som1ng/rondo` 仍待发布。
 
 Codex、Claude Code 和 OpenCode 的项目配置可以使用 [本地安装器](../installer/README.md#项目级-mcp-配置)
 生成、校验和卸载；需要显式选择已验证的客户端版本、可信 CLI、构建入口和授权目录。
@@ -32,8 +35,8 @@ Codex、Claude Code 和 OpenCode 的项目配置可以使用 [本地安装器](.
     "dll-doctor": {
       "command": "C:\\Program Files\\nodejs\\node.exe",
       "args": [
-        "D:\\src\\DLLInjector\\integrations\\mcp\\dist\\index.js",
-        "--cli", "D:\\src\\DLLInjector\\build\\msvc-x64\\Release\\cli\\dllinjector.exe",
+        "D:\\src\\Rondo\\integrations\\mcp\\dist\\index.js",
+        "--cli", "D:\\src\\Rondo\\build\\msvc-x64\\Release\\cli\\rondo.exe",
         "--allow-root", "D:\\samples",
         "--allow-root", "D:\\reports"
       ]
@@ -89,7 +92,7 @@ npm run build
 npm test
 ```
 
-可通过 `DLL_DOCTOR_TEST_BUILD` 指向另一个包含 `cli/dllinjector.exe`、`module_host.exe`、
+可通过 `DLL_DOCTOR_TEST_BUILD` 指向另一个包含 `cli/rondo.exe`、`module_host.exe`、
 `noop_fixture.dll` 的构建目录。测试使用自有模块宿主，不修改其他进程。
 现有 Agent Skill 可独立使用；MCP 协议测试与 Agent 自主选择工具的效果测试是不同的验证。
 实测范围及未完成项见 [交付记录](../../docs/MCP_DELIVERY.md)。

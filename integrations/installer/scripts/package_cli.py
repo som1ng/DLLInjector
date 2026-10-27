@@ -48,37 +48,37 @@ def metadata(cli, expected_architecture, revision=None):
             or version.get('tool_version') not in VERSIONS
             or version.get('data', {}).get('text') != version.get('tool_version')
             or version.get('execution', {}).get('operation_completed') is not True):
-        raise ValueError('expected tested DLLInjector CLI dev.8/dev.9 with Schema 1.6')
+        raise ValueError('expected tested Rondo CLI dev.8/dev.9 with Schema 1.6')
     if cli.read_bytes() != data:
         raise ValueError('CLI changed during its version query')
-    manifest = {'format': 1, 'product': 'dll-doctor-cli', 'platform': 'windows',
+    manifest = {'format': 1, 'product': 'rondo-cli', 'platform': 'windows',
         'architecture': arch, 'tool_version': version['tool_version'], 'schema_version': '1.6',
         'source_revision': revision, 'runtime': 'msvc-v14',
-        'files': {'dllinjector.exe': {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}}}
+        'files': {'rondo.exe': {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}}}
     return data, manifest
 
 
 def bundle_readme(manifest):
-    return ('DLL Doctor CLI ' + manifest['tool_version'] + ' / Windows ' + manifest['architecture'] + '\n\n'
+    return ('Rondo CLI ' + manifest['tool_version'] + ' / Windows ' + manifest['architecture'] + '\n\n'
         'CI download artifact; not a signed release. Project licensing remains unresolved.\n'
         'Get the archive and its .zip.sha256 file from a trusted build/run. Before extracting,\n'
         'compare Get-FileHash -Algorithm SHA256 <archive.zip> with the checksum file.\n'
         'After extraction, the source Skill installer can check the executable before launch:\n'
         'node integrations/installer/src/index.mjs setup --agent codex --scope project '
-        '--project <project> --cli <absolute-dllinjector.exe> --manifest <absolute-manifest.json> --verify\n'
+        '--project <project> --cli <absolute-rondo.exe> --manifest <absolute-manifest.json> --verify\n'
         'Keep the extracted CLI in a stable local directory. The installer is not in this archive.\n'
         'Checksums detect differences from the supplied manifest; they are not signatures.\n\n'
         'Requires Windows and the matching Microsoft Visual C++ v14 Redistributable,\n'
         'at least as recent as the MSVC tools used by the build. Runtime is not bundled.\n'
         'https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist\n\n'
-        'Read-only examples: dllinjector.exe --version --json; dllinjector.exe doctor <dll> --json\n'
+        'Read-only examples: rondo.exe --version --json; rondo.exe doctor <dll> --json\n'
         'See --help --json for the actual executable capabilities. No DLL is loaded by doctor.\n'
         'Third-party notices are included separately.\n').encode('utf-8')
 
 
 def create_bundle(cli, output, expected_architecture, revision=None):
     data, manifest = metadata(cli, expected_architecture, revision)
-    files = {'dllinjector.exe': data,
+    files = {'rondo.exe': data,
         'manifest.json': (json.dumps(manifest, indent=2) + '\n').encode('utf-8'),
         'README.txt': bundle_readme(manifest),
         'THIRD_PARTY_NOTICES.md': (ROOT / 'docs/THIRD_PARTY_NOTICES.md').read_bytes()}
@@ -92,7 +92,7 @@ def create_bundle(cli, output, expected_architecture, revision=None):
     packed = stream.getvalue()
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    basename = 'dll-doctor-cli-' + manifest['tool_version'] + '-windows-' + manifest['architecture'] + '.zip'
+    basename = 'rondo-cli-' + manifest['tool_version'] + '-windows-' + manifest['architecture'] + '.zip'
     archive_path = output / basename
     checksum_path = output / (basename + '.sha256')
     if archive_path.exists() or checksum_path.exists():

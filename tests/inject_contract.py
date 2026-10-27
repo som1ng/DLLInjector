@@ -23,7 +23,7 @@ def run_cmd(*args):
 # 1. Help text includes inject
 code, out, err = run_cmd("--help")
 assert code == 0
-assert "dllinjector inject" in out
+assert "rondo inject" in out
 assert "--method" in out
 
 # 2. Parameter validation (Exit Code 2: Usage / InvalidArgument)

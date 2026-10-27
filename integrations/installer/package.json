@@ -1,6 +1,6 @@
 {
-  "name": "@som1ng/dll-doctor-installer",
-  "version": "0.1.0-dev.6",
+  "name": "@som1ng/rondo-installer",
+  "version": "0.1.0-dev.7",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",

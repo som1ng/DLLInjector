@@ -20,7 +20,7 @@ NATIVE_CLI = None
 NATIVE_ARCH = None
 VERSION_JSON = {'command': 'version', 'status': 'success', 'tool_version': '2.0.0-dev.9',
     'schema_version': '1.6', 'data': {'text': '2.0.0-dev.9'}, 'execution': {'operation_completed': True}}
-MEMBERS = {'dllinjector.exe', 'manifest.json', 'README.txt', 'THIRD_PARTY_NOTICES.md'}
+MEMBERS = {'rondo.exe', 'manifest.json', 'README.txt', 'THIRD_PARTY_NOTICES.md'}
 
 
 def pe(arch='x64'):
@@ -38,7 +38,7 @@ class DistributionTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix='dll-distribution-')
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name).resolve()
-        self.cli = self.base / 'dllinjector.exe'
+        self.cli = self.base / 'rondo.exe'
         self.cli.write_bytes(pe())
         self.version = subprocess.CompletedProcess([], 0, json.dumps(VERSION_JSON).encode(), b'')
 
@@ -83,11 +83,11 @@ class DistributionTests(unittest.TestCase):
                     self.assertEqual(set(bundle.namelist()), MEMBERS)
                     self.assertEqual(len(bundle.infolist()), 4)
                     self.assertTrue(all(not entry.is_dir() for entry in bundle.infolist()))
-                    self.assertEqual(bundle.read('dllinjector.exe'), pe())
+                    self.assertEqual(bundle.read('rondo.exe'), pe())
                     manifest = json.loads(bundle.read('manifest.json'))
                     self.assertEqual(manifest['source_revision'], revision)
                     self.assertEqual(manifest['architecture'], 'x64')
-                    self.assertEqual(manifest['files']['dllinjector.exe'], {'size': 256, 'sha256': hashlib.sha256(pe()).hexdigest()})
+                    self.assertEqual(manifest['files']['rondo.exe'], {'size': 256, 'sha256': hashlib.sha256(pe()).hexdigest()})
                     self.assertEqual(bundle.read('THIRD_PARTY_NOTICES.md'), (ROOT / 'docs/THIRD_PARTY_NOTICES.md').read_bytes())
 
     def test_existing_outputs_are_preserved(self):
@@ -137,7 +137,7 @@ class DistributionTests(unittest.TestCase):
                 (extracted / name).write_bytes(bundle.read(name))
         project = self.base / '独立 project 🚀'
         project.mkdir()
-        cli = extracted / 'dllinjector.exe'
+        cli = extracted / 'rondo.exe'
 
         def installer(command, code=0, dry_run=False):
             argv = [node, str(ROOT / 'integrations/installer/src/index.mjs'), command,

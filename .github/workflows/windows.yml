@@ -79,6 +79,17 @@ jobs:
           $env:DLL_INSTALLER_TEST_CLI = (Resolve-Path ../../build/msvc-x64/Release/cli/dllinjector.exe).Path
           $env:DLL_INSTALLER_TEST_MCP = (Resolve-Path ../mcp/dist/index.js).Path
           npm test
+      - name: Test Rondo command routing
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        working-directory: integrations/npm
+        run: npm test
+      - name: Upload MCP runtime for npm package
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rondo-mcp-runtime
+          if-no-files-found: error
+          path: integrations/mcp/dist/
       - name: Test CLI distribution packaging
         if: matrix.configuration == 'release'
         run: |
@@ -88,12 +99,12 @@ jobs:
         if: matrix.configuration == 'release'
         run: |
           $bundleArch = '${{ matrix.architecture }}'.Replace('msvc-', '')
-          python integrations/installer/scripts/package_cli.py --cli build/${{ matrix.architecture }}/Release/cli/dllinjector.exe --architecture $bundleArch --revision '${{ github.sha }}' --output build/distribution/${{ matrix.architecture }}
+          python integrations/installer/scripts/package_cli.py --cli build/${{ matrix.architecture }}/Release/cli/rondo.exe --architecture $bundleArch --revision '${{ github.sha }}' --output build/distribution/${{ matrix.architecture }}
       - name: Upload CLI distribution
         if: success() && matrix.configuration == 'release'
         uses: actions/upload-artifact@v4
         with:
-          name: cli-distribution-${{ matrix.architecture }}
+          name: rondo-cli-${{ matrix.architecture }}
           if-no-files-found: error
           path: |
             build/distribution/${{ matrix.architecture }}/*.zip
@@ -149,6 +160,51 @@ jobs:
           name: test-log-${{ matrix.architecture }}-${{ matrix.configuration }}
           if-no-files-found: ignore
           path: build/${{ matrix.architecture }}/Testing/Temporary/LastTest.log
+
+  npm-package:
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.3'
+          cache: npm
+          cache-dependency-path: integrations/npm/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: module-fixtures-msvc-x64
+          path: build/npm-input/x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: module-fixtures-msvc-x86
+          path: build/npm-input/x86
+      - uses: actions/download-artifact@v4
+        with:
+          name: rondo-mcp-runtime
+          path: integrations/mcp/dist
+      - name: Assemble Rondo package
+        run: |
+          python tests/npm_assembly_tests.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python integrations/npm/scripts/package_npm.py --x64 build/npm-input/x64/cli/dllinjector.exe --x86 build/npm-input/x86/cli/dllinjector.exe --output build/npm/stage --revision '${{ github.sha }}'
+      - name: Bundle runtime dependencies and pack
+        run: |
+          npm ci --prefix build/npm/stage --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm pack ./build/npm/stage --pack-destination build/npm --ignore-scripts
+      - name: Verify offline global install and uninstall
+        run: python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.1.tgz
+      - name: Upload Rondo npm archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: rondo-npm
+          if-no-files-found: error
+          path: build/npm/*.tgz
 
   cross-bitness:
     needs: build

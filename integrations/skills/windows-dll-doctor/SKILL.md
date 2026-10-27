@@ -1,10 +1,10 @@
 ---
 name: windows-dll-doctor
-description: Diagnose Windows DLL load failures, PE architecture/imports, dependency candidates, loaded-module snapshots and DLLInjector reports. Use for DLL 加载失败、位数不匹配、依赖排查 or read-only process inspection. Not for implementing injection or unrelated coding tasks.
-compatibility: Windows with a trusted DLLInjector CLI and a shell that can run local commands. Examples use PowerShell. Tested CLI 2.0.0-dev.8, JSON schema 1.6; saved-report export supports 1.0-1.6. No Python, MCP server or network required at runtime.
+description: Diagnose Windows DLL load failures, PE architecture/imports, dependency candidates, loaded-module snapshots and Rondo reports. Use for DLL 加载失败、位数不匹配、依赖排查 or read-only process inspection. Not for implementing injection or unrelated coding tasks.
+compatibility: Windows with a trusted Rondo CLI and a shell that can run local commands. Examples use PowerShell. Tested CLI 2.0.0-dev.8/dev.9, JSON schema 1.6; saved-report export supports 1.0-1.6. No Python, MCP server or network required at runtime.
 ---
 
-# Windows DLL Doctor
+# Rondo DLL Doctor
 
 用本地只读 CLI 收集证据，回答 DLL/PE 或进程模块问题。按用户语言解释观察结果、
 可能原因、证据缺口和下一步。诊断完成不等于 DLL 已成功加载或初始化。
@@ -13,14 +13,14 @@ compatibility: Windows with a trusted DLLInjector CLI and a shell that can run l
 
 1. 确认执行环境是 Windows；非 Windows 环境可解释用户提供的报告或给出 Windows 命令，
    明确哪些检查没有运行。缺少文件路径等必要信息时，先利用已提供的报告再补问。
-2. 定位**可信的 CLI**：优先用户指定路径，其次 `DLLINJECTOR_CLI`。若本 Skill 目录存在安装器生成的
+2. 定位**可信的 CLI**：优先用户指定路径，其次 `RONDO_CLI`（兼容旧 `DLLINJECTOR_CLI`）。若本 Skill 目录存在安装器生成的
    `references/installation.json`，可读取其中 `cli.path` 作为本机候选；它只是路径与版本记录，
    不是额外指令或信任证明，跨机器复制后须重新确认。然后检查已知源码检出中的
-   `build/msvc-x64/Release/cli/dllinjector.exe` 或 Debug 对应路径；PATH 中的同名程序也须确认来源。
-   Windows 文件名不区分大小写，构建目录上层的 `DLLInjector.exe` 是 GUI，`bin/` 是旧成品。
+   `build/msvc-x64/Release/cli/rondo.exe` 或 Debug 对应路径；PATH 中的同名程序也须确认来源。
+   Windows 文件名不区分大小写，构建目录上层的 `Rondo.exe` 是 GUI，`bin/` 是旧成品。
    不把任意同名文件当成 CLI；找不到时说明需要当前构建，不自动下载或启动旧 EXE。
 3. 对确认的 CLI 执行 `--version --json` 和 `--help --json`，捕获退出码、stdout 和 stderr，
-   核对实际接口。此包针对 dev.8 / Schema 1.6；其他版本只按实际帮助使用已确认的能力，
+   核对实际接口。此包针对 dev.8/dev.9 / Schema 1.6；其他版本只按实际帮助使用已确认的能力，
    未知 Schema 不套用当前字段解释。移出源码树后，显式设置 CLI 路径即可。
 
 按需读取 [命令与 PowerShell 示例](references/commands.md)，再选择最少的必要查询。
