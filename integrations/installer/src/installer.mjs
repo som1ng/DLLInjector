@@ -239,12 +239,15 @@ export async function install(command, options, context = {}) {
       await fs.rename(stage, target);
       stage = undefined;
       committed = true;
-      await checkpoint('committed');
+      await checkpoint('committed', { target, receipt: Buffer.from(tree[RECEIPT]) });
       await snapshot(target);
       if (options.verify) await verify(target, probe);
       return { ...result, action: 'installed' };
     }
     const current = await snapshot(target);
+    if (context.expectedReceipt && !current.tree[RECEIPT].equals(context.expectedReceipt)) {
+      fail('CONCURRENT_EDIT', 'Installation changed since this batch created it; preserving the replacement.');
+    }
     removed = current.tree;
     await removeTree(target, removed, checkpoint);
     return { ...result, action: 'removed' };

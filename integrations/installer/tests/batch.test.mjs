@@ -197,6 +197,23 @@ test('batch entry rejects unsupported operations and MCP options without writing
   assert.deepEqual(await fs.readdir(f.root), []);
 });
 
+test('rollback preserves a valid replacement installed by another operation', async t => {
+  const f = await fixture(t);
+  const otherCli = path.join(path.dirname(f.cli), 'replacement.exe');
+  await fs.writeFile(otherCli, 'replacement fixture');
+  let stages = 0;
+  await assert.rejects(setupAll(f.options, { ...f.context, checkpoint: async stage => {
+    if (stage === 'staged' && ++stages === 2) {
+      await install('uninstall', { ...f.options, agent: 'codex' }, f.context);
+      await install('setup', { ...f.options, agent: 'codex', cli: otherCli }, f.context);
+      throw new Error('fixture failure after another installation');
+    }
+  } }), { code: 'ROLLBACK_INCOMPLETE' });
+  const binding = JSON.parse(await fs.readFile(path.join(f.target('codex'), 'references/installation.json')));
+  assert.equal(binding.cli.path, await fs.realpath(otherCli));
+  assert.equal((await install('verify', { ...f.options, agent: 'codex' }, f.context)).action, 'verified');
+});
+
 test('failure while releasing a completed target lock cannot be reported as complete rollback', async t => {
   const f = await fixture(t);
   await assert.rejects(setupAll(f.options, { ...f.context, checkpoint: async stage => {

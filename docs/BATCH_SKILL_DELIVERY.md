@@ -11,8 +11,9 @@ Codex/OpenCode 共用的目录只写一份；输出两个实际目标及其覆�
 全量预检后依次安装，支持预览、重复安装和安装后校验；失败时撤回本次新增目标，
 保留已有安装和并发用户修改，无法恢复时准确报告 `ROLLBACK_INCOMPLETE`。
 
-修复了两个与批量行为有关的问题：旧收据的安装器版本号不会再让内容相同的安装误报冲突；
-提交后的锁清理失败留下目标目录时，不会将回滚误报为完成。两项均先复现失败再修复。
+修复了三个与批量行为有关的问题：旧收据的安装器版本号不会再让内容相同的安装误报冲突；
+提交后的锁清理失败留下目标目录时，不会将回滚误报为完成；其他安装操作替换了目标内容后，
+回滚会通过锁内收据比对保留替换后的有效安装。三项均先复现失败再修复。
 运行方式见 [安装器说明](../integrations/installer/README.md#批量安装-skill)，
 完整边界见 [契约](BATCH_SKILL_CONTRACT.md)。
 
@@ -20,7 +21,7 @@ Codex/OpenCode 共用的目录只写一份；输出两个实际目标及其覆�
 
 | 命令/路径 | 结果 |
 | --- | --- |
-| `npm.cmd test --prefix integrations/installer`，提供真实 CLI 与 MCP 环境变量 | 59 项通过，0 跳过；新增 14 项批量相关测试 |
+| `npm.cmd test --prefix integrations/installer`，提供真实 CLI 与 MCP 环境变量 | 60 项通过，0 跳过；新增 15 项批量相关测试 |
 | `python -X utf8 tests/agent_discovery_tests.py` | 14 项通过，包括两份安装路径的重复发现拒绝与卸载负例 |
 | `python -X utf8 tests/installer_hosts.py --all --cli <cli.exe> --codex <codex.exe> --opencode <opencode.exe>` | Codex 0.164.0 / OpenCode 1.19.4 的项目发现、无重复、重复安装及两个目录卸载后不可见均通过 |
 | `cmake --build --preset msvc-x64-release --parallel 4` | 基于最新目录结构构建通过 |

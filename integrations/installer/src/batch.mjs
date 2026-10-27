@@ -13,6 +13,7 @@ export async function setupAll(options, context = {}) {
     agents: ['codex', 'claude', 'opencode'], client_discovery: 'not_run' };
   const completed = [];
   const previews = [];
+  const receipts = new Map();
   let active, activeTarget, writing = false;
   try {
     // Inspect every destination before the first write. Dry-run also validates
@@ -28,7 +29,11 @@ export async function setupAll(options, context = {}) {
     writing = true;
     for (active of groups) {
       activeTarget = previews.find(item => item.agent === active.agent).target;
-      const installed = await install('setup', { ...options, agent: active.agent }, context);
+      const installed = await install('setup', { ...options, agent: active.agent }, { ...context,
+        checkpoint: async (stage, data) => {
+          if (stage === 'committed') receipts.set(data.target, Buffer.from(data.receipt));
+          await context.checkpoint?.(stage, data);
+        } });
       completed.push({ ...installed, agents: active.agents });
     }
     return { ...result, action: completed.some(item => item.action === 'installed') ? 'installed' : 'unchanged', targets: completed };
@@ -39,7 +44,9 @@ export async function setupAll(options, context = {}) {
     for (const item of [...completed].reverse()) {
       if (item.action !== 'installed') continue;
       try {
-        const removed = await install('uninstall', { agent: item.agent, scope: options.scope, project: options.project }, context);
+        if (!receipts.has(item.target)) throw new InstallError('ROLLBACK_INCOMPLETE', 'The batch cannot identify its installation.');
+        const removed = await install('uninstall', { agent: item.agent, scope: options.scope, project: options.project },
+          { ...context, expectedReceipt: receipts.get(item.target) });
         rollback.push({ agent: item.agent, target: item.target, action: removed.action });
       } catch (error) {
         rollback.push({ agent: item.agent, target: item.target, action: 'failed', code: error.code || 'INSTALL_FAILED' });
