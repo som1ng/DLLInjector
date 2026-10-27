@@ -22,6 +22,7 @@
 | `python -X utf8 tests/mcp_hosts_tests.py` | 14 项通过 |
 | `python -X utf8 tests/mcp_installer_hosts.py --all`，提供三个客户端与 CLI/MCP/DLL fixture 路径 | 三个真实客户端全部通过；每个发现 7 个工具并执行 4 项检查 |
 | `node --check integrations/installer/src/batch-mcp.mjs` | 通过 |
+| 同步最新 main 后，`node --test tests/gui/ui.test.mjs`，使用现有 Playwright | 17 项通过，0 跳过；安装器 74 项复测通过 |
 
 安装器用例覆盖三种配置格式、中文/空格/emoji 路径、预览无写入/执行、客户端路径缺失、
 重复安装、最后目标写入/验证失败、既有安装保留、原始字节恢复、后来无关字段保留、
@@ -39,7 +40,7 @@
 每个客户端检查 `inspect_pe`、`read_report`、目录越界拒绝及错误后恢复，随后检查重复 setup、
 verify 和逐个卸载三个批量目标。OpenCode 后来添加的 `$schema` 保持不变。
 外部模型 API 调用为 **0**，没有修改用户真实客户端配置、凭据或信任设置。
-本轮复用现有原生构建和 Node 依赖；未修改或重新编译 GUI/Core。
+本轮复用现有原生构建和 Node 依赖；安装器实现不改动 GUI/Core，未重新编译原生目标。
 CI 继续执行全部 Windows 构建、测试与安装器测试；结果以对应 PR 为准。
 
 ## 边界
