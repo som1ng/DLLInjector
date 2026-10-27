@@ -1,5 +1,5 @@
 {
-  "name": "@som1ng/dll-doctor-pi",
+  "name": "@som1ng/rondo-pi",
   "version": "0.1.0-dev.1",
   "description": "Read-only Windows DLL Doctor Skill packaged for Pi",
   "private": true,

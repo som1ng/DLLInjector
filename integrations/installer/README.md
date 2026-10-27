@@ -1,17 +1,21 @@
-# 本地 Skill / MCP 安装器
+# Rondo Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.6`，支持 Codex、Claude Code、OpenCode。
-准备 Node.js 22.19+ 和可信的 DLLInjector CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
+Windows 源码运行版本 `0.1.0-dev.7`，支持 Codex、Claude Code、OpenCode。
+准备 Node.js 22.19+ 和可信的 Rondo CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
+
+希望全局安装并省去运行文件路径时，使用 [Rondo npm 归档](../npm/README.md)：
+`npm install -g <Rondo.tgz>` 后直接运行 `rondo setup ...`，默认绑定包内 CLI/MCP。
+公开目标包名为 `@som1ng/rondo`，尚未发布。下文保留源码安装器入口和显式路径用法。
 
 ## 安装
 
 在仓库根目录运行，替换实际项目和 CLI 绝对路径：
 
 ```powershell
-node integrations/installer/src/index.mjs setup --agent codex --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --dry-run
-node integrations/installer/src/index.mjs setup --agent codex --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --verify
+node integrations/installer/src/index.mjs setup --agent codex --scope project --project 'D:\work\my-app' --cli 'D:\tools\rondo.exe' --dry-run
+node integrations/installer/src/index.mjs setup --agent codex --scope project --project 'D:\work\my-app' --cli 'D:\tools\rondo.exe' --verify
 ```
 
 `--dry-run` 预览目标与文件清单，不写文件、不启动 CLI。正式安装检查 CLI 版本，
@@ -46,9 +50,9 @@ Codex/OpenCode 的真实项目发现另有可复现测试；Claude 和用户级�
 ```powershell
 node integrations/installer/src/index.mjs list-agents
 # 终端中展示候选路径，输入编号确认一个目标；回车取消。
-node integrations/installer/src/index.mjs setup --agent auto --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --verify
+node integrations/installer/src/index.mjs setup --agent auto --scope project --project 'D:\work\my-app' --cli 'D:\tools\rondo.exe' --verify
 # 脚本或 CI 必须显式选择。多个同名候选时还需 --client <list-agents 中的绝对 EXE 路径>。
-node integrations/installer/src/index.mjs setup --agent auto --select claude --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --dry-run
+node integrations/installer/src/index.mjs setup --agent auto --select claude --scope project --project 'D:\work\my-app' --cli 'D:\tools\rondo.exe' --dry-run
 ```
 
 `list-agents` 只读 PATH、用户 `.local/bin` 与 `%APPDATA%/npm` 中的已知原生 EXE 位置，
@@ -68,7 +72,7 @@ verify/uninstall 仍须显式指定原客户端，避免客户端安装状态变
 MCP 也支持 auto；安装器把选中的原生路径用于版本校验，其他 MCP 参数仍需明确提供：
 
 ```powershell
-node integrations/installer/src/index.mjs setup --integration mcp --agent auto --select claude --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --server 'D:\src\DLLInjector\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' --dry-run
+node integrations/installer/src/index.mjs setup --integration mcp --agent auto --select claude --scope project --project 'D:\work\my-app' --cli 'D:\tools\rondo.exe' --server 'D:\src\Rondo\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' --dry-run
 ```
 
 需要 MCP 依赖时按“项目级 MCP 配置”说明准备。auto 一次只选择一个客户端；
@@ -81,8 +85,8 @@ Pi 仍通过自己的原生包安装。探测范围与实际验证见 [客户端
 实际目标及其覆盖的客户端。Pi 与 MCP 配置继续使用各自入口。
 
 ```powershell
-node integrations/installer/src/index.mjs setup --agent all --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --dry-run
-node integrations/installer/src/index.mjs setup --agent all --scope project --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' --verify
+node integrations/installer/src/index.mjs setup --agent all --scope project --project 'D:\work\my-app' --cli 'D:\tools\rondo.exe' --dry-run
+node integrations/installer/src/index.mjs setup --agent all --scope project --project 'D:\work\my-app' --cli 'D:\tools\rondo.exe' --verify
 # 校验和卸载仍明确指定客户端；Codex/OpenCode 共用目录只选其中一个。
 node integrations/installer/src/index.mjs verify --agent codex --scope project --project 'D:\work\my-app'
 node integrations/installer/src/index.mjs verify --agent claude --scope project --project 'D:\work\my-app'
@@ -128,7 +132,7 @@ node integrations/installer/src/index.mjs uninstall --agent codex --scope projec
 
 ```powershell
 npm.cmd ci --prefix integrations/installer --ignore-scripts --no-audit --no-fund
-node integrations/installer/src/index.mjs setup --integration mcp --agent codex --scope project --project 'D:\work\my-app' --client 'D:\tools\codex.exe' --cli 'D:\tools\dllinjector.exe' --server 'D:\src\DLLInjector\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' --dry-run
+node integrations/installer/src/index.mjs setup --integration mcp --agent codex --scope project --project 'D:\work\my-app' --client 'D:\tools\codex.exe' --cli 'D:\tools\rondo.exe' --server 'D:\src\Rondo\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' --dry-run
 # 确认预览后，将 --dry-run 换成 --verify 执行安装。
 node integrations/installer/src/index.mjs verify --integration mcp --agent codex --scope project --project 'D:\work\my-app'
 node integrations/installer/src/index.mjs uninstall --integration mcp --agent codex --scope project --project 'D:\work\my-app' --dry-run
@@ -170,7 +174,7 @@ MCP 暂只支持 `--scope project`；详细边界见 [契约](../../docs/MCP_INS
 
 ```powershell
 node integrations/installer/src/index.mjs setup --integration mcp --agent all --scope project `
-  --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' `
+  --project 'D:\work\my-app' --cli 'D:\tools\rondo.exe' `
   --server 'D:\src\Rondo\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' `
   --codex-client 'D:\tools\codex.exe' --claude-client 'D:\tools\claude.exe' `
   --opencode-client 'D:\tools\opencode.exe' --dry-run
@@ -206,6 +210,6 @@ node integrations/installer/src/index.mjs setup --integration mcp --agent all --
 `tests/mcp_installer_hosts.py --all` 需要同时提供三个客户端路径，检查批量配置后的真实宿主
 工具发现/调用、重复安装及显式卸载；使用本地固定模型响应，与 `--auto` 互斥。
 
-CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、用户级 MCP、
+CI 已提供 Rondo CLI ZIP 和完整 npm 归档、校验文件和安装前清单验证；源码安装器自动下载、用户级 MCP、
 公开 npm 分发和升级恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
 不能作为现有 CLI 的自动下载来源；先继续使用可信 CI 归档或源码构建。

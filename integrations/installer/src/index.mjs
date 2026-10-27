@@ -12,7 +12,7 @@ try {
     'codex-client': { type: 'string' }, 'claude-client': { type: 'string' }, 'opencode-client': { type: 'string' },
   } });
   if (values.help) {
-    console.log('DLL Doctor local installer ' + VERSION + '\n'
+    console.log('Rondo Agent installer ' + VERSION + '\n'
       + 'setup --agent codex|claude|opencode --scope project|user --cli <absolute.exe> [--manifest <absolute.json>] [--project <dir>] [--dry-run] [--verify]\n'
       + 'verify --agent <agent> --scope <scope> [--project <dir>]\n'
       + 'uninstall --agent <agent> --scope <scope> [--project <dir>] [--dry-run]\n'

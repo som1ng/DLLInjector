@@ -1,13 +1,17 @@
-# CLI 下载归档与校验
+# Rondo CLI 下载归档与校验
 
-Windows CI 的 Release 作业提供 `cli-distribution-msvc-x64` 和 `cli-distribution-msvc-x86` 下载产物。
+Windows CI 的 Release 作业提供 `rondo-cli-msvc-x64` 和 `rondo-cli-msvc-x86` 下载产物。
 选择与你的诊断任务匹配的架构，并确认整个工作流成功。它们是 CI 产物，尚非正式 GitHub Release，
 没有数字签名；项目级许可仍待确定。源码库不提交生成的 EXE、ZIP 或本机安装记录。
 
-每个产物包含 `dll-doctor-cli-<version>-windows-<arch>.zip` 及同名 `.zip.sha256` 文件。
+每个产物包含 `rondo-cli-<version>-windows-<arch>.zip` 及同名 `.zip.sha256` 文件。
 ZIP 内只有四个文件：CLI、`manifest.json`、`README.txt`、`THIRD_PARTY_NOTICES.md`。
 清单记录版本、Schema、架构、EXE 字节数/哈希，以及 CI 构建检出的提交 SHA。
 ZIP 不包含安装器、GUI、演示程序、运行库或用户报告。
+
+需要包含 Agent 安装器和 MCP 的完整包时，使用 [Rondo npm 归档](../integrations/npm/README.md)。
+新 ZIP 使用 `rondo.exe` 和 `product: rondo-cli`；安装器仍兼容原 `dll-doctor-cli` / `dllinjector.exe` 清单，
+但两种产品标识与文件名必须对应，不能混用。
 
 ## 下载后
 
@@ -17,12 +21,12 @@ ZIP 不包含安装器、GUI、演示程序、运行库或用户报告。
 
 ```powershell
 # 请替换实际版本、架构和路径；这里只读取文件。
-Get-FileHash -LiteralPath 'D:\downloads\dll-doctor-cli-2.0.0-dev.9-windows-x64.zip' -Algorithm SHA256
-Get-Content -LiteralPath 'D:\downloads\dll-doctor-cli-2.0.0-dev.9-windows-x64.zip.sha256'
+Get-FileHash -LiteralPath 'D:\downloads\rondo-cli-2.0.0-dev.9-windows-x64.zip' -Algorithm SHA256
+Get-Content -LiteralPath 'D:\downloads\rondo-cli-2.0.0-dev.9-windows-x64.zip.sha256'
 
 # 在源码仓库根目录运行；项目目录需要已存在。
-node integrations/installer/src/index.mjs setup --agent codex --scope project --project 'D:\work\my-app' --cli 'D:\tools\dll-doctor\dllinjector.exe' --manifest 'D:\tools\dll-doctor\manifest.json' --dry-run
-node integrations/installer/src/index.mjs setup --agent codex --scope project --project 'D:\work\my-app' --cli 'D:\tools\dll-doctor\dllinjector.exe' --manifest 'D:\tools\dll-doctor\manifest.json' --verify
+node integrations/installer/src/index.mjs setup --agent codex --scope project --project 'D:\work\my-app' --cli 'D:\tools\Rondo\rondo.exe' --manifest 'D:\tools\Rondo\manifest.json' --dry-run
+node integrations/installer/src/index.mjs setup --agent codex --scope project --project 'D:\work\my-app' --cli 'D:\tools\Rondo\rondo.exe' --manifest 'D:\tools\Rondo\manifest.json' --verify
 ```
 
 `distribution_checksum: verified` 表示 EXE 与所给清单匹配。安装器随后仍会检查实际 CLI 版本；
@@ -45,7 +49,7 @@ Microsoft Visual C++ v14 Redistributable；见 [Microsoft 官方说明](https://
 先构建并验证可信的 Release CLI，再执行：
 
 ```powershell
-python integrations/installer/scripts/package_cli.py --cli build/msvc-x64/Release/cli/dllinjector.exe --architecture x64 --output build/distribution/local-x64
+python integrations/installer/scripts/package_cli.py --cli build/msvc-x64/Release/cli/rondo.exe --architecture x64 --output build/distribution/local-x64
 ```
 
 打包会执行所选 CLI 的版本查询，不应用于未知 EXE。`--architecture x86` 对应 x86 构建。

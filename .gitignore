@@ -113,6 +113,8 @@ ENV/
 
 # Local installer dependencies and project MCP ownership records
 /integrations/installer/node_modules/
+/integrations/npm/node_modules/
+/integrations/npm/*.tgz
 **/.dll-doctor/
 **/.dll-doctor-config-*.tmp
 

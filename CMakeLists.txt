@@ -59,7 +59,7 @@ target_link_libraries(dllinjector_cli PRIVATE cli_support)
 target_include_directories(dllinjector_cli PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/core")
 target_compile_definitions(dllinjector_cli PRIVATE UNICODE _UNICODE NOMINMAX _WIN32_WINNT=0x0600)
 # Windows filenames are case-insensitive: preserve the legacy GUI path.
-set_target_properties(dllinjector_cli PROPERTIES OUTPUT_NAME dllinjector
+set_target_properties(dllinjector_cli PROPERTIES OUTPUT_NAME rondo
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/cli")
 
 # Modern Dedicated Desktop Host: Win32 + WebView2 (Embedded UI)
@@ -96,8 +96,8 @@ add_custom_command(TARGET DLLInjector POST_BUILD
 add_custom_command(TARGET dllinjector_cli POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:dllinjector_cli>"
-        "$<TARGET_FILE_DIR:dllinjector_cli>/rondo.exe"
-    COMMENT "Mirroring dllinjector.exe to rondo.exe"
+        "$<TARGET_FILE_DIR:dllinjector_cli>/dllinjector.exe"
+    COMMENT "Mirroring rondo.exe to dllinjector.exe for legacy compatibility"
 )
 
 add_executable(demo_target dll_test/demo.c)

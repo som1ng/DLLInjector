@@ -30,15 +30,16 @@ export async function verifyDistribution(cli, manifestPath) {
   let manifest;
   try { manifest = JSON.parse(raw.toString('utf8')); }
   catch { invalid('Manifest is not valid JSON.'); }
-  if (!manifest || manifest.format !== 1 || manifest.product !== 'dll-doctor-cli' || manifest.platform !== 'windows'
+  const filename = manifest?.product === 'rondo-cli' ? 'rondo.exe' : 'dllinjector.exe';
+  if (!manifest || manifest.format !== 1 || !['rondo-cli', 'dll-doctor-cli'].includes(manifest.product) || manifest.platform !== 'windows'
       || !['x86', 'x64'].includes(manifest.architecture) || manifest.runtime !== 'msvc-v14'
       || !['2.0.0-dev.8', '2.0.0-dev.9'].includes(manifest.tool_version) || manifest.schema_version !== '1.6'
       || !(manifest.source_revision === null || (typeof manifest.source_revision === 'string' && /^[0-9a-f]{40}$/.test(manifest.source_revision)))
-      || !manifest.files || Object.keys(manifest.files).join() !== 'dllinjector.exe') invalid('Manifest contract is invalid or unsupported.');
-  const file = manifest.files['dllinjector.exe'];
+      || !manifest.files || Object.keys(manifest.files).join() !== filename) invalid('Manifest contract is invalid or unsupported.');
+  const file = manifest.files[filename];
   if (!file || !Number.isSafeInteger(file.size) || file.size < 64 || file.size > 64 * 1024 * 1024
       || typeof file.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(file.sha256)
-      || path.basename(cli).toLowerCase() !== 'dllinjector.exe') invalid('Manifest file metadata is invalid.');
+      || path.basename(cli).toLowerCase() !== filename) invalid('Manifest file metadata is invalid.');
   const current = await fs.stat(cli);
   if (!current.isFile() || current.size !== file.size) invalid('CLI size differs from the manifest.');
   const bytes = await fs.readFile(cli);

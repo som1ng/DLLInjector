@@ -53,27 +53,42 @@ GUI 位于 `build/msvc-x64/Debug/Rondo.exe`（亦生成 `DLLInjector.exe` 兼容
 `-DFETCHCONTENT_SOURCE_DIR_JSONCONS=C:/deps/jsoncons-1.10.0`；本地覆盖目录由调用方负责核对版本与完整性。
 Schema 在构建时嵌入二进制，部署 CLI 无需旁置 Schema 或依赖源码。
 
+## npm 全局安装
+
+已提供名为 `@som1ng/rondo` 的 npm 归档，安装后命令为 `rondo`。当前尚未公开发布到 npm；
+从成功 CI 的 `rondo-npm` 产物取得 `.tgz` 后，可本地全局安装：
+
+```powershell
+npm install -g .\som1ng-rondo-0.1.0-dev.1.tgz
+rondo --version --json
+rondo setup --agent auto --scope project --verify
+```
+
+公开发布后的目标下载命令为 `npm install -g @som1ng/rondo`，目前不要把它当成已发布入口。
+包内含 x64/x86 CLI、MCP、Skill 和 Node 依赖；安装时不需要另行构建 CLI 或 MCP。
+需要 Windows x86/x64、Node.js 22.19+ 和 VC++ v14 运行库。详见 [npm 包说明](integrations/npm/README.md)。
+
 ## CLI 快速开始
 
 ```powershell
-& .\build\msvc-x64\Debug\cli\dllinjector.exe --help
-& .\build\msvc-x64\Debug\cli\dllinjector.exe --version --json
-& .\build\msvc-x64\Debug\cli\dllinjector.exe process list --json
+& .\build\msvc-x64\Debug\cli\rondo.exe --help
+& .\build\msvc-x64\Debug\cli\rondo.exe --version --json
+& .\build\msvc-x64\Debug\cli\rondo.exe process list --json
 # 查询当前 PowerShell 的 PID；不修改目标进程，不自动提权。
-& .\build\msvc-x64\Debug\cli\dllinjector.exe process inspect --pid $PID --json
-& .\build\msvc-x64\Debug\cli\dllinjector.exe process modules --pid $PID --json
-& .\build\msvc-x64\Debug\cli\dllinjector.exe process inspect --pid $PID --json --timeout-ms 5000 --output .\process-report.json
+& .\build\msvc-x64\Debug\cli\rondo.exe process inspect --pid $PID --json
+& .\build\msvc-x64\Debug\cli\rondo.exe process modules --pid $PID --json
+& .\build\msvc-x64\Debug\cli\rondo.exe process inspect --pid $PID --json --timeout-ms 5000 --output .\process-report.json
 # 读取本次构建的测试 DLL；不会加载或执行该文件。
-& .\build\msvc-x64\Debug\cli\dllinjector.exe pe inspect .\build\msvc-x64\Debug\noop_fixture.dll --json
+& .\build\msvc-x64\Debug\cli\rondo.exe pe inspect .\build\msvc-x64\Debug\noop_fixture.dll --json
 # 为打算加载到 x64 进程的 DLL 生成诊断；目标架构是显式声明，不是运行时观察。
-& .\build\msvc-x64\Debug\cli\dllinjector.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --target-arch x64 --json
+& .\build\msvc-x64\Debug\cli\rondo.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --target-arch x64 --json
 # 只在显式目录中检查依赖候选，可重复 --search-dir；结果不能证明实际加载成功。
-& .\build\msvc-x64\Debug\cli\dllinjector.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --search-dir .\build\msvc-x64\Debug --json
+& .\build\msvc-x64\Debug\cli\rondo.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --search-dir .\build\msvc-x64\Debug --json
 # 导出可供人工阅读的报告；--format 与 --json 互斥，输出文件必须不存在。
-& .\build\msvc-x64\Debug\cli\dllinjector.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --format html --output .\doctor-report.html
-& .\build\msvc-x64\Debug\cli\dllinjector.exe process modules --pid $PID --format markdown --output .\modules-report.md
+& .\build\msvc-x64\Debug\cli\rondo.exe doctor .\build\msvc-x64\Debug\noop_fixture.dll --format html --output .\doctor-report.html
+& .\build\msvc-x64\Debug\cli\rondo.exe process modules --pid $PID --format markdown --output .\modules-report.md
 # 将已经保存的 JSON 转成 HTML；不访问报告中记录的文件或进程。
-& .\build\msvc-x64\Debug\cli\dllinjector.exe report export .\process-report.json --format html --output .\process-report.html
+& .\build\msvc-x64\Debug\cli\rondo.exe report export .\process-report.json --format html --output .\process-report.html
 ```
 
 stdout 为结果，stderr 为错误与 `--verbose` 日志。重定向及输出文件使用无 BOM UTF-8；
@@ -143,9 +158,9 @@ Codex/OpenCode 的项目发现已经实测，Claude 与用户级发现尚未实�
 见 [批量安装](integrations/installer/README.md#批量安装-skill)。
 项目 MCP 也支持 `setup --integration mcp --agent all`，分别指定三个原生客户端路径，
 见 [批量项目 MCP 配置](integrations/installer/README.md#批量项目-mcp-配置)。
-此版本从源码运行；自动下载 CLI、用户级 MCP 及公开 npm 安装仍待实现。
+源码入口仍支持手动指定运行文件；完整 Rondo npm 归档已可全局安装。用户级 MCP 和公开 registry 安装仍待实现。
 
-需要构建产物时，可下载成功 Windows CI 的 `cli-distribution-msvc-x64` / `msvc-x86` 产物。
+需要独立 CLI 时，可下载成功 Windows CI 的 `rondo-cli-msvc-x64` / `rondo-cli-msvc-x86` 产物。
 归档附带 SHA-256 与版本/架构清单，安装器支持 `--manifest` 在启动 CLI 前核对文件。
 获取、运行库要求和验证边界见 [CLI 下载归档与校验](docs/CLI_DISTRIBUTION.md)。
 
@@ -200,6 +215,7 @@ tests/                 Win32 回归测试、启动测试与无副作用 fixture
 integrations/skills/   权威 Agent Skill、相对引用与只读命令示例
 integrations/pi/       原生 Pi 包清单、生成脚本与本地安装说明
 integrations/installer/ 本地 Skill / 项目 MCP 安装、校验、卸载与回滚
+integrations/npm/       Rondo 全局命令、完整 npm 归档组装与测试
 docs/                  基线、契约、验证记录与第三方声明
 CMakeLists.txt         构建入口
 CMakePresets.json       MSVC / 可选 MinGW 配置
@@ -211,8 +227,8 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 
 原计划尚未全部完成。当前阶段状态、暂缓项和验证缺口见 [路线图状态](docs/ROADMAP_STATUS.md)；各交付记录中的“下一步”是当时快照。
 
-1. P4：先补 CLI 用户目录托管、版本记录、检查与卸载，再接版本化发行产物和自动下载；当前仍须自行准备 CLI/MCP 运行文件。
-2. P4：用户级 MCP、升级恢复和新机器/离线安装验收；公开分发前核实来源与项目许可。
+1. P4：Rondo npm 归档已包含 CLI/MCP/Skill，由 npm 管理全局文件与命令；补齐来源/许可和公开发布，才能通过 registry 包名下载安装。
+2. P4：用户级 MCP、Agent 配置升级恢复和新机器验收；本地归档的离线 npm 安装不等于全新离线系统验收。
 3. P2/P3 与发布收尾：补真实客户端发现、模型触发与回答评测、GUI 遗留及发布文档；已有实现和测试边界见状态表。
 4. P5：自有测试程序的 DLL 生命周期实验与结果对比，尚未开发。
 
@@ -223,7 +239,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 This Windows C++ project includes the legacy GUI and a read-only process/PE CLI
 (`2.0.0-dev.9`). Install Visual Studio 2022 C++ tools and CMake 3.21+, plus Python
 3.9+ and `python -m pip install -r tests/requirements.txt` for tests. Build with the
-presets above, then run `build/msvc-x64/Debug/cli/dllinjector.exe process list --json`
+presets above, then run `build/msvc-x64/Debug/cli/rondo.exe process list --json`
 or `process inspect --pid <PID> --json` / `process modules --pid <PID> --json`.
 Use `pe inspect <file> --json` for PE32/PE32+ headers, sections, imports, exports
 and delay imports. Names/ordinals, aliases and forwarders are reported without

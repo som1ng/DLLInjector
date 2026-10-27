@@ -80,7 +80,7 @@ def extract_verified(archive, destination):
 class PiPackageContract(unittest.TestCase):
     def test_manifest_and_generated_content(self):
         manifest = json.loads((PACKAGE / 'package.json').read_text(encoding='utf-8'))
-        self.assertEqual(manifest['name'], '@som1ng/dll-doctor-pi')
+        self.assertEqual(manifest['name'], '@som1ng/rondo-pi')
         self.assertIs(manifest['private'], True)
         self.assertEqual(manifest['license'], 'UNLICENSED')
         self.assertIn('pi-package', manifest['keywords'])
