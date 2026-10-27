@@ -17,7 +17,9 @@ def main():
     parser.add_argument('--cli', required=True, type=Path)
     parser.add_argument('--codex')
     parser.add_argument('--opencode')
-    parser.add_argument('--auto', action='store_true', help='exercise installer candidate discovery and explicit auto selection')
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument('--auto', action='store_true', help='exercise installer candidate discovery and explicit auto selection')
+    selection.add_argument('--all', action='store_true', help='check batch setup, nonduplicate discovery and explicit removal of both directories')
     args = parser.parse_args()
     if not args.codex and not args.opencode:
         parser.error('select at least one installed client')
@@ -38,9 +40,11 @@ def main():
                 project.mkdir()
                 subprocess.run(['git', 'init', '-q', str(project)], check=True, capture_output=True)
 
-                def installer(command):
-                    arguments = [node, str(ENTRY), command, '--agent', name, '--scope', 'project', '--project', str(project)]
+                def installer(command, agent=name):
+                    arguments = [node, str(ENTRY), command, '--agent', agent, '--scope', 'project', '--project', str(project)]
                     if command == 'setup':
+                        if args.all:
+                            arguments[arguments.index('--agent') + 1] = 'all'
                         if args.auto:
                             arguments[arguments.index('--agent') + 1] = 'auto'
                             arguments += ['--select', name, '--client', native_executable(client)]
@@ -55,8 +59,11 @@ def main():
                     return data
 
                 installed = installer('setup')
-                fixture = {'cwd': project, 'path': Path(installed['target']) / 'SKILL.md',
+                target = next(row['target'] for row in installed['targets'] if name in row['agents']) if args.all else installed['target']
+                fixture = {'cwd': project, 'path': Path(target) / 'SKILL.md',
                     'description': description, 'present': True}
+                if args.all:
+                    fixture['alternative_paths'] = [Path(row['target']) / 'SKILL.md' for row in installed['targets']]
                 executable = native_executable(client)
 
                 def discover():
@@ -69,11 +76,13 @@ def main():
                     raise RuntimeError('repeated setup was not a no-op')
                 if installer('uninstall')['action'] != 'removed':
                     raise RuntimeError('uninstall did not remove the managed Skill')
+                if args.all and installer('uninstall', 'claude')['action'] != 'removed':
+                    raise RuntimeError('uninstall did not remove the second batch directory')
                 fixture['present'] = False
                 discover()
                 results.append({'client': name, 'version': observed['version'],
                     'checks': ['installed-project-discovery', 'repeat', 'uninstalled-absence']})
-        print(json.dumps({'status': 'passed', 'installer_auto_selection': args.auto,
+        print(json.dumps({'status': 'passed', 'installer_auto_selection': args.auto, 'installer_batch_selection': args.all,
             'results': results, 'model_evaluation': 'not_run'}, indent=2))
         return 0
     except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):

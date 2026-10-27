@@ -139,6 +139,8 @@ Codex/OpenCode 的项目发现已经实测，Claude 与用户级发现尚未实�
 实际客户端加载方式及测试边界见 [MCP 安装器交付记录](docs/MCP_INSTALLER_DELIVERY.md)。
 `list-agents` 可以列出本机候选路径，`setup --agent auto` 由用户确认一个客户端；
 脚本需使用 `--select`，路径歧义时明确指定 `--client`。详见 [选择流程与实测](docs/AGENT_SELECTION_DELIVERY.md)。
+`setup --agent all` 可一次安装三个客户端的 Skill，共享目录去重并在失败时撤回新增安装，
+见 [批量安装](integrations/installer/README.md#批量安装-skill)。
 此版本从源码运行；自动下载 CLI、用户级 MCP 及公开 npm 安装仍待实现。
 
 需要构建产物时，可下载成功 Windows CI 的 `cli-distribution-msvc-x64` / `msvc-x86` 产物。
@@ -206,7 +208,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 ## 后续路线
 
 1. P2：Doctor、报告和权威 Skill 指令包已实现；补充真实客户端触发与回答评测。
-2. P3/P4：本地 stdio MCP、Pi 包、Skill / 项目 MCP 安装器、客户端确认选择及 CLI 分发校验已实现；继续自动下载、批量安装和用户级 MCP。
+2. P3/P4：本地 stdio MCP、Pi 包、Skill / 项目 MCP 安装器、客户端确认选择、批量 Skill 安装及 CLI 分发校验已实现；继续自动下载、MCP 批量配置和用户级 MCP。
 3. P5：自有测试程序的 DLL 生命周期实验与结果对比。
 
 旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。

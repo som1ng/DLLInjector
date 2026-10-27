@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from './distribution.mjs';
 
-export const VERSION = '0.1.0-dev.4';
+export const VERSION = '0.1.0-dev.5';
 export const NAME = 'windows-dll-doctor';
 export const FILES = ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml'];
 const BINDING = 'references/installation.json';
@@ -219,7 +219,9 @@ export async function install(command, options, context = {}) {
       tree = await expected(cli);
       if (await stat(target)) {
         const current = await snapshot(target);
-        if (!OWNED.every(file => current.tree[file].equals(tree[file]))) {
+        // Receipt format/ownership and hashes were checked by snapshot. An
+        // installer version change alone does not change the installed content.
+        if (![...FILES, BINDING].every(file => current.tree[file].equals(tree[file]))) {
           fail('CONFLICT', 'A different managed version or CLI binding exists; uninstall explicitly before setup.');
         }
         if (options.verify) await verify(target, probe);
@@ -237,12 +239,15 @@ export async function install(command, options, context = {}) {
       await fs.rename(stage, target);
       stage = undefined;
       committed = true;
-      await checkpoint('committed');
+      await checkpoint('committed', { target, receipt: Buffer.from(tree[RECEIPT]) });
       await snapshot(target);
       if (options.verify) await verify(target, probe);
       return { ...result, action: 'installed' };
     }
     const current = await snapshot(target);
+    if (context.expectedReceipt && !current.tree[RECEIPT].equals(context.expectedReceipt)) {
+      fail('CONCURRENT_EDIT', 'Installation changed since this batch created it; preserving the replacement.');
+    }
     removed = current.tree;
     await removeTree(target, removed, checkpoint);
     return { ...result, action: 'removed' };
