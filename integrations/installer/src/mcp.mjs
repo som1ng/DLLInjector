@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify, isDeepStrictEqual } from 'node:util';
@@ -15,6 +16,44 @@ const toolNames = ['analyze_dependencies', 'diagnose_dll', 'inspect_pe', 'inspec
 const json = value => Buffer.from(JSON.stringify(value, null, 2) + '\n');
 const same = (left, right) => left === null || right === null ? left === right : left.equals(right);
 const fail = (code, message) => { throw new InstallError(code, message); };
+
+async function location(options, context) {
+  let root = path.resolve(options.project || process.cwd());
+  let relative = options.agent === 'codex' ? '.codex/config.toml' : options.agent === 'claude' ? '.mcp.json' : 'opencode.json';
+  if (options.scope === 'user') {
+    if (options.project !== undefined) fail('MCP_ARGUMENT', '--project is not valid with --scope user.');
+    const home = context.home ?? os.homedir(), env = context.env ?? process.env;
+    if (!/^[a-z]:[\\/]/i.test(home)) fail('MCP_PATH', 'User home must be an absolute local directory.');
+    root = path.resolve(home);
+    await safePath(root);
+    if (!(await stat(root))?.isDirectory()) fail('MCP_PATH', 'User home must exist.');
+    if (options.agent === 'codex' && env.CODEX_HOME) {
+      if (!/^[a-z]:[\\/]/i.test(env.CODEX_HOME)) fail('MCP_PATH', 'CODEX_HOME must be an absolute local directory.');
+      const custom = path.resolve(env.CODEX_HOME);
+      await safePath(custom);
+      if (!(await stat(custom))?.isDirectory()) fail('MCP_PATH', 'CODEX_HOME must already exist.');
+      // Share the project lock if both scopes can address the same .codex/config.toml.
+      const standard = path.basename(custom).toLowerCase() === '.codex';
+      root = standard ? path.dirname(custom) : custom;
+      relative = standard ? '.codex/config.toml' : 'config.toml';
+    } else if (options.agent === 'claude') {
+      if (env.CLAUDE_CONFIG_DIR) fail('MCP_CUSTOM_CONFIG', 'Custom CLAUDE_CONFIG_DIR is not yet supported for user MCP.');
+      relative = '.claude.json';
+    } else if (options.agent === 'opencode') {
+      if (['XDG_CONFIG_HOME', 'OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT'].some(key => env[key])) {
+        fail('MCP_CUSTOM_CONFIG', 'Custom OpenCode configuration overrides are not yet supported for user MCP.');
+      }
+      root = path.join(root, '.config', 'opencode');
+    }
+  }
+  await safePath(root);
+  if (options.scope === 'project' && !(await stat(root))?.isDirectory()) fail('MCP_PATH', 'Project directory must exist.');
+  if (options.agent === 'opencode' && await stat(path.join(root, 'opencode.jsonc'))) {
+    if (await stat(path.join(root, relative))) fail('MCP_CONFIG', 'Both OpenCode config files exist; resolve the ambiguity first.');
+    relative = 'opencode.jsonc';
+  }
+  return { root, relative };
+}
 
 async function read(file, limit = 1048576) {
   await safePath(file);
@@ -112,7 +151,7 @@ async function verifyRuntime(agent, runtime, context) {
   await (context.checkServer || checkServer)(runtime);
 }
 
-// Only our computed project paths reach this function; compare bytes before replacing.
+// Only our computed configuration paths reach this function; compare bytes before replacing.
 async function replace(file, before, after, made) {
   if (!same(await read(file), before)) fail('MCP_CONCURRENT', 'Configuration changed during the operation; preserving it.');
   if (after === null) { if (before !== null) await fs.unlink(file); return; }
@@ -134,22 +173,15 @@ async function replace(file, before, after, made) {
 
 export async function installMcp(command, options, context = {}) {
   if (!['setup', 'verify', 'uninstall'].includes(command) || !Object.hasOwn(versions, options.agent)
-      || options.scope !== 'project') fail('MCP_ARGUMENT', 'MCP mode requires a supported agent and --scope project.');
+      || !['project', 'user'].includes(options.scope)) fail('MCP_ARGUMENT', 'MCP mode requires a supported agent and --scope project|user.');
   if (command !== 'setup' && (options.cli !== undefined || options.server !== undefined || options.client !== undefined
       || options.manifest !== undefined || options.allowRoot !== undefined || options.allowProcesses || options.verify)) {
     fail('MCP_ARGUMENT', 'Runtime arguments are only valid for setup.');
   }
   if (command === 'verify' && options.dryRun) fail('MCP_ARGUMENT', 'verify does not accept --dry-run.');
-  const project = path.resolve(options.project || process.cwd());
-  await safePath(project);
-  if (!(await stat(project))?.isDirectory()) fail('MCP_PATH', 'Project directory must exist.');
-  let relative = options.agent === 'codex' ? '.codex/config.toml' : options.agent === 'claude' ? '.mcp.json' : 'opencode.json';
-  if (options.agent === 'opencode' && await stat(path.join(project, 'opencode.jsonc'))) {
-    if (await stat(path.join(project, relative))) fail('MCP_CONFIG', 'Both OpenCode config files exist; resolve the ambiguity first.');
-    relative = 'opencode.jsonc';
-  }
-  const configPath = path.join(project, relative), stateDir = path.join(project, '.dll-doctor');
-  const receiptPath = path.join(stateDir, 'mcp-' + options.agent + '.json');
+  const { root, relative } = await location(options, context);
+  const configPath = path.join(root, relative), stateDir = path.join(root, '.dll-doctor');
+  const receiptPath = path.join(stateDir, 'mcp-' + (options.scope === 'user' ? 'user-' : '') + options.agent + '.json');
   const rollback = context.rollbackState;
   if (rollback && (command !== 'uninstall' || rollback.config !== configPath || rollback.receipt !== receiptPath)) {
     fail('MCP_ARGUMENT', 'Batch rollback must match the original configuration and receipt paths.');
@@ -161,13 +193,14 @@ export async function installMcp(command, options, context = {}) {
   if (receiptBefore !== null) {
     try { record = JSON.parse(text(receiptBefore)); } catch { fail('MCP_RECEIPT', 'MCP ownership receipt is invalid.'); }
     if (!record || record.owner !== 'dll-doctor-installer' || record.format !== 1 || record.agent !== options.agent
+        || (record.scope ?? 'project') !== options.scope
         || record.config !== relative || !record.runtime || !record.ownership
         || typeof record.ownership.configCreated !== 'boolean' || typeof record.ownership.containerCreated !== 'boolean'
         || !/^[0-9a-f]{64}$/.test(record.ownership.installedHash)
         || !isDeepStrictEqual(record.entry, mcpEntry(options.agent, record.runtime))) fail('MCP_RECEIPT', 'MCP ownership receipt is invalid.');
     assertOwned(options.agent, source ?? '', record);
   } else if (parsed.entry !== undefined) fail('MCP_CONFLICT', 'The existing dll_doctor entry is not owned by this installer.');
-  const result = { status: 'success', integration: 'mcp', command, agent: options.agent, scope: 'project',
+  const result = { status: 'success', integration: 'mcp', command, agent: options.agent, scope: options.scope,
     config: configPath, receipt: receiptPath, client_discovery: 'not_run' };
   if (command === 'verify') {
     if (!record) fail('MCP_NOT_INSTALLED', 'No managed MCP installation exists.');
@@ -187,7 +220,7 @@ export async function installMcp(command, options, context = {}) {
     }
     const added = addEntry(options.agent, source, entry);
     configAfter = Buffer.from(added.text);
-    receiptAfter = json({ owner: 'dll-doctor-installer', format: 1, agent: options.agent, config: relative,
+    receiptAfter = json({ owner: 'dll-doctor-installer', format: 1, agent: options.agent, scope: options.scope, config: relative,
       entry, runtime, ownership: added.ownership });
   } else {
     const removed = removeEntry(options.agent, source, record);
@@ -226,7 +259,7 @@ export async function installMcp(command, options, context = {}) {
         if (!same(await read(step.file), step.before)) await replace(step.file, step.after, step.before, made);
       } catch { failed = true; }
     }
-    if (failed) fail('ROLLBACK_INCOMPLETE', 'MCP rollback preserved concurrent edits or encountered an access error; inspect the project configuration and .dll-doctor state.');
+    if (failed) fail('ROLLBACK_INCOMPLETE', 'MCP rollback preserved concurrent edits or encountered an access error; inspect the reported configuration and .dll-doctor state.');
     throw error;
   } finally {
     if (lock) { await lock.close(); await fs.unlink(lockPath); }

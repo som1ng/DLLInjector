@@ -4,7 +4,7 @@
 以下是本地构建/CI 归档的可验证安装入口：
 
 ```powershell
-npm install -g .\som1ng-rondo-0.1.0-dev.1.tgz
+npm install -g .\som1ng-rondo-0.1.0-dev.2.tgz
 rondo --version --json
 rondo doctor 'D:\samples\example.dll' --json
 rondo setup --agent auto --scope project --verify
@@ -26,6 +26,7 @@ Windows PowerShell 若限制 `.ps1` 执行，可使用 `npm.cmd` / `rondo.cmd`�
 rondo setup --agent all --scope project --dry-run
 rondo setup --agent all --scope project --verify
 rondo setup --integration mcp --agent auto --scope project --allow-root 'D:\samples' --verify
+rondo setup --integration mcp --agent auto --scope user --allow-root 'D:\samples' --verify
 rondo list-agents
 rondo verify --agent codex --scope project
 rondo uninstall --agent codex --scope project
@@ -37,6 +38,9 @@ rondo mcp --allow-root 'D:\samples'
 `rondo --help --json` 保留原生 JSON 契约。原生子进程的参数、stdout/stderr 和退出码直接传递。
 直接启动内置 CLI/MCP 前核对 CLI 清单；安装器还执行自己的版本和协议校验。
 哈希是内容一致性校验，不是来源签名；使用可信构建的归档。
+
+用户级 MCP 的配置位置、自定义目录支持范围和收据规则见
+[安装器说明](https://github.com/som1ng/Rondo/blob/main/integrations/installer/README.md#用户级-mcp-配置)。`--scope user` 不能传 `--project`，也不会扩大授权目录。
 
 npm 负责全局目录、命令 shim、包版本和运行文件的移除，不另复制一份用户运行库。
 卸载 npm 包前，先对需要移除的各项目/用户 Agent 配置执行对应 `rondo uninstall`，再运行：
@@ -58,7 +62,7 @@ npm 卸载不会扫描项目或删除 Agent 配置。更新 npm 包可能改变�
 python integrations/npm/scripts/package_npm.py --x64 build/msvc-x64/Release/cli/rondo.exe --x86 build/msvc-x86/Release/cli/rondo.exe --output build/npm/stage
 npm ci --prefix build/npm/stage --ignore-scripts --no-audit --no-fund
 npm pack ./build/npm/stage --pack-destination build/npm --ignore-scripts
-python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.1.tgz
+python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.2.tgz
 ```
 
 CI 提供实际 checkout SHA 给 `--revision`；本地复用构建时省略，避免伪造来源。

@@ -4,13 +4,13 @@ import { InstallError, stat } from './installer.mjs';
 const agents = ['codex', 'claude', 'opencode'];
 
 export async function setupAllMcp(options, context = {}) {
-  if (options.agent !== 'all' || options.integration !== 'mcp' || options.scope !== 'project'
+  if (options.agent !== 'all' || options.integration !== 'mcp' || !['project', 'user'].includes(options.scope)
       || options.client !== undefined || options.select !== undefined
       || !options.clients || agents.some(agent => !options.clients[agent])
       || Object.keys(options.clients).some(agent => !agents.includes(agent))) {
-    throw new InstallError('MCP_ARGUMENT', 'Batch MCP setup requires project scope and --codex-client, --claude-client, --opencode-client; do not use --client or --select.');
+    throw new InstallError('MCP_ARGUMENT', 'Batch MCP setup requires project/user scope and --codex-client, --claude-client, --opencode-client; do not use --client or --select.');
   }
-  const result = { status: 'success', integration: 'mcp', command: 'setup', agent: 'all', scope: 'project',
+  const result = { status: 'success', integration: 'mcp', command: 'setup', agent: 'all', scope: options.scope,
     agents, client_discovery: 'not_run' };
   const previews = [], completed = [], commits = new Map();
   let active, writing = false;
@@ -44,7 +44,7 @@ export async function setupAllMcp(options, context = {}) {
       if (item.action !== 'installed') continue;
       try {
         if (!commits.has(item.agent)) throw new InstallError('ROLLBACK_INCOMPLETE', 'The batch cannot identify its installation.');
-        const removed = await installMcp('uninstall', { agent: item.agent, scope: 'project', project: options.project },
+        const removed = await installMcp('uninstall', { agent: item.agent, scope: options.scope, project: options.project },
           { ...context, rollbackState: commits.get(item.agent) });
         rollback.push({ agent: item.agent, config: item.config, receipt: item.receipt, action: removed.action });
       } catch (error) {

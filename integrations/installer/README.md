@@ -1,9 +1,9 @@
 # Rondo Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.7`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.8`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 Rondo CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
-项目级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
+项目级或用户级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
 
 希望全局安装并省去运行文件路径时，使用 [Rondo npm 归档](../npm/README.md)：
 `npm install -g <Rondo.tgz>` 后直接运行 `rondo setup ...`，默认绑定包内 CLI/MCP。
@@ -165,7 +165,43 @@ node integrations/installer/src/index.mjs uninstall --integration mcp --agent co
 可捕获的写入失败会按原始字节回滚，遇到并发修改则保留现场并报告 `ROLLBACK_INCOMPLETE`。
 强制结束/断电恢复不在本轮范围内；残留 `.dll-doctor/mcp-<agent>.lock` 时，
 先确认没有安装器运行，再备份配置与记录并检查残留，不自动抢锁。
-MCP 暂只支持 `--scope project`；详细边界见 [契约](../../docs/MCP_INSTALLER_CONTRACT.md)。
+以上为项目配置；用户级入口和差异见下节。历史项目契约见 [契约](../../docs/MCP_INSTALLER_CONTRACT.md)。
+
+## 用户级 MCP 配置
+
+`--scope user` 将配置写入当前用户的客户端配置，而不是当前项目；不能同时传 `--project`。
+支持单个客户端、`--agent auto` 确认选择和 `--agent all` 批量安装。
+以下命令使用 [Rondo npm 包](../npm/README.md) 自带的运行文件；源码入口仍须提供 `--cli` / `--server`：
+
+```powershell
+rondo setup --integration mcp --agent codex --scope user --client 'D:\tools\codex.exe' --allow-root 'D:\work' --dry-run
+# 确认路径后，将 --dry-run 换成 --verify。
+rondo setup --integration mcp --agent auto --scope user --allow-root 'D:\work' --verify
+rondo verify --integration mcp --agent codex --scope user
+rondo uninstall --integration mcp --agent codex --scope user --dry-run
+```
+
+| 客户端 | 用户配置位置 | 安装记录 |
+| --- | --- | --- |
+| Codex | `~/.codex/config.toml`；设置 `CODEX_HOME` 时使用其 `config.toml` | 默认 `~/.dll-doctor/mcp-user-codex.json`；自定义目录见实际输出 |
+| Claude Code | `~/.claude.json` 的顶层 `mcpServers.dll_doctor` | `~/.dll-doctor/mcp-user-claude.json` |
+| OpenCode V1 | `~/.config/opencode/opencode.jsonc` 或 `.json`；无文件时创建 `.json` | `~/.config/opencode/.dll-doctor/mcp-user-opencode.json` |
+
+`~` 是当前 Windows 用户目录。`CODEX_HOME` 必须是已经存在的本地绝对目录；安装器只读取它，不修改环境变量。
+尚未验证的覆盖方式明确拒绝：Claude 的 `CLAUDE_CONFIG_DIR`，OpenCode 的 `XDG_CONFIG_HOME`、
+`OPENCODE_CONFIG`、`OPENCODE_CONFIG_DIR`、`OPENCODE_CONFIG_CONTENT`。不会静默写入可能无效的默认路径。
+链接/junction 路径和 OpenCode 两种文件同时存在时沿用冲突保护。
+
+用户级配置跨项目提供服务，但文件访问仍只限明确的 `--allow-root`，进程查询仍须显式授权。
+项目、用户、托管设置或其他配置层可能改变客户端最终采用的服务器；不会改动客户端的信任或批准设置。
+安装器 verify 检查版本、内容和 MCP 服务握手，不声称已经验证客户端自动加载或模型行为。
+
+只编辑本工具条目，保留 Claude 的账户信息、项目记录和其他 MCP 服务。收据带 scope，
+旧的无 scope 收据仅按项目级解释。项目与用户配置指向同一 Codex 文件时共用已有锁；
+其他 scope 已托管同名条目会报冲突，需要显式处理原安装。
+卸载/失败回滚不会把用户原配置复制到日志或收据。批量失败仅撤回新增安装，保留此前有效安装。
+原地升级、跨文件原子可见性、断电恢复和实际客户端用户级自动发现仍未验收。
+来源、测试范围及限制见 [用户级 MCP 交付记录](../../docs/USER_MCP_DELIVERY.md)。
 
 ## 批量项目 MCP 配置
 
@@ -188,7 +224,8 @@ node integrations/installer/src/index.mjs setup --integration mcp --agent all --
 原始配置快照仅保存在操作内存中，不写入日志、输出或安装记录。
 
 `verify` / `uninstall` 继续逐个指定 `--agent codex|claude|opencode`；不支持批量删除。
-本功能只配置项目级 MCP，不修改客户端的信任或批准设置，也不保证强制结束后的恢复。
+也可把范围改为 `--scope user` 并省略 `--project`，三条原生客户端路径仍须显式提供。
+不修改客户端的信任或批准设置，也不保证强制结束后的恢复。
 行为与实测边界见 [批量 MCP 契约](../../docs/BATCH_MCP_CONTRACT.md) 和 [交付记录](../../docs/BATCH_MCP_DELIVERY.md)。
 
 ## 开发验证与范围
@@ -210,6 +247,6 @@ node integrations/installer/src/index.mjs setup --integration mcp --agent all --
 `tests/mcp_installer_hosts.py --all` 需要同时提供三个客户端路径，检查批量配置后的真实宿主
 工具发现/调用、重复安装及显式卸载；使用本地固定模型响应，与 `--auto` 互斥。
 
-CI 已提供 Rondo CLI ZIP 和完整 npm 归档、校验文件和安装前清单验证；源码安装器自动下载、用户级 MCP、
+CI 已提供 Rondo CLI ZIP 和完整 npm 归档、校验文件和安装前清单验证；用户级 MCP 已提供，源码安装器自动下载、
 公开 npm 分发和升级恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
 不能作为现有 CLI 的自动下载来源；先继续使用可信 CI 归档或源码构建。
