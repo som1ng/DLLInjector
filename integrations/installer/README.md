@@ -1,6 +1,6 @@
 # 本地 Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.5`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.6`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 DLLInjector CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
@@ -163,6 +163,30 @@ node integrations/installer/src/index.mjs uninstall --integration mcp --agent co
 先确认没有安装器运行，再备份配置与记录并检查残留，不自动抢锁。
 MCP 暂只支持 `--scope project`；详细边界见 [契约](../../docs/MCP_INSTALLER_CONTRACT.md)。
 
+## 批量项目 MCP 配置
+
+准备好上述 MCP 依赖与运行文件后，可用 `--agent all` 配置三个客户端。
+三个客户端原生路径必须分别明确提供，不使用单客户端的 `--client` 或 auto 的 `--select`：
+
+```powershell
+node integrations/installer/src/index.mjs setup --integration mcp --agent all --scope project `
+  --project 'D:\work\my-app' --cli 'D:\tools\dllinjector.exe' `
+  --server 'D:\src\Rondo\integrations\mcp\dist\index.js' --allow-root 'D:\work\my-app' `
+  --codex-client 'D:\tools\codex.exe' --claude-client 'D:\tools\claude.exe' `
+  --opencode-client 'D:\tools\opencode.exe' --dry-run
+# 确认三个目标后，把 --dry-run 换成 --verify 执行安装。
+```
+
+先预检三份配置，正式安装再逐个验证客户端版本与 MCP 服务。每项结果列出配置和收据路径。
+失败时仅回滚本次新增的条目，保留已有相同配置；原文件未被后来编辑时恢复原始字节，
+有后续无关设置时只删除本工具条目。回滚还会在锁内比对收据，保护其他操作替换的有效安装。
+无法完整恢复会返回 `ROLLBACK_INCOMPLETE`，请检查输出路径并保留现场。
+原始配置快照仅保存在操作内存中，不写入日志、输出或安装记录。
+
+`verify` / `uninstall` 继续逐个指定 `--agent codex|claude|opencode`；不支持批量删除。
+本功能只配置项目级 MCP，不修改客户端的信任或批准设置，也不保证强制结束后的恢复。
+行为与实测边界见 [批量 MCP 契约](../../docs/BATCH_MCP_CONTRACT.md) 和 [交付记录](../../docs/BATCH_MCP_DELIVERY.md)。
+
 ## 开发验证与范围
 
 在本目录完成 `npm.cmd ci --ignore-scripts --no-audit --no-fund` 后执行 `npm.cmd test`。
@@ -179,7 +203,9 @@ MCP 暂只支持 `--scope project`；详细边界见 [契约](../../docs/MCP_INS
 测试所提供的客户端 EXE 必须也能被 `list-agents` 检出。
 `tests/installer_hosts.py --all` 验证批量安装后的单份发现、重复安装和两个目录卸载后不可见，
 与 `--auto` 互斥；不调用模型 API。
+`tests/mcp_installer_hosts.py --all` 需要同时提供三个客户端路径，检查批量配置后的真实宿主
+工具发现/调用、重复安装及显式卸载；使用本地固定模型响应，与 `--auto` 互斥。
 
-CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、MCP 批量配置、
-用户级 MCP、公开 npm 分发和升级恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
+CI 已提供 CLI 下载归档、校验文件和安装前清单验证；自动下载、用户级 MCP、
+公开 npm 分发和升级恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
 不能作为现有 CLI 的自动下载来源；先继续使用可信 CI 归档或源码构建。

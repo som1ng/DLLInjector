@@ -19,11 +19,15 @@ def main():
     parser.add_argument('--cli', type=Path, required=True)
     parser.add_argument('--server', type=Path, required=True)
     parser.add_argument('--dll', type=Path, required=True)
-    parser.add_argument('--auto', action='store_true', help='exercise installer candidate discovery and explicit auto selection')
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument('--auto', action='store_true', help='exercise installer candidate discovery and explicit auto selection')
+    selection.add_argument('--all', action='store_true', help='install all three project configurations before checking each host')
     args = parser.parse_args()
     selected = {agent: getattr(args, agent) for agent in ('codex', 'claude', 'opencode') if getattr(args, agent)}
     if not selected:
         parser.error('select at least one installed native client')
+    if args.all and len(selected) != 3:
+        parser.error('--all requires --codex, --claude and --opencode native paths')
     stage = 'inputs'
     try:
         node = shutil.which('node')
@@ -41,14 +45,20 @@ def main():
                 project.mkdir()
                 cases = make_cases(cli, args.dll, project, 60)
 
-                def installer(command):
+                def installer(command, target_agent=agent):
                     argv = [node, str(ROOT / 'integrations/installer/src/index.mjs'), command,
-                        '--integration', 'mcp', '--agent', agent, '--scope', 'project', '--project', str(project)]
+                        '--integration', 'mcp', '--agent', target_agent, '--scope', 'project', '--project', str(project)]
                     if command == 'setup':
-                        if args.auto:
+                        if args.all:
+                            argv[argv.index('--agent') + 1] = 'all'
+                            for name, native in selected.items():
+                                argv += ['--' + name + '-client', native_executable(native)]
+                        elif args.auto:
                             argv[argv.index('--agent') + 1] = 'auto'
                             argv += ['--select', agent]
-                        argv += ['--client', client, '--cli', cli, '--server', server, '--allow-root', str(project), '--verify']
+                        if not args.all:
+                            argv += ['--client', client]
+                        argv += ['--cli', cli, '--server', server, '--allow-root', str(project), '--verify']
                     result = subprocess.run(argv, capture_output=True, timeout=60, creationflags=NO_WINDOW)
                     if result.returncode:
                         code = json.loads(result.stderr).get('code', 'UNKNOWN')
@@ -58,7 +68,8 @@ def main():
                         raise RuntimeError('auto selection chose the wrong client')
                     return data
 
-                installed = installer('setup')
+                setup_result = installer('setup')
+                installed = next(row for row in setup_result['targets'] if row['agent'] == agent) if args.all else setup_result
                 config_file = Path(installed['config'])
                 if agent == 'codex':
                     config = tomllib.loads(config_file.read_text(encoding='utf-8'))['mcp_servers'][NAME]
@@ -92,9 +103,15 @@ def main():
                     raise RuntimeError('managed entry remains after uninstall')
                 if unrelated_config() != unrelated:
                     raise RuntimeError('uninstall changed unrelated host configuration')
+                if args.all:
+                    for target in setup_result['targets']:
+                        if target['agent'] != agent and installer('uninstall', target['agent'])['action'] != 'removed':
+                            raise RuntimeError('another batch target was not removed')
+                        if Path(target['receipt']).exists():
+                            raise RuntimeError('batch ownership receipt remains after removal')
                 details['preserved_host_fields'] = sorted(unrelated)
                 checks.append({'client': agent, 'tools_discovered': 7, 'tool_checks': [case['label'] for case in cases], **details})
-        print(json.dumps({'status': 'passed', 'installer_auto_selection': args.auto,
+        print(json.dumps({'status': 'passed', 'installer_auto_selection': args.auto, 'installer_batch_selection': args.all,
             'external_model_calls': 0, 'project_auto_discovery': 'not_tested', 'checks': checks}, indent=2))
         return 0
     except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
