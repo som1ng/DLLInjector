@@ -4,7 +4,7 @@
 
 namespace gui {
 
-inline std::string GetCcSwitchUiHtml() {
+inline std::string GetEmbeddedUiHtml() {
     static constexpr std::string_view kChunk1 = R"CCS1(<!doctype html>
 <html lang="zh-CN" data-theme="dark">
 <head>
@@ -13,7 +13,7 @@ inline std::string GetCcSwitchUiHtml() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   /* ============================================================
-     CC Switch v7 Design System Tokens (1:1 from farion1231/cc-switch)
+     Modern Native Desktop Design Tokens & System Palettes
      ============================================================ */
   :root {
     --action-bg: #f97316;
@@ -106,26 +106,25 @@ inline std::string GetCcSwitchUiHtml() {
   .sidebar {
     width: 200px; flex-shrink: 0; background: var(--bg-sidebar); border-right: 1px solid var(--border);
     display: flex; flex-direction: column; overflow: hidden; white-space: nowrap;
-    transition: width 260ms cubic-bezier(.4, 0, .2, 1);
+    transition: width 240ms cubic-bezier(.2, 0, 0, 1);
     will-change: width;
   }
-  .sidebar.collapsed { width: 68px; }
+  .sidebar.collapsed { width: 56px; }
   .sidebar-top {
     height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
     padding: 0 10px 0 14px; border-bottom: 1px solid var(--border);
     user-select: none; overflow: hidden;
-    transition: padding 260ms cubic-bezier(.4, 0, .2, 1);
+    transition: padding 240ms cubic-bezier(.2, 0, 0, 1);
   }
-  .sidebar.collapsed .sidebar-top { justify-content: center; padding: 0; }
+  .sidebar.collapsed .sidebar-top { justify-content: center; padding: 0 8px; }
   .brand {
     display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text-1); min-width: 0;
     overflow: hidden; max-width: 130px;
-    transition: opacity 180ms ease, transform 240ms cubic-bezier(.4, 0, .2, 1), max-width 260ms cubic-bezier(.4, 0, .2, 1);
+    transition: opacity 160ms cubic-bezier(.2, 0, 0, 1), transform 200ms cubic-bezier(.2, 0, 0, 1), max-width 220ms cubic-bezier(.2, 0, 0, 1);
   }
   .sidebar.collapsed .brand {
-    opacity: 0; max-width: 0; width: 0 !important; min-width: 0 !important; flex: 0 0 0px !important;
-    padding: 0 !important; margin: 0 !important; transform: translateX(-10px); pointer-events: none;
-    overflow: hidden; display: none !important;
+    opacity: 0; max-width: 0; transform: translateX(-14px); pointer-events: none;
+    margin: 0; padding: 0;
   }
   .brand-logo {
     width: 22px; height: 22px; border-radius: 6px; overflow: hidden;
@@ -136,70 +135,70 @@ inline std::string GetCcSwitchUiHtml() {
     width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 6px;
   }
   .sidebar-scroll {
-    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 2px 0 8px;
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 4px 0 8px;
     display: flex; flex-direction: column; gap: 2px;
   }
   .sidebar-group-label {
     padding: 10px 16px 4px; font-size: 11px; font-weight: 500; color: var(--text-3);
     overflow: hidden; max-height: 28px; white-space: nowrap;
-    transition: opacity 180ms ease, max-height 240ms cubic-bezier(.4, 0, .2, 1), padding 240ms cubic-bezier(.4, 0, .2, 1);
+    transition: opacity 160ms ease, max-height 200ms cubic-bezier(.2, 0, 0, 1), padding 200ms cubic-bezier(.2, 0, 0, 1);
   }
   .sidebar.collapsed .sidebar-group-label {
     opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; pointer-events: none;
   }
   .sidebar-divider {
     height: 1px; background: var(--border); margin: 6px 16px; flex-shrink: 0;
-    transition: margin 260ms cubic-bezier(.4, 0, .2, 1);
+    transition: margin 240ms cubic-bezier(.2, 0, 0, 1);
   }
-  .sidebar.collapsed .sidebar-divider { margin: 6px 12px; }
+  .sidebar.collapsed .sidebar-divider { margin: 6px 10px; }
 
   .nav-item {
-    margin: 0 8px; height: 32px; padding: 0 8px; border-radius: var(--r-control); border: 0;
+    margin: 0 8px; height: 36px; padding: 0 10px; border-radius: var(--r-control); border: 0;
     background: transparent; color: var(--text-2); font: 400 13px/20px var(--font-sans);
-    display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left;
+    display: flex; align-items: center; gap: 10px; cursor: pointer; text-align: left;
     overflow: hidden; white-space: nowrap;
-    transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), margin 260ms cubic-bezier(.4, 0, .2, 1), padding 260ms cubic-bezier(.4, 0, .2, 1), width 260ms cubic-bezier(.4, 0, .2, 1);
+    transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), margin 240ms cubic-bezier(.2, 0, 0, 1), padding 240ms cubic-bezier(.2, 0, 0, 1), width 240ms cubic-bezier(.2, 0, 0, 1);
   }
   .nav-item:hover { background: var(--bg-subtle); color: var(--text-1); }
   .nav-item.active { background: var(--bg-selected); color: var(--text-1); font-weight: 500; }
   .nav-item svg.i { flex-shrink: 0; }
   .nav-item .nav-label {
-    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    transition: opacity 180ms ease, transform 240ms cubic-bezier(.4, 0, .2, 1);
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px;
+    transition: opacity 140ms cubic-bezier(.2, 0, 0, 1), transform 180ms cubic-bezier(.2, 0, 0, 1), max-width 220ms cubic-bezier(.2, 0, 0, 1);
   }
   .nav-item .nav-trail {
-    font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-3); flex-shrink: 0;
-    transition: opacity 180ms ease, transform 240ms cubic-bezier(.4, 0, .2, 1);
+    font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-3); flex-shrink: 0; max-width: 50px;
+    transition: opacity 130ms cubic-bezier(.2, 0, 0, 1), transform 160ms cubic-bezier(.2, 0, 0, 1), max-width 200ms cubic-bezier(.2, 0, 0, 1);
   }
   .nav-item .nav-tag {
-    height: 18px; line-height: 18px; padding: 0 6px; border-radius: 9999px; font-size: 11px; font-weight: 500; flex-shrink: 0;
-    transition: opacity 180ms ease, transform 240ms cubic-bezier(.4, 0, .2, 1);
+    height: 18px; line-height: 18px; padding: 0 6px; border-radius: 9999px; font-size: 11px; font-weight: 500; flex-shrink: 0; max-width: 50px;
+    transition: opacity 130ms cubic-bezier(.2, 0, 0, 1), transform 160ms cubic-bezier(.2, 0, 0, 1), max-width 200ms cubic-bezier(.2, 0, 0, 1);
   }
   .nav-item .nav-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .sidebar.collapsed .nav-item {
-    width: 48px; height: 32px; margin: 0 auto; justify-content: center; align-items: center; padding: 0; gap: 0;
+    width: 40px; height: 36px; margin: 2px auto; justify-content: center; align-items: center; padding: 0; gap: 0;
   }
   .sidebar.collapsed .nav-item svg.i {
     margin: 0 auto;
     flex-shrink: 0;
   }
-  .sidebar.collapsed .nav-item .nav-label,
+  .sidebar.collapsed .nav-item .nav-label {
+    opacity: 0; max-width: 0; transform: translateX(-10px); pointer-events: none; margin: 0; padding: 0;
+  }
   .sidebar.collapsed .nav-item .nav-trail,
   .sidebar.collapsed .nav-item .nav-tag {
-    opacity: 0; width: 0 !important; min-width: 0 !important; max-width: 0 !important; flex: 0 0 0px !important;
-    padding: 0 !important; margin: 0 !important; border: 0 !important;
-    pointer-events: none; overflow: hidden; display: none !important;
+    opacity: 0; max-width: 0; transform: translateX(-8px); pointer-events: none; margin: 0; padding: 0;
   }
 
   .sidebar-bottom {
     display: flex; gap: 4px; padding: 0 8px 8px; flex-shrink: 0;
-    transition: padding 260ms cubic-bezier(.4, 0, .2, 1);
+    transition: padding 240ms cubic-bezier(.2, 0, 0, 1);
   }
   .sidebar.collapsed .sidebar-bottom {
-    flex-direction: column; padding: 0 0 8px; align-items: center;
+    flex-direction: column; padding: 0 0 8px; align-items: center; gap: 4px;
   }
   .sidebar-bottom .nav-item { margin: 0; flex: 1; min-width: 0; }
-  .sidebar.collapsed .sidebar-bottom .nav-item { margin: 0 auto; flex: none; width: 48px; }
+  .sidebar.collapsed .sidebar-bottom .nav-item { margin: 2px auto; flex: none; width: 40px; height: 36px; }
 )CCS1";
 
     static constexpr std::string_view kChunk2 = R"CCS2(
@@ -220,7 +219,7 @@ inline std::string GetCcSwitchUiHtml() {
   .header-title { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text-1); white-space: nowrap; }
   .header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
 
-  /* Window Controls & Integrated Title Bar Header (CC Switch v7 Component texture) */
+  /* Window Controls & Integrated Title Bar Header */
   .header-vdiv {
     width: 1px;
     height: 18px;
@@ -497,8 +496,8 @@ inline std::string GetCcSwitchUiHtml() {
     width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--bg-card); color: var(--text-1);
     display: inline-flex; align-items: center; justify-content: center;
-    font-family: var(--font-mono); font-weight: 700; font-size: 11px; flex-shrink: 0;
-    line-height: 1; text-align: center; letter-spacing: 0.5px;
+    font-family: var(--font-mono); font-weight: 700; font-size: 11.5px; flex-shrink: 0;
+    line-height: normal; text-align: center; letter-spacing: 0;
     box-sizing: border-box;
   }
   .pcard .body { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; }
@@ -509,13 +508,20 @@ inline std::string GetCcSwitchUiHtml() {
   .pcard .name > span:first-child {
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 20px;
   }
+  .pcard .name .chip {
+    vertical-align: middle;
+    line-height: 18px;
+  }
   .pcard .sub {
-    margin-top: 3px; font-size: 12px; line-height: 18px; color: var(--text-2);
+    margin-top: 4px; font-size: 12px; line-height: 18px; color: var(--text-2);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .pcard .active-indicator {
     display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500;
     padding: 0 6px; white-space: nowrap; line-height: 20px;
+  }
+  .pcard .active-indicator .active-dot {
+    width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0;
   }
   .pcard .acts { display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity var(--dur) var(--ease); }
   .pcard:hover:not(.disabled) .acts { opacity: 1; }
@@ -626,7 +632,7 @@ inline std::string GetCcSwitchUiHtml() {
     static constexpr std::string_view kLogoBase64 = "data:image/png;base64,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";
 
 static constexpr std::string_view kChunk4a = R"CCS4A(
-<!-- Lucide SVG Icons (1:1 from cc-switch) -->
+<!-- Embedded SVG Icons -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
   <symbol id="route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
@@ -657,7 +663,7 @@ static constexpr std::string_view kChunk4a = R"CCS4A(
 </svg>
 
 <div class="app-shell">
-  <!-- Left Sidebar (cc-switch Sidebar.tsx) -->
+  <!-- Left Sidebar Navigation -->
   <nav class="sidebar" id="sidebar" aria-label="主导航">
     <div class="sidebar-top">
       <div class="brand">
@@ -760,7 +766,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     static constexpr std::string_view kChunk5 = R"CCS5(
     <!-- View 1: Workbench -->
     <main class="view-body" id="view-workbench">
-      <!-- Mode Row (cc-switch SwitchModePanel style) -->
+      <!-- Mode Selection Row -->
       <div class="moderow">
         <div class="seg modes" id="modeSeg" role="group" aria-label="载荷与工作模式">
           <span class="thumb" id="modeThumb"></span>
@@ -960,7 +966,10 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
             <span>依赖解析表</span>
             <span class="chip outline" id="depTableCountChip">0 项</span>
           </div>
-          <button class="btn neutral compact" onclick="sendCmd({cmd:'browse_dll'})"><svg class="i sm"><use href="#folder"/></svg>更换 DLL...</button>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button class="btn neutral compact" onclick="copyDepTable()"><svg class="i sm"><use href="#copy"/></svg>复制表格</button>
+            <button class="btn neutral compact" onclick="sendCmd({cmd:'browse_dll'})"><svg class="i sm"><use href="#folder"/></svg>更换 DLL...</button>
+          </div>
         </div>
         <div style="flex:1;overflow-y:auto">
           <table class="log">
@@ -1207,7 +1216,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     document.getElementById("modalBody").innerHTML = `
       <div style="display:flex;flex-direction:column;gap:12px;margin-top:10px">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span>界面视觉主题 (CC Switch v7)</span>
+          <span>界面视觉主题</span>
           <div style="display:flex;gap:6px">
             <button class="btn neutral compact" onclick="setTheme('light')">浅色</button>
             <button class="btn neutral compact" onclick="setTheme('dark')">深色</button>
@@ -1218,7 +1227,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
           <button class="btn neutral compact" onclick="sendCmd({cmd:'enable_debug_priv'})">${state.debugPriv ? '已启用' : '立即启用'}</button>
         </div>
         <div style="font-size:12px;color:var(--text-3);border-top:1px solid var(--border);padding-top:10px">
-          宿主架构：${esc(state.hostArch)} · 渲染引擎：Edge WebView2 · 设计规范：CC Switch v7
+          宿主架构：${esc(state.hostArch)} · 渲染引擎：Edge WebView2
         </div>
       </div>`;
     document.getElementById("modalFooter").innerHTML = `<button class="btn neutral compact" onclick="closeModal()">完成</button>`;
@@ -1291,7 +1300,7 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
             </div>
             <div class="sub">${esc(m.desc)}</div>
           </div>
-          ${active ? `<span class="active-indicator"><span style="width:6px;height:6px;border-radius:50%;background:${dotColor}"></span>当前生效</span>` : ''}
+          ${active ? `<span class="active-indicator"><span class="active-dot" style="background:${dotColor}"></span>当前生效</span>` : ''}
           <div class="acts" onclick="event.stopPropagation()">
             <button class="btn icon" data-tip="切换此注入方法" aria-label="切换" ${supported ? '' : 'disabled'} onclick="sendCmd({cmd:'select_method',method:${m.id}})"><svg class="i"><use href="#check"/></svg></button>
             <button class="btn icon" data-tip="查看技术说明" aria-label="说明" onclick="showMethodInfo(${m.id})"><svg class="i"><use href="#info"/></svg></button>

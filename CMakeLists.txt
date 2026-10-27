@@ -62,7 +62,7 @@ target_compile_definitions(dllinjector_cli PRIVATE UNICODE _UNICODE NOMINMAX _WI
 set_target_properties(dllinjector_cli PROPERTIES OUTPUT_NAME dllinjector
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/cli")
 
-# Modern Dedicated Desktop Host: Win32 + WebView2 (CC Switch v7 UI)
+# Modern Dedicated Desktop Host: Win32 + WebView2 (Embedded UI)
 add_executable(DLLInjector WIN32
     apps/gui/main.cpp
     apps/gui/webview_host.cpp

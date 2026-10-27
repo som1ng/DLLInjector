@@ -24,7 +24,7 @@
 #include "utils.h"
 #include "gui_app.h"
 #include "webview_host.h"
-#include "cc_switch_ui.h"
+#include "ui_view.h"
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "dwmapi.lib")
@@ -214,10 +214,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     // Initialize GUI Application Controller State
     gui::InitGuiApp(hwnd);
 
-    // Primary & Dedicated UI: Microsoft Edge WebView2 with CC Switch v7 Design System
+    // Primary & Dedicated UI: Microsoft Edge WebView2 with Modern Native Design System
     if (gui::webview_host::Initialize(
             hwnd,
-            gui::GetCcSwitchUiHtml(),
+            gui::GetEmbeddedUiHtml(),
             gui::HandleWebViewMessage,
             [](const std::wstring& dropped) { gui::OnDropFile(dropped.c_str()); })) {
         MSG msg;

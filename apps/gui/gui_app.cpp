@@ -533,7 +533,7 @@ static bool ExecuteInjectionInternal(bool force, bool showModal, std::string& ou
 
 void InitGuiApp(HWND mainHwnd) {
     g_MainHwnd = mainHwnd;
-    Logger::Instance().Info("DLL Injector (CC Switch v7 WebView2 / Modern UI) 初始化完成。");
+    Logger::Instance().Info("Rondo (WebView2 Modern UI) 初始化完成。");
     #if defined(_WIN64)
     Logger::Instance().Info("当前宿主构建架构: 64-bit (x64)");
     #else
