@@ -63,13 +63,16 @@ test('long selected process names stay inside the header without covering contro
   assert.ok(overlaps.actionsRight <= overlaps.width);
 });
 
-test('Doctor selection survives native state updates and returning to workbench restores payload selection', async () => {
-  await page.locator('#modeBtnDoctor').click();
-  await page.evaluate(() => applyState({ payloadMode: 'dll' }));
-  assert.equal(await page.locator('#modeBtnDoctor').getAttribute('aria-pressed'), 'true');
+test('switching payload mode between DLL and Shellcode toggles active state and restores selection', async () => {
+  assert.equal(await page.locator('#modeBtnDoctor').count(), 0);
+  await page.locator('#modeBtnShell').click();
+  assert.equal(await page.locator('#modeBtnShell').getAttribute('aria-pressed'), 'true');
   assert.equal(await page.locator('#modeBtnDll').getAttribute('aria-pressed'), 'false');
-  await page.evaluate(() => switchView('workbench'));
+  assert.equal(await page.evaluate(() => commands.at(-1)?.cmd), 'set_payload_mode');
+  assert.equal(await page.evaluate(() => commands.at(-1)?.mode), 'shellcode');
+  await page.evaluate(() => applyState({ payloadMode: 'dll' }));
   assert.equal(await page.locator('#modeBtnDll').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#modeBtnShell').getAttribute('aria-pressed'), 'false');
 });
 
 test('ARM64 and unknown architecture never become x86-compatible by boolean comparison', async () => {
