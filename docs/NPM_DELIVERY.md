@@ -34,6 +34,7 @@
 | `python -X utf8 tests/cli_distribution_tests.py --cli <rondo.exe> --architecture <arch>` | x64/x86 各 6 项通过，真实新名称 ZIP 解包及安装检查 |
 | `npm.cmd run build --prefix integrations/mcp` | 通过 |
 | `npm.cmd test --prefix integrations/pi` | 3 项通过，新包名和更新后的权威 Skill 归档一致 |
+| 同步 main `4de53c6` 后，`node --test tests/gui/ui.test.mjs`，使用已有 Playwright | 17 项通过，0 跳过；保留 GUI 载荷模式更新 |
 | `package_npm.py`、staging `npm ci`、`npm pack` | 实际生成完整归档，最终约 6.45 MB；staging 不携带源码测试、私有配置或日志 |
 | `python -X utf8 tests/npm_package_tests.py --archive <tgz> --codex <原生 EXE>` | 2 项端到端测试通过，覆盖下述真实路径 |
 
