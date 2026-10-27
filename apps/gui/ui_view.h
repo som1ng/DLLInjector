@@ -768,25 +768,21 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
     <main class="view-body" id="view-workbench">
       <!-- Mode Selection Row -->
       <div class="moderow">
-        <div class="seg modes" id="modeSeg" role="group" aria-label="载荷与工作模式">
+        <div class="seg modes" id="modeSeg" role="group" aria-label="载荷注入模式">
           <span class="thumb" id="modeThumb"></span>
           <button type="button" id="modeBtnDll" aria-pressed="true" class="act-direct" onclick="setPayloadMode('dll')">
             <svg class="i sm"><use href="#plug"/></svg>DLL 注入<span class="dot"></span>
           </button>
-          <button type="button" id="modeBtnDoctor" aria-pressed="false" onclick="switchView('doctor')">
-            <svg class="i sm"><use href="#route"/></svg>Doctor 预检
-          </button>
           <button type="button" id="modeBtnShell" aria-pressed="false" onclick="setPayloadMode('shellcode')">
-            <svg class="i sm"><use href="#layers"/></svg>Shellcode
+            <svg class="i sm"><use href="#layers"/></svg>Shellcode 注入
           </button>
         </div>
         <span class="helptip">
           <button type="button" aria-label="模式说明"><svg class="i sm"><use href="#help"/></svg></button>
           <span class="card" role="tooltip">
-            <b>模式说明</b>
-            DLL 注入：解析 PE 架构与依赖后注入动态库。<br>
-            Doctor 预检：零权限静态分析 PE 头、导入表与缺失依赖。<br>
-            Shellcode：向目标进程写入并执行机器码载荷。
+            <b>载荷模式说明</b>
+            DLL 注入：解析 PE 架构与依赖项后注入动态链接库。<br>
+            Shellcode 注入：向目标进程直接写入并执行机器码载荷。
           </span>
         </span>
         <label class="toggle-lbl" onclick="toggleGuardSwitch()">
@@ -1140,15 +1136,30 @@ static constexpr std::string_view kChunk4b = R"CCS4B(" alt="Rondo"/></span>
 
   function setPayloadMode(mode) {
     switchView("workbench");
+    state.payloadMode = mode;
+    syncModeButtons();
+    const isDll = mode === "dll";
+    const dllBox = document.getElementById("dllPayloadBox");
+    const shellBox = document.getElementById("shellcodePayloadBox");
+    if (dllBox) dllBox.style.display = isDll ? "block" : "none";
+    if (shellBox) shellBox.style.display = isDll ? "none" : "block";
+    const tag = document.getElementById("navModeTag");
+    if (tag) {
+      tag.textContent = isDll ? "DLL" : "HEX";
+      tag.className = "nav-tag chip " + (isDll ? "direct" : "stack");
+    }
+    renderMethods();
     sendCmd({ cmd: "set_payload_mode", mode });
   }
 
   function syncModeButtons() {
-    const mode = ui.view === "doctor" ? "doctor" : state.payloadMode;
-    [["modeBtnDll", "dll", "direct"], ["modeBtnDoctor", "doctor", "route"], ["modeBtnShell", "shellcode", "stack"]].forEach(([id, value, tone]) => {
+    const mode = state.payloadMode === "shellcode" ? "shellcode" : "dll";
+    [["modeBtnDll", "dll", "direct"], ["modeBtnShell", "shellcode", "stack"]].forEach(([id, value, tone]) => {
       const button = document.getElementById(id);
-      button.setAttribute("aria-pressed", mode === value);
-      button.className = mode === value ? "act-" + tone : "";
+      if (button) {
+        button.setAttribute("aria-pressed", mode === value);
+        button.className = mode === value ? "act-" + tone : "";
+      }
     });
     moveSegThumb("modeSeg", "modeThumb");
   }
