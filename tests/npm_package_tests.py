@@ -135,6 +135,40 @@ await install('upgrade', { agent: 'codex', scope: 'project', project, cli }, {
             self.assertEqual(preview['scope'], 'user')
             self.assertEqual(Path(preview['config']), isolated_profile / '.codex/config.toml')
             self.assertFalse((isolated_profile / '.codex').exists())
+            # Exercise packaged MCP recovery in CI too; only the absent native client probe is a fixture.
+            mcp_recovery_project = base / 'MCP recovery'
+            mcp_recovery_project.mkdir()
+            previous_cli.write_bytes(Path(binding['cli']['path']).read_bytes())
+            interrupted_mcp = r'''
+import { pathToFileURL } from 'node:url';
+const [entry, project, cli, nextCli, server, client, realClient] = process.argv.slice(1);
+const { installMcp } = await import(pathToFileURL(entry));
+const options = { agent: 'codex', scope: 'project', project, cli, server, client, allowRoot: [project] };
+const context = realClient === 'yes' ? {} : { probeClient: async (agent, file) => ({ path: file, version: '0.164.0' }) };
+await installMcp('setup', options, context);
+await installMcp('upgrade', { ...options, cli: nextCli }, { ...context,
+  checkpoint: stage => { if (stage === 'config-written') process.exit(74); },
+});
+'''
+            packaged_cli = Path(binding['cli']['path'])
+            self.run_command([NODE, '--input-type=module', '-e', interrupted_mcp,
+                              package / 'integrations/installer/src/mcp.mjs', mcp_recovery_project,
+                              packaged_cli, previous_cli, package / 'integrations/mcp/dist/index.js',
+                              CODEX or packaged_cli, 'yes' if CODEX else 'no'], code=74)
+            mcp_receipt = mcp_recovery_project / '.dll-doctor/mcp-codex.json'
+            receipt_before = mcp_receipt.read_bytes()
+            recover_mcp = [shim, 'recover', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project',
+                           '--project', mcp_recovery_project]
+            self.assertEqual(json.loads(self.run_command([*recover_mcp, '--dry-run']).stdout)['action'], 'preview')
+            self.assertEqual(json.loads(self.run_command(recover_mcp).stdout)['action'], 'restored')
+            self.assertEqual(mcp_receipt.read_bytes(), receipt_before)
+            recovered_config = (mcp_recovery_project / '.codex/config.toml').read_text(encoding='utf-8')
+            self.assertIn(json.dumps(str(packaged_cli), ensure_ascii=False), recovered_config)
+            self.assertEqual(json.loads(self.run_command(recover_mcp).stdout)['action'], 'absent')
+            self.run_command([shim, 'uninstall', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project',
+                              '--project', mcp_recovery_project])
+            self.assertFalse((mcp_recovery_project / '.codex/config.toml').exists())
+            previous_cli.unlink()
             if CODEX:
                 self.run_command([shim, 'setup', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project',
                                   '--project', project, '--client', CODEX, '--allow-root', project, '--verify'])

@@ -1,6 +1,6 @@
 # Rondo Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.11`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.12`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 Rondo CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级或用户级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
@@ -177,8 +177,28 @@ rondo recover --agent codex --scope project --project 'D:\work\my-app'
 
 恢复记录仅含受管 Skill/绑定/收据，不备份 MCP 配置。记录、临时文件和 guard 必须留在本地，已加入本仓库 gitignore。
 需要支持硬链接的本地文件系统；`.dll-doctor-recover.guard` 可作为空文件保留，存在本身不表示仍被占用。
-当前不支持 MCP、安装/卸载、旧版记录或整批升级的进程中断恢复；批量升级中已完成的其他目标不会一并撤回。
+当前不支持安装/卸载、旧版记录或整批升级的进程中断恢复；批量升级中已完成的其他目标不会一并撤回。
 物理断电、存储损坏及旧运行文件回退仍未验收。行为、错误码和测试见 [Skill 恢复交付](../../docs/SKILL_RECOVERY_DELIVERY.md)。
+
+### MCP 升级中断恢复
+
+从安装器 `0.1.0-dev.12` 起，也可恢复单个客户端的 MCP 升级步骤：
+
+```powershell
+rondo recover --integration mcp --agent codex --scope project --project 'D:\work\my-app' --dry-run
+rondo recover --integration mcp --agent codex --scope project --project 'D:\work\my-app'
+rondo recover --integration mcp --agent claude --scope user
+```
+
+支持 Codex、Claude Code、OpenCode 的 project/user 范围及已有的自定义路径规则。不接受 auto/all 或运行文件/策略参数。
+只记录受管 MCP 条目的原始文本、收据前后字节和配置摘要，不将其他服务配置或凭据复制进恢复记录。
+若中断后配置或收据被改动（包括无关设置）、删除或链接替换，会保留文件并拒绝恢复。
+预览不启动任何进程；实际恢复使用与 Skill 相同的 Windows PowerShell 排他锁，不运行 CLI、客户端或 MCP 服务。
+
+仅处理当前升级/内部回滚步骤；支持恢复中再次被终止后重试，不恢复整个批次或旧二进制。
+记录位于 `.dll-doctor/mcp-<agent>.lock`；同目录 guard 可保留为空文件。
+替换配置时的临时文件仍含完整配置，只用于原子替换，不作为长期备份；仅清理可确认属于本次操作的临时文件。
+更多行为、限制和验证见 [MCP 恢复交付](../../docs/MCP_RECOVERY_DELIVERY.md)。
 
 输出为 JSON，成功退出 `0`，失败退出 `1`。文件清单包含本机路径；安装目录与安装记录应保留在本机，
 请在目标项目的 Git 忽略规则中排除对应安装目录。本仓库已配置这些忽略规则。
@@ -188,7 +208,7 @@ rondo recover --agent codex --scope project --project 'D:\work\my-app'
 支持 Codex **0.164.0**、Claude Code **2.1.310**、OpenCode **1.19.4 (V1)**；
 其他版本会明确拒绝，尚未验证其配置兼容性。准备 CLI **dev.9 / Schema 1.6**、
 已构建的 [MCP 服务](../mcp/README.md) 和客户端原生 `.exe`（不接受 `.cmd` / `.ps1` 包装器）。
-安装器不下载或复制这些运行文件，移动/更新后需明确卸载再安装。
+安装器不下载或复制这些运行文件，移动/更新后可使用显式 `upgrade` 重新绑定。
 
 在仓库根目录运行，替换绝对路径；`--allow-root` 可重复指定：
 
@@ -225,8 +245,8 @@ node integrations/installer/src/index.mjs uninstall --integration mcp --agent co
 并根据项目需要忽略含本机绝对路径的客户端配置；安装器不会改动目标项目的 `.gitignore`。
 
 可捕获的写入失败会按原始字节回滚，遇到并发修改则保留现场并报告 `ROLLBACK_INCOMPLETE`。
-强制结束/断电恢复不在本轮范围内；残留 `.dll-doctor/mcp-<agent>.lock` 时，
-先确认没有安装器运行，再备份配置与记录并检查残留，不自动抢锁。
+新版升级遗留的 `.dll-doctor/mcp-<agent>.lock` 可按上文 `recover --integration mcp` 检查和恢复。
+安装/卸载及旧版空锁仍需保留并检查现场，不自动抢锁；物理断电未验收。
 以上为项目配置；用户级入口和差异见下节。历史项目契约见 [契约](../../docs/MCP_INSTALLER_CONTRACT.md)。
 
 ## 用户级 MCP 配置

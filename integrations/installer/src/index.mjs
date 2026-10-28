@@ -16,7 +16,7 @@ try {
       + 'setup --agent codex|claude|opencode --scope project|user --cli <absolute.exe> [--manifest <absolute.json>] [--project <dir>] [--dry-run] [--verify]\n'
       + 'upgrade: use setup options with an explicit agent or all to update owned installations; verifies new runtimes and rolls back caught failures.\n'
       + 'verify --agent <agent> --scope <scope> [--project <dir>]\n'
-      + 'recover --agent <agent> --scope <scope> [--project <dir>] [--dry-run]: recover an interrupted Skill upgrade after its owner exits.\n'
+      + 'recover --agent <agent> --scope <scope> [--integration mcp] [--project <dir>] [--dry-run]: recover an interrupted upgrade after its owner exits.\n'
       + 'uninstall --agent <agent> --scope <scope> [--project <dir>] [--dry-run]\n'
       + 'MCP: add --integration mcp, --server <built.js> and --allow-root <dir> (repeatable); explicit-agent setup also requires --client <native.exe>.\n'
       + 'MCP supports project/user scope; --allow-processes is optional. Skill is the default integration.\n'
@@ -40,7 +40,6 @@ try {
     }
     if (process.platform !== 'win32') throw new InstallError('PLATFORM', 'This installer supports Windows only.');
     const integration = values.integration ?? 'skill';
-    if (command === 'recover' && integration !== 'skill') throw new InstallError('RECOVERY_UNSUPPORTED', 'Recovery currently supports Skill upgrades only.');
     const clients = Object.fromEntries(['codex', 'claude', 'opencode'].filter(agent => values[agent + '-client'] !== undefined)
       .map(agent => [agent, values[agent + '-client']]));
     if (Object.keys(clients).length && (values.agent !== 'all' || integration !== 'mcp' || !['setup', 'upgrade'].includes(command))) {
@@ -48,7 +47,7 @@ try {
     }
     if ((values.agent === 'auto' && command !== 'setup') || (values.agent === 'all' && !['setup', 'upgrade'].includes(command))
         || (values.select !== undefined && values.agent !== 'auto')) {
-      throw new InstallError('ARGUMENT', 'Auto selection is for setup only; all supports setup/upgrade; verify/uninstall require an explicit agent.');
+      throw new InstallError('ARGUMENT', 'Auto selection is for setup only; all supports setup/upgrade; verify/recover/uninstall require an explicit agent.');
     }
     if (!['skill', 'mcp'].includes(integration) || (integration === 'skill'
         && ((values.client !== undefined && values.agent !== 'auto') || values.server !== undefined || values['allow-root'] !== undefined || values['allow-processes']))) {

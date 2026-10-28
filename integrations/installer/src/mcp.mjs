@@ -55,7 +55,7 @@ async function location(options, context) {
   return { root, relative };
 }
 
-async function read(file, limit = 1048576) {
+export async function read(file, limit = 1048576) {
   await safePath(file);
   const info = await stat(file);
   if (!info) return null;
@@ -64,7 +64,7 @@ async function read(file, limit = 1048576) {
   if (data.length > limit) fail('MCP_FILE', 'Configuration/receipt exceeds its size limit.');
   return data;
 }
-function text(data) {
+export function text(data) {
   if (data === null) return null;
   try { return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(data); }
   catch { fail('MCP_CONFIG', 'Configuration must use UTF-8.'); }
@@ -152,15 +152,17 @@ async function verifyRuntime(agent, runtime, context) {
 }
 
 // Only our computed configuration paths reach this function; compare bytes before replacing.
-async function replace(file, before, after, made) {
+export async function replace(file, before, after, made, temporary, checkpoint) {
   if (!same(await read(file), before)) fail('MCP_CONCURRENT', 'Configuration changed during the operation; preserving it.');
   if (after === null) { if (before !== null) await fs.unlink(file); return; }
   await makeParents(path.dirname(file), made);
   await safePath(file);
-  const temp = path.join(path.dirname(file), '.dll-doctor-config-' + randomUUID() + '.tmp');
+  const temp = temporary ?? path.join(path.dirname(file), '.dll-doctor-config-' + randomUUID() + '.tmp');
+  await safePath(temp);
   const handle = await fs.open(temp, 'wx', before === null ? 0o600 : (await fs.stat(file)).mode & 0o777);
   try {
     await handle.writeFile(after);
+    await checkpoint?.('temporary-written', { file });
     await handle.close();
     if (!same(await read(file), before)) fail('MCP_CONCURRENT', 'Configuration changed during the operation; preserving it.');
     if (before === null) await fs.link(temp, file); // exclusive creation; never replace a newly appeared file
@@ -171,8 +173,20 @@ async function replace(file, before, after, made) {
   }
 }
 
+export function parseReceipt(bytes, agent, scope, relative) {
+  try {
+    const record = JSON.parse(text(bytes));
+    if (!record || record.owner !== 'dll-doctor-installer' || record.format !== 1 || record.agent !== agent
+        || (record.scope ?? 'project') !== scope || record.config !== relative || !record.runtime || !record.ownership
+        || typeof record.ownership.configCreated !== 'boolean' || typeof record.ownership.containerCreated !== 'boolean'
+        || !/^[0-9a-f]{64}$/.test(record.ownership.installedHash)
+        || !isDeepStrictEqual(record.entry, mcpEntry(agent, record.runtime))) throw new Error();
+    return record;
+  } catch { fail('MCP_RECEIPT', 'MCP ownership receipt is invalid.'); }
+}
+
 export async function installMcp(command, options, context = {}) {
-  if (!['setup', 'upgrade', 'verify', 'uninstall', 'rollback-upgrade'].includes(command) || !Object.hasOwn(versions, options.agent)
+  if (!['setup', 'upgrade', 'recover', 'verify', 'uninstall', 'rollback-upgrade'].includes(command) || !Object.hasOwn(versions, options.agent)
       || !['project', 'user'].includes(options.scope)) fail('MCP_ARGUMENT', 'MCP mode requires a supported agent and --scope project|user.');
   const bindingCommand = ['setup', 'upgrade'].includes(command);
   if (!bindingCommand && (options.cli !== undefined || options.server !== undefined || options.client !== undefined
@@ -183,6 +197,8 @@ export async function installMcp(command, options, context = {}) {
   const { root, relative } = await location(options, context);
   const configPath = path.join(root, relative), stateDir = path.join(root, '.dll-doctor');
   const receiptPath = path.join(stateDir, 'mcp-' + (options.scope === 'user' ? 'user-' : '') + options.agent + '.json');
+  const lockPath = path.join(stateDir, 'mcp-' + options.agent + '.lock');
+  const recoveryLocation = { config: configPath, receipt: receiptPath, lock: lockPath, relative };
   const upgradeRollback = context.rollbackUpgrade;
   if ((command === 'rollback-upgrade') !== !!upgradeRollback || (upgradeRollback
       && (upgradeRollback.config !== configPath || upgradeRollback.receipt !== receiptPath))) {
@@ -192,18 +208,13 @@ export async function installMcp(command, options, context = {}) {
   if (rollback && (command !== 'uninstall' || rollback.config !== configPath || rollback.receipt !== receiptPath)) {
     fail('MCP_ARGUMENT', 'Batch rollback must match the original configuration and receipt paths.');
   }
+  if (command === 'recover') return (await import('./mcp-recovery.mjs')).recoverMcp(recoveryLocation, options, context);
   const configBefore = await read(configPath), receiptBefore = await read(receiptPath, 65536);
   const source = text(configBefore);
   const parsed = inspectConfig(options.agent, source ?? (options.agent === 'codex' ? '' : '{}'));
   let record;
   if (receiptBefore !== null) {
-    try { record = JSON.parse(text(receiptBefore)); } catch { fail('MCP_RECEIPT', 'MCP ownership receipt is invalid.'); }
-    if (!record || record.owner !== 'dll-doctor-installer' || record.format !== 1 || record.agent !== options.agent
-        || (record.scope ?? 'project') !== options.scope
-        || record.config !== relative || !record.runtime || !record.ownership
-        || typeof record.ownership.configCreated !== 'boolean' || typeof record.ownership.containerCreated !== 'boolean'
-        || !/^[0-9a-f]{64}$/.test(record.ownership.installedHash)
-        || !isDeepStrictEqual(record.entry, mcpEntry(options.agent, record.runtime))) fail('MCP_RECEIPT', 'MCP ownership receipt is invalid.');
+    record = parseReceipt(receiptBefore, options.agent, options.scope, relative);
     assertOwned(options.agent, source ?? '', record);
   } else if (parsed.entry !== undefined) fail('MCP_CONFLICT', 'The existing dll_doctor entry is not owned by this installer.');
   if (['upgrade', 'rollback-upgrade'].includes(command) && !record) fail('MCP_NOT_INSTALLED', 'No managed MCP installation exists.');
@@ -252,38 +263,51 @@ export async function installMcp(command, options, context = {}) {
   if (options.dryRun) return { ...result, action: 'preview', executable_probes: 'not_run',
     ...(runtime ? { managed_entry: mcpEntry(options.agent, runtime) } : {}) };
   const made = [], journal = [];
-  const lockPath = path.join(stateDir, 'mcp-' + options.agent + '.lock');
-  let lock;
+  let lock, recovery, keepRecovery = false;
   try {
     await makeParents(stateDir, made);
     await safePath(lockPath);
-    try { lock = await fs.open(lockPath, 'wx'); }
-    catch (error) { if (error.code === 'EEXIST') fail('MCP_LOCKED', 'Another or interrupted MCP installation owns the local lock.'); throw error; }
+    if (command === 'upgrade' || upgradeRollback) {
+      recovery = await (await import('./mcp-recovery.mjs')).acquireMcpUpgrade(recoveryLocation, options,
+        { config: configBefore, receipt: receiptBefore }, { config: configAfter, receipt: receiptAfter });
+      lock = recovery.handle;
+      await context.recoveryCheckpoint?.('prepared');
+    } else {
+      try { lock = await fs.open(lockPath, 'wx'); }
+      catch (error) { if (error.code === 'EEXIST') fail('MCP_LOCKED', 'Another or interrupted MCP installation owns the local lock.'); throw error; }
+    }
     if (!same(await read(configPath), configBefore) || !same(await read(receiptPath), receiptBefore)) fail('MCP_CONCURRENT', 'Configuration changed during preflight.');
     if (rollback && !same(receiptBefore, rollback.receiptAfter)) fail('MCP_CONCURRENT', 'Another installation replaced the batch entry; preserving it.');
     if (command === 'upgrade') await context.captureUpgrade?.({ config: configPath, receipt: receiptPath,
       configBefore, receiptBefore, configAfter, receiptAfter });
+    await recovery?.start();
     for (const [file, before, after] of [[configPath, configBefore, configAfter], [receiptPath, receiptBefore, receiptAfter]]) {
       journal.push({ file, before, after });
-      await replace(file, before, after, made);
+      await replace(file, before, after, made, recovery?.temporaryFor(file), context.recoveryCheckpoint);
       await context.checkpoint?.(file === configPath ? 'config-written' : 'receipt-written',
         command === 'setup' && file === receiptPath
           ? { config: configPath, receipt: receiptPath, configBefore, configAfter, receiptAfter } : undefined);
     }
     if (bindingCommand && (options.verify || command === 'upgrade')) await verifyRuntime(options.agent, runtime, context);
+    await recovery?.complete();
+    await context.recoveryCheckpoint?.('committed');
     return { ...result, action: upgradeRollback ? 'restored' : command === 'upgrade' ? 'upgraded' : command === 'setup' ? 'installed' : 'removed',
       ...(bindingCommand ? { server_verification: 'handshake_and_tools' } : {}) };
   } catch (error) {
     let failed = false;
     for (const step of journal.reverse()) {
       try {
-        if (!same(await read(step.file), step.before)) await replace(step.file, step.after, step.before, made);
+        if (!same(await read(step.file), step.before)) await replace(step.file, step.after, step.before, made, recovery?.temporaryFor(step.file));
       } catch { failed = true; }
     }
-    if (failed) fail('ROLLBACK_INCOMPLETE', 'MCP rollback preserved concurrent edits or encountered an access error; inspect the reported configuration and .dll-doctor state.');
+    if (failed) {
+      keepRecovery = !!recovery;
+      fail('ROLLBACK_INCOMPLETE', 'MCP rollback preserved concurrent edits or encountered an access error; inspect the reported configuration and .dll-doctor state.'
+        + (keepRecovery ? ' Recovery journal retained at ' + lockPath + '. If recover reports RECOVERY_CONFLICT: stop installers and clients, back up the configuration, receipt, journal and temporary files, reconcile the managed entry with its receipt, then move only this lock to the backup before retrying. Removing the lock alone does not repair configuration.' : ''));
+    }
     throw error;
   } finally {
-    if (lock) { await lock.close(); await fs.unlink(lockPath); }
+    if (lock) { await lock.close(); if (!keepRecovery) await fs.unlink(lockPath); }
     for (const directory of made.reverse()) {
       try { await fs.rmdir(directory); }
       catch (error) { if (!['ENOTEMPTY', 'EEXIST', 'ENOENT'].includes(error.code)) throw error; }
