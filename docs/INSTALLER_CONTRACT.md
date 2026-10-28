@@ -1,5 +1,7 @@
 # Local Skill installer contract
 
+For the later explicit upgrade command, see [configuration upgrade](CONFIG_UPGRADE_DELIVERY.md).
+
 Date: 2026-10-25. First P4 installer slice: a source-run Windows installer for
 Codex, Claude Code and OpenCode Skills, using an explicitly supplied local CLI.
 Pi uses its existing native package installation. No release download, npm

@@ -1,5 +1,7 @@
 # Project MCP installer contract
 
+For the later explicit upgrade command, see [configuration upgrade](CONFIG_UPGRADE_DELIVERY.md).
+
 Date: 2026-10-26. P4 slice: `--integration mcp` in the source installer, for project
 configuration in Codex 0.164.0, Claude Code 2.1.310 and OpenCode 1.19.4 (V1).
 Skill mode remains the default. User-level MCP, auto/all selection, client/server

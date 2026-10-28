@@ -121,3 +121,21 @@ export function removeEntry(agent, text, record) {
   preserveComments(agent, text, updated);
   return updated;
 }
+
+export function updateEntry(agent, text, record, entry) {
+  assertOwned(agent, text, record);
+  const canonical = addEntry(agent, null, entry);
+  const updated = agent === 'codex' ? text.replace(record.ownership.block, canonical.ownership.block)
+    : applyEdits(text, modify(text, [key(agent), SERVER_NAME], entry,
+      { formattingOptions: { insertSpaces: true, tabSize: 2, eol: text.includes('\r\n') ? '\r\n' : '\n' } }));
+  const after = inspectConfig(agent, updated);
+  preserveComments(agent, text, updated);
+  if (!isDeepStrictEqual(after.entry, entry)) fail('Configuration layout cannot update the managed entry.');
+  return { text: updated, ownership: {
+    block: canonical.ownership.block, entryTextHash: after.entryTextHash,
+    // An upgrade must not adopt unrelated content added since the original setup.
+    configCreated: record.ownership.configCreated && text === addEntry(agent, null, record.entry).text,
+    containerCreated: record.ownership.containerCreated && hash(text) === record.ownership.installedHash,
+    installedHash: hash(updated),
+  } };
+}

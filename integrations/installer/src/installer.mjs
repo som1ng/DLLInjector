@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from './distribution.mjs';
 
-export const VERSION = '0.1.0-dev.8';
+export const VERSION = '0.1.0-dev.9';
 export const NAME = 'windows-dll-doctor';
 export const FILES = ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml'];
 const BINDING = 'references/installation.json';
@@ -168,9 +168,52 @@ async function restore(directory, tree) {
   }
 }
 
+async function replaceSkillFile(file, before, after) {
+  await safePath(file);
+  if (!(await fs.readFile(file)).equals(before)) fail('CONCURRENT_EDIT', 'Skill changed during upgrade; preserving it.');
+  const temporary = path.join(path.dirname(file), '.dll-doctor-upgrade-' + randomUUID() + '.tmp');
+  const handle = await fs.open(temporary, 'wx', (await fs.stat(file)).mode & 0o777);
+  try {
+    await handle.writeFile(after);
+    await handle.close();
+    await safePath(file);
+    if (!(await fs.readFile(file)).equals(before)) fail('CONCURRENT_EDIT', 'Skill changed during upgrade; preserving it.');
+    await fs.rename(temporary, file);
+  } finally {
+    await handle.close();
+    if (await stat(temporary)) await fs.unlink(temporary);
+  }
+}
+
+async function upgradeSkill(target, before, after, probe, checkpoint) {
+  const journal = [];
+  try {
+    // Write the ownership receipt last, after the managed content and binding.
+    for (const file of OWNED) {
+      if (before[file].equals(after[file])) continue;
+      journal.push(file);
+      await replaceSkillFile(path.join(target, file), before[file], after[file]);
+      await checkpoint('upgraded-file', { file });
+    }
+    await verify(target, probe);
+  } catch (error) {
+    let failed = false;
+    for (const file of journal.reverse()) {
+      try {
+        const full = path.join(target, file);
+        await safePath(full);
+        if (!(await fs.readFile(full)).equals(before[file])) await replaceSkillFile(full, after[file], before[file]);
+      } catch { failed = true; }
+    }
+    if (failed) fail('ROLLBACK_INCOMPLETE', 'Skill upgrade rollback preserved concurrent edits or encountered an access error; inspect: ' + target);
+    throw error;
+  }
+}
+
 export async function install(command, options, context = {}) {
-  if (!['setup', 'verify', 'uninstall'].includes(command)) fail('ARGUMENT', 'Unknown command.');
-  if (command !== 'setup' && options.manifest !== undefined) fail('ARGUMENT', '--manifest is only valid for setup.');
+  if (!['setup', 'upgrade', 'verify', 'uninstall'].includes(command)) fail('ARGUMENT', 'Unknown command.');
+  const bindingCommand = ['setup', 'upgrade'].includes(command);
+  if (!bindingCommand && options.manifest !== undefined) fail('ARGUMENT', '--manifest is only valid for setup/upgrade.');
   const { root, target } = destination(options, context.home, context.env);
   await safePath(target);
   if (!(await stat(root))?.isDirectory()) fail('ROOT', 'The project/user root must already exist.');
@@ -178,7 +221,7 @@ export async function install(command, options, context = {}) {
   const probe = context.probe || probeCli;
   const checkpoint = context.checkpoint || (async () => {});
   let executable, distribution;
-  if (command === 'setup') {
+  if (bindingCommand) {
     executable = await cliPath(options.cli);
     if (options.manifest !== undefined) {
       try { distribution = await verifyDistribution(executable, options.manifest); }
@@ -190,8 +233,8 @@ export async function install(command, options, context = {}) {
   }
   const existing = await stat(target);
   if (existing && !existing.isDirectory()) fail('CONFLICT', 'Skill destination is not a directory.');
-  if (existing) await snapshot(target);
-  if (command === 'verify' && !existing) fail('NOT_INSTALLED', 'No managed installation exists.');
+  const before = existing ? await snapshot(target) : undefined;
+  if (['verify', 'upgrade'].includes(command) && !existing) fail('NOT_INSTALLED', 'No managed installation exists.');
   const result = { status: 'success', command, agent: options.agent, scope: options.scope, target,
     shared_with: options.agent === 'claude' ? [] : ['codex', 'opencode'],
     files: OWNED.map(file => path.join(target, file)), client_discovery: 'not_run',
@@ -209,7 +252,7 @@ export async function install(command, options, context = {}) {
     try { lock = await fs.open(lockPath, 'wx'); }
     catch (error) { if (error.code === 'EEXIST') fail('LOCKED', 'Another installer or an interrupted operation owns the lock: ' + lockPath); throw error; }
     await safePath(target);
-    if (command === 'setup') {
+    if (bindingCommand) {
       const cli = await probe(executable);
       if (distribution) {
         if (cli.tool_version !== distribution.tool_version || cli.schema_version !== distribution.schema_version
@@ -219,14 +262,20 @@ export async function install(command, options, context = {}) {
       tree = await expected(cli);
       if (await stat(target)) {
         const current = await snapshot(target);
+        if (command === 'upgrade' && !current.tree[RECEIPT].equals(before.tree[RECEIPT])) {
+          fail('CONCURRENT_EDIT', 'Skill installation changed during upgrade preflight.');
+        }
         // Receipt format/ownership and hashes were checked by snapshot. An
         // installer version change alone does not change the installed content.
         if (![...FILES, BINDING].every(file => current.tree[file].equals(tree[file]))) {
-          fail('CONFLICT', 'A different managed version or CLI binding exists; uninstall explicitly before setup.');
+          if (command !== 'upgrade') fail('CONFLICT', 'A different managed version or CLI binding exists; use upgrade explicitly.');
+          await upgradeSkill(target, current.tree, tree, probe, checkpoint);
+          return { ...result, action: 'upgraded' };
         }
-        if (options.verify) await verify(target, probe);
+        if (options.verify || command === 'upgrade') await verify(target, probe);
         return { ...result, action: 'unchanged' };
       }
+      if (command === 'upgrade') fail('CONCURRENT_EDIT', 'Skill installation disappeared during upgrade preflight.');
       const stagingPath = path.join(parent, '.dll-doctor-stage-' + randomUUID());
       await fs.mkdir(stagingPath);
       stage = stagingPath;

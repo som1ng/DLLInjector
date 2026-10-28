@@ -14,6 +14,7 @@ try {
   if (values.help) {
     console.log('Rondo Agent installer ' + VERSION + '\n'
       + 'setup --agent codex|claude|opencode --scope project|user --cli <absolute.exe> [--manifest <absolute.json>] [--project <dir>] [--dry-run] [--verify]\n'
+      + 'upgrade: use setup options with an explicit agent to update an owned installation; verifies the new runtime and rolls back caught failures.\n'
       + 'verify --agent <agent> --scope <scope> [--project <dir>]\n'
       + 'uninstall --agent <agent> --scope <scope> [--project <dir>] [--dry-run]\n'
       + 'MCP: add --integration mcp, --server <built.js> and --allow-root <dir> (repeatable); explicit-agent setup also requires --client <native.exe>.\n'
@@ -22,7 +23,7 @@ try {
       + 'setup --agent auto: choose one detected client interactively; scripts require --select <agent>.\n'
       + 'setup --agent all: install Skills for all three supported clients, deduplicating the shared directory.\n'
       + 'MCP all: add --integration mcp --codex-client <exe> --claude-client <exe> --opencode-client <exe> and MCP options.\n'
-      + 'Use explicit agents for verify/uninstall.\n'
+      + 'Use explicit agents for upgrade/verify/uninstall.\n'
       + 'Use --client <native.exe> with --select if several paths match. --dry-run never prompts.\n'
       + 'version\nPi: use integrations/pi. Local source installer; no downloads.');
   } else if (positionals.length === 1 && positionals[0] === 'version' && Object.keys(values).length === 0) {
@@ -32,8 +33,8 @@ try {
     console.log(JSON.stringify(await (await import('./agents.mjs')).discoverAgents(), null, 2));
   } else {
     const command = positionals[0];
-    if (positionals.length !== 1 || !['setup', 'verify', 'uninstall'].includes(command)
-        || (command !== 'setup' && (values.cli || values.verify || values.manifest !== undefined)) || (command === 'verify' && values['dry-run'])) {
+    if (positionals.length !== 1 || !['setup', 'upgrade', 'verify', 'uninstall'].includes(command)
+        || (!['setup', 'upgrade'].includes(command) && (values.cli || values.verify || values.manifest !== undefined)) || (command === 'verify' && values['dry-run'])) {
       throw new InstallError('ARGUMENT', 'Invalid command/options; see --help.');
     }
     if (process.platform !== 'win32') throw new InstallError('PLATFORM', 'This installer supports Windows only.');
@@ -44,7 +45,7 @@ try {
       throw new InstallError('ARGUMENT', 'Per-agent client paths are only valid for setup --integration mcp --agent all.');
     }
     if ((['auto', 'all'].includes(values.agent) && command !== 'setup') || (values.select !== undefined && values.agent !== 'auto')) {
-      throw new InstallError('ARGUMENT', 'Auto/all selection is for setup only; verify/uninstall require an explicit agent.');
+      throw new InstallError('ARGUMENT', 'Auto/all selection is for setup only; upgrade/verify/uninstall require an explicit agent.');
     }
     if (!['skill', 'mcp'].includes(integration) || (integration === 'skill'
         && ((values.client !== undefined && values.agent !== 'auto') || values.server !== undefined || values['allow-root'] !== undefined || values['allow-processes']))) {

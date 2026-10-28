@@ -1,6 +1,6 @@
 # Rondo Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.8`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.9`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 Rondo CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级或用户级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
@@ -107,8 +107,8 @@ node integrations/installer/src/index.mjs uninstall --agent codex --scope projec
 node integrations/installer/src/index.mjs uninstall --agent codex --scope project --project 'D:\work\my-app'
 ```
 
-重复安装相同内容和 CLI 时返回 `unchanged`。CLI 字节、路径或 Skill 版本变化时，需要先卸载再安装；
-不会静默覆盖。卸载不执行或删除 CLI，保留其他 Skill、客户端配置和报告。
+重复安装相同内容和 CLI 时返回 `unchanged`。CLI 字节、路径或 Skill 版本变化时，使用显式 `upgrade`；
+普通 setup 仍报冲突。卸载不执行或删除 CLI，保留其他 Skill、客户端配置和报告。
 已存在的同名手动安装、用户修改、额外文件或损坏的安装记录会阻止覆盖/卸载，请先自行备份和比较。
 卸载后空的 `.agents/skills` / `.claude/skills` 父目录可能保留。
 
@@ -117,6 +117,28 @@ node integrations/installer/src/index.mjs uninstall --agent codex --scope projec
 进程被强制终止或机器断电不在自动回滚保证范围内；残留的 `.dll-doctor-installer.lock` 会阻止后续写入。
 此时先确认没有安装器运行，再检查同目录下 `.dll-doctor-stage-*` 和目标目录，备份后处理残留。
 不支持通过符号链接/junction 写入安装目录；不自动删除锁或未知目录。
+
+### 原地升级
+
+`upgrade` 支持单个 `codex` / `claude` / `opencode` 的 Skill 和 MCP，以及 project/user 范围。
+必须已有未被修改的受管安装；不接受 auto/all，不将手动条目接管为本工具资源。
+更新 npm 包后，由以下命令重新绑定包内运行文件并更新 Skill：
+
+```powershell
+rondo upgrade --agent codex --scope project --project 'D:\work\my-app' --dry-run
+rondo upgrade --agent codex --scope project --project 'D:\work\my-app'
+rondo upgrade --integration mcp --agent codex --scope user --client 'D:\tools\codex.exe' --allow-root 'D:\work'
+```
+
+源码入口使用相同命令，但须传入 `--cli`，MCP 还须传入 `--server`。可选 `--manifest` 在执行前校验分发文件。
+MCP 必须重新明确客户端和完整的允许目录列表；只有传入 `--allow-processes` 才保留/启用进程查询权限。
+升级不会隐式继承旧权限。Codex/OpenCode 共用的 Skill 升级一次即可，两者都会使用更新内容。
+
+预览不执行程序或写入文件。实际升级先验证新运行文件，再修改受管内容，并在写入后校验；
+无需 `--verify` 开关。旧运行文件已经被替换或删除也可升级，前提是配置/Skill 与原收据一致。
+捕获到失败时恢复旧配置和收据；并发编辑会保留并报告 `ROLLBACK_INCOMPLETE`。
+这不会恢复已被 npm 删除/替换的旧二进制文件，也不提供批量升级、跨文件原子可见性或断电恢复。
+完整边界和测试记录见 [配置升级交付](../../docs/CONFIG_UPGRADE_DELIVERY.md)。
 
 输出为 JSON，成功退出 `0`，失败退出 `1`。文件清单包含本机路径；安装目录与安装记录应保留在本机，
 请在目标项目的 Git 忽略规则中排除对应安装目录。本仓库已配置这些忽略规则。
@@ -200,7 +222,7 @@ rondo uninstall --integration mcp --agent codex --scope user --dry-run
 旧的无 scope 收据仅按项目级解释。项目与用户配置指向同一 Codex 文件时共用已有锁；
 其他 scope 已托管同名条目会报冲突，需要显式处理原安装。
 卸载/失败回滚不会把用户原配置复制到日志或收据。批量失败仅撤回新增安装，保留此前有效安装。
-原地升级、跨文件原子可见性、断电恢复和实际客户端用户级自动发现仍未验收。
+原地升级见上文；跨文件原子可见性、断电恢复和实际客户端用户级自动发现仍未验收。
 来源、测试范围及限制见 [用户级 MCP 交付记录](../../docs/USER_MCP_DELIVERY.md)。
 
 ## 批量项目 MCP 配置
@@ -248,5 +270,5 @@ node integrations/installer/src/index.mjs setup --integration mcp --agent all --
 工具发现/调用、重复安装及显式卸载；使用本地固定模型响应，与 `--auto` 互斥。
 
 CI 已提供 Rondo CLI ZIP 和完整 npm 归档、校验文件和安装前清单验证；用户级 MCP 已提供，源码安装器自动下载、
-公开 npm 分发和升级恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
+公开 npm 分发、批量升级和断电恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
 不能作为现有 CLI 的自动下载来源；先继续使用可信 CI 归档或源码构建。

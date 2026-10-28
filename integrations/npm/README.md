@@ -4,7 +4,7 @@
 以下是本地构建/CI 归档的可验证安装入口：
 
 ```powershell
-npm install -g .\som1ng-rondo-0.1.0-dev.2.tgz
+npm install -g .\som1ng-rondo-0.1.0-dev.3.tgz
 rondo --version --json
 rondo doctor 'D:\samples\example.dll' --json
 rondo setup --agent auto --scope project --verify
@@ -50,7 +50,19 @@ npm uninstall -g @som1ng/rondo
 ```
 
 npm 卸载不会扫描项目或删除 Agent 配置。更新 npm 包可能改变绑定的 CLI/服务/Skill；
-已有安装的校验会报告不一致，需要显式卸载该 Agent 配置后重新 setup。原地升级与断电恢复未实现。
+已有安装的校验会报告不一致。对需要更新的每个安装显式执行 upgrade：
+
+```powershell
+rondo upgrade --agent codex --scope project --project 'D:\work\my-app' --dry-run
+rondo upgrade --agent codex --scope project --project 'D:\work\my-app'
+rondo upgrade --integration mcp --agent codex --scope user --client 'D:\tools\codex.exe' --allow-root 'D:\work'
+```
+
+只更新已有的受管安装，保留无关配置；实际升级会校验新运行文件，捕获失败时恢复旧配置与收据。
+MCP 需要重新明确完整允许目录和可选 `--allow-processes`；不隐式继承旧权限。
+仅支持显式单客户端；Codex/OpenCode 共享的 Skill 只需升级一次。
+旧二进制回退、批量升级和断电恢复仍未实现，详见
+[升级边界](https://github.com/som1ng/Rondo/blob/main/docs/CONFIG_UPGRADE_DELIVERY.md)。
 没有 postinstall 下载或自动运行脚本；依赖已打入归档，可使用 `--offline --ignore-scripts` 安装此归档。
 这不等于新机器已安装 Node/VC++ 运行库或已验证整个系统完全断网。
 
@@ -62,7 +74,7 @@ npm 卸载不会扫描项目或删除 Agent 配置。更新 npm 包可能改变�
 python integrations/npm/scripts/package_npm.py --x64 build/msvc-x64/Release/cli/rondo.exe --x86 build/msvc-x86/Release/cli/rondo.exe --output build/npm/stage
 npm ci --prefix build/npm/stage --ignore-scripts --no-audit --no-fund
 npm pack ./build/npm/stage --pack-destination build/npm --ignore-scripts
-python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.2.tgz
+python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.3.tgz
 ```
 
 CI 提供实际 checkout SHA 给 `--revision`；本地复用构建时省略，避免伪造来源。

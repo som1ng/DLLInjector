@@ -89,6 +89,14 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(json.loads(self.run_command(setup).stdout)['action'], 'unchanged')
             binding = json.loads((project / '.agents/skills/windows-dll-doctor/references/installation.json').read_text(encoding='utf-8'))
             self.assertTrue(Path(binding['cli']['path']).is_relative_to(package))
+            # Migrate a managed binding back to the npm runtime after the old executable disappears.
+            previous_cli = project / 'previous rondo.exe'
+            previous_cli.write_bytes(Path(binding['cli']['path']).read_bytes())
+            upgrade = [shim, 'upgrade', '--agent', 'codex', '--scope', 'project', '--project', project]
+            self.assertEqual(json.loads(self.run_command([*upgrade, '--cli', previous_cli]).stdout)['action'], 'upgraded')
+            previous_cli.unlink()
+            self.assertEqual(json.loads(self.run_command([*upgrade, '--dry-run']).stdout)['action'], 'preview')
+            self.assertEqual(json.loads(self.run_command(upgrade).stdout)['action'], 'upgraded')
             for agent in ('codex', 'claude'):
                 self.run_command([shim, 'verify', '--agent', agent, '--scope', 'project', '--project', project])
             isolated_profile = base / '临时 user profile'
@@ -115,6 +123,12 @@ class PackageTests(unittest.TestCase):
                 self.run_command([shim, 'setup', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user',
                                   '--client', CODEX, '--allow-root', project, '--verify'], env=env)
                 self.assertTrue((isolated_profile / '.codex/config.toml').is_file())
+                previous_cli.write_bytes(Path(binding['cli']['path']).read_bytes())
+                upgrade_mcp = [shim, 'upgrade', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user',
+                               '--client', CODEX, '--allow-root', project]
+                self.assertEqual(json.loads(self.run_command([*upgrade_mcp, '--cli', previous_cli], env=env).stdout)['action'], 'upgraded')
+                previous_cli.unlink()
+                self.assertEqual(json.loads(self.run_command(upgrade_mcp, env=env).stdout)['action'], 'upgraded')
                 self.run_command([shim, 'verify', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user'], env=env)
                 self.run_command([shim, 'uninstall', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user'], env=env)
                 self.assertFalse((isolated_profile / '.codex/config.toml').exists())
