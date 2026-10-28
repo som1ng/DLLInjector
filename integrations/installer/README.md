@@ -1,6 +1,6 @@
 # Rondo Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.10`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.11`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 Rondo CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级或用户级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
@@ -114,8 +114,8 @@ node integrations/installer/src/index.mjs uninstall --agent codex --scope projec
 
 安装失败会清理本次新增内容，卸载中途失败会恢复已删除文件。
 并发编辑或权限问题导致恢复不完整时返回 `ROLLBACK_INCOMPLETE`，需要保留现场并检查输出路径。
-进程被强制终止或机器断电不在自动回滚保证范围内；残留的 `.dll-doctor-installer.lock` 会阻止后续写入。
-此时先确认没有安装器运行，再检查同目录下 `.dll-doctor-stage-*` 和目标目录，备份后处理残留。
+安装/卸载的进程强制终止以及物理断电仍不在自动回滚保证范围内；残留锁会阻止后续写入。
+新版本 Skill 升级生成的有效记录可按下文 `recover` 恢复；旧版空锁、安装/卸载残留需保留并检查现场。
 不支持通过符号链接/junction 写入安装目录；不自动删除锁或未知目录。
 
 ### 原地升级
@@ -159,6 +159,26 @@ MCP 必须提供三个原生客户端路径、完整允许目录及可选进程�
 恢复配置和收据不依赖旧运行文件仍可执行。写入成功后清理锁文件的失败也纳入恢复检查。
 并发改动或锁/权限问题会保留现场并报告 `ROLLBACK_INCOMPLETE`；批量操作仍不是跨目标原子事务，
 也不能在进程强制结束后自动恢复。说明及验证记录见 [批量升级交付](../../docs/BATCH_UPGRADE_DELIVERY.md)。
+
+### Skill 升级中断恢复
+
+从安装器 `0.1.0-dev.11` 起，Skill 升级写入前会将受管文件和收据的前后状态保存到本地恢复记录。
+进程被终止后，先预览，再恢复单个目标；Codex/OpenCode 共用目标只需处理一次：
+
+```powershell
+rondo recover --agent codex --scope project --project 'D:\work\my-app' --dry-run
+rondo recover --agent codex --scope project --project 'D:\work\my-app'
+```
+
+支持 project/user；不需要 CLI/manifest，不启动 CLI 或客户端。预览不写文件、不启动辅助进程。
+实际恢复使用 Windows 自带 PowerShell 获取排他文件锁；不更改执行策略或全局环境变量。
+原进程仍存在、状态无法确认、内容被改动、记录损坏或只有旧版空锁时会拒绝处理，不强行接管。
+未提交的写入恢复到该步骤前状态；完整提交标记且文件一致时保留已提交结果。恢复再次被终止后可以重试。
+
+恢复记录仅含受管 Skill/绑定/收据，不备份 MCP 配置。记录、临时文件和 guard 必须留在本地，已加入本仓库 gitignore。
+需要支持硬链接的本地文件系统；`.dll-doctor-recover.guard` 可作为空文件保留，存在本身不表示仍被占用。
+当前不支持 MCP、安装/卸载、旧版记录或整批升级的进程中断恢复；批量升级中已完成的其他目标不会一并撤回。
+物理断电、存储损坏及旧运行文件回退仍未验收。行为、错误码和测试见 [Skill 恢复交付](../../docs/SKILL_RECOVERY_DELIVERY.md)。
 
 输出为 JSON，成功退出 `0`，失败退出 `1`。文件清单包含本机路径；安装目录与安装记录应保留在本机，
 请在目标项目的 Git 忽略规则中排除对应安装目录。本仓库已配置这些忽略规则。

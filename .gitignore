@@ -123,6 +123,8 @@ ENV/
 **/.claude/skills/windows-dll-doctor/
 **/.dll-doctor-stage-*/
 **/.dll-doctor-installer.lock
+**/.dll-doctor-recovery-*.tmp
+**/.dll-doctor-recover.guard
 
 # --------------------------------------------------------------------
 # 7. 操作系统临时文件

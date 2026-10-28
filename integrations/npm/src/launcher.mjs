@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from '../../installer/src/distribution.mjs';
 
 const packageRoot = fileURLToPath(new URL('../../../', import.meta.url));
-const installerCommands = new Set(['setup', 'upgrade', 'verify', 'uninstall', 'list-agents']);
+const installerCommands = new Set(['setup', 'upgrade', 'recover', 'verify', 'uninstall', 'list-agents']);
 export const usage = `Rondo — Windows diagnostics and Agent setup
   rondo --version --json
   rondo doctor <file.dll> --json
@@ -12,6 +12,7 @@ export const usage = `Rondo — Windows diagnostics and Agent setup
   rondo setup --integration mcp --agent auto --scope project --allow-root <directory> --verify
   rondo setup --integration mcp --agent auto --scope user --allow-root <directory> --verify
   rondo upgrade --agent <agent>|all --scope project [--dry-run]
+  rondo recover --agent <agent> --scope project [--dry-run]
   rondo verify|uninstall --agent <agent> --scope project [--integration mcp]
   rondo list-agents
   rondo mcp --allow-root <directory>
