@@ -1,6 +1,7 @@
 # Agent 批量配置升级
 
 后续补充：[Skill 中断恢复](SKILL_RECOVERY_DELIVERY.md) 可恢复当前中断的单目标步骤，尚不恢复整个批次。
+同类的 [MCP 中断恢复](MCP_RECOVERY_DELIVERY.md) 现也已提供；同样不会撤回其他已完成的目标。
 
 日期：2026-10-28。安装器 `0.1.0-dev.10`，Rondo npm 包 `0.1.0-dev.4`。
 原生 CLI 仍为 `2.0.0-dev.9`。本轮不修改 GUI 或原生诊断能力。

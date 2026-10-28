@@ -199,7 +199,7 @@ test('unknown temporary contents and linked files are preserved', async t => {
   assert.ok((await fs.lstat(linked)).isSymbolicLink());
 });
 
-test('CLI recovery works without native runtime arguments and rejects MCP/all/auto recovery', async t => {
+test('CLI Skill recovery works without native runtime arguments and rejects all/auto recovery', async t => {
   const f = await fixture(t), child = await f.start('upgrade', 'upgraded-file');
   await child.stop();
   const args = ['recover', '--agent', 'codex', '--scope', 'project', '--project', f.root];
@@ -207,7 +207,7 @@ test('CLI recovery works without native runtime arguments and rejects MCP/all/au
   assert.equal(JSON.parse(run([...args, '--dry-run'])).action, 'preview');
   assert.equal(JSON.parse(run(args)).action, 'restored'); await unchanged(f.before);
   for (const values of [['recover', '--agent', 'all', '--scope', 'project'], ['recover', '--agent', 'auto', '--scope', 'user'],
-    [...args, '--cli', f.nextCli], [...args, '--integration', 'mcp']]) {
-    assert.throws(() => run(values), error => ['ARGUMENT', 'RECOVERY_UNSUPPORTED'].includes(JSON.parse(error.stderr).code));
+    [...args, '--cli', f.nextCli]]) {
+    assert.throws(() => run(values), error => JSON.parse(error.stderr).code === 'ARGUMENT');
   }
 });

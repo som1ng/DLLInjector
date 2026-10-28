@@ -51,6 +51,7 @@ export function inspectConfig(agent, text) {
     if (data[key(agent)] !== undefined && !object(data[key(agent)])) fail('MCP container must be an object.');
     const node = findNodeAtLocation(tree, [key(agent), SERVER_NAME]);
     return { data, entry: node ? plainEntry(getNodeValue(node)) : undefined,
+      entryRange: node ? [node.offset, node.offset + node.length] : undefined,
       entryTextHash: node ? hash(text.slice(node.offset, node.offset + node.length)) : undefined };
   } catch (error) {
     if (error instanceof InstallError) throw error;
@@ -100,6 +101,14 @@ export function assertOwned(agent, text, record) {
   } else if (observed.entryTextHash !== record.ownership.entryTextHash) {
     fail('Managed MCP text changed; preserving configuration.');
   }
+}
+
+// Recovery stores only this managed slice, never the surrounding client settings.
+export function ownedSlice(agent, text, record) {
+  assertOwned(agent, text, record);
+  const range = agent === 'codex' ? [text.indexOf(record.ownership.block),
+    text.indexOf(record.ownership.block) + record.ownership.block.length] : inspectConfig(agent, text).entryRange;
+  return { prefix: text.slice(0, range[0]), entry: text.slice(...range), suffix: text.slice(range[1]) };
 }
 
 export function removeEntry(agent, text, record) {
