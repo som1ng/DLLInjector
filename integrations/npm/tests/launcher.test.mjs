@@ -29,6 +29,11 @@ test('upgrade delegates with packaged runtime paths and preserves explicit runti
   const explicit = ['upgrade', '--cli=C:\\own\\rondo.exe', '--server=C:\\own\\mcp.js', '--integration=mcp'];
   assert.deepEqual((await command(explicit, context)).args.slice(1), explicit);
   assert.deepEqual((await command(['upgrade', '--help'], context)).args.slice(1), ['upgrade', '--help']);
+  const all = ['upgrade', '--agent', 'all', '--scope', 'user', '--integration=mcp',
+    '--codex-client=c.exe', '--claude-client=a.exe', '--opencode-client=o.exe'];
+  const batch = (await command(all, context)).args.slice(1);
+  assert.deepEqual(batch.slice(0, all.length), all);
+  for (const flag of ['--cli', '--manifest', '--server']) assert.ok(batch.includes(flag));
 });
 test('explicit source runtime paths are preserved without silently attaching another manifest', async () => {
   const args = ['setup', '--cli=C:\own\rondo.exe', '--server=C:\own\mcp.js', '--integration', 'mcp'];

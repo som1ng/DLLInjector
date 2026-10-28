@@ -12,6 +12,8 @@ import unittest
 
 ARCHIVE = None
 CODEX = None
+CLAUDE = None
+OPENCODE = None
 NPM = shutil.which('npm.cmd')
 NODE = shutil.which('node')
 
@@ -92,8 +94,10 @@ class PackageTests(unittest.TestCase):
             # Migrate a managed binding back to the npm runtime after the old executable disappears.
             previous_cli = project / 'previous rondo.exe'
             previous_cli.write_bytes(Path(binding['cli']['path']).read_bytes())
-            upgrade = [shim, 'upgrade', '--agent', 'codex', '--scope', 'project', '--project', project]
-            self.assertEqual(json.loads(self.run_command([*upgrade, '--cli', previous_cli]).stdout)['action'], 'upgraded')
+            upgrade = [shim, 'upgrade', '--agent', 'all', '--scope', 'project', '--project', project]
+            batch = json.loads(self.run_command([*upgrade, '--cli', previous_cli]).stdout)
+            self.assertEqual(batch['action'], 'upgraded')
+            self.assertEqual(len(batch['targets']), 2)
             previous_cli.unlink()
             self.assertEqual(json.loads(self.run_command([*upgrade, '--dry-run']).stdout)['action'], 'preview')
             self.assertEqual(json.loads(self.run_command(upgrade).stdout)['action'], 'upgraded')
@@ -129,6 +133,22 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(json.loads(self.run_command([*upgrade_mcp, '--cli', previous_cli], env=env).stdout)['action'], 'upgraded')
                 previous_cli.unlink()
                 self.assertEqual(json.loads(self.run_command(upgrade_mcp, env=env).stdout)['action'], 'upgraded')
+                if CLAUDE and OPENCODE:
+                    for agent, client in [('claude', CLAUDE), ('opencode', OPENCODE)]:
+                        self.run_command([shim, 'setup', '--integration', 'mcp', '--agent', agent, '--scope', 'user',
+                                          '--client', client, '--allow-root', project], env=env)
+                    upgrade_all = [shim, 'upgrade', '--integration', 'mcp', '--agent', 'all', '--scope', 'user',
+                                   '--codex-client', CODEX, '--claude-client', CLAUDE, '--opencode-client', OPENCODE,
+                                   '--allow-root', project]
+                    previous_cli.write_bytes(Path(binding['cli']['path']).read_bytes())
+                    batch = json.loads(self.run_command([*upgrade_all, '--cli', previous_cli], env=env).stdout)
+                    self.assertEqual(batch['action'], 'upgraded')
+                    self.assertEqual(len(batch['targets']), 3)
+                    previous_cli.unlink()
+                    self.assertEqual(json.loads(self.run_command(upgrade_all, env=env).stdout)['action'], 'upgraded')
+                    for agent in ('claude', 'opencode'):
+                        self.run_command([shim, 'verify', '--integration', 'mcp', '--agent', agent, '--scope', 'user'], env=env)
+                        self.run_command([shim, 'uninstall', '--integration', 'mcp', '--agent', agent, '--scope', 'user'], env=env)
                 self.run_command([shim, 'verify', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user'], env=env)
                 self.run_command([shim, 'uninstall', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user'], env=env)
                 self.assertFalse((isolated_profile / '.codex/config.toml').exists())
@@ -170,7 +190,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--archive', type=Path, required=True)
     parser.add_argument('--codex', type=Path, help='Optional installed native Codex EXE for packaged MCP setup/verify/uninstall')
+    parser.add_argument('--claude', type=Path, help='Optional native Claude EXE; with --codex/--opencode tests batch user MCP upgrade')
+    parser.add_argument('--opencode', type=Path, help='Optional native OpenCode EXE for the same batch test')
     args = parser.parse_args()
     ARCHIVE = args.archive.resolve(strict=True)
     CODEX = args.codex.resolve(strict=True) if args.codex else None
+    if (args.claude or args.opencode) and not (args.codex and args.claude and args.opencode):
+        parser.error('Batch MCP validation requires all three native clients.')
+    CLAUDE = args.claude.resolve(strict=True) if args.claude else None
+    OPENCODE = args.opencode.resolve(strict=True) if args.opencode else None
     unittest.main(argv=['npm_package_tests.py'])

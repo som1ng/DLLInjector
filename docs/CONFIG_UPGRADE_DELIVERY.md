@@ -1,5 +1,7 @@
 # Agent 配置原地升级
 
+后续功能：[批量升级](BATCH_UPGRADE_DELIVERY.md) 已补充 `upgrade --agent all`；本页保留单客户端版本的交付边界。
+
 日期：2026-10-28。安装器 `0.1.0-dev.9`，Rondo npm 包 `0.1.0-dev.3`。
 原生 CLI 仍为 `2.0.0-dev.9`，本轮不修改 GUI、原生分析功能或客户端信任设置。
 

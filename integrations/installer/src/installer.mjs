@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from './distribution.mjs';
 
-export const VERSION = '0.1.0-dev.9';
+export const VERSION = '0.1.0-dev.10';
 export const NAME = 'windows-dll-doctor';
 export const FILES = ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml'];
 const BINDING = 'references/installation.json';
@@ -185,9 +185,10 @@ async function replaceSkillFile(file, before, after) {
   }
 }
 
-async function upgradeSkill(target, before, after, probe, checkpoint) {
+async function upgradeSkill(target, before, after, probe, checkpoint, capture) {
   const journal = [];
   try {
+    await capture?.({ target, before, after });
     // Write the ownership receipt last, after the managed content and binding.
     for (const file of OWNED) {
       if (before[file].equals(after[file])) continue;
@@ -195,7 +196,8 @@ async function upgradeSkill(target, before, after, probe, checkpoint) {
       await replaceSkillFile(path.join(target, file), before[file], after[file]);
       await checkpoint('upgraded-file', { file });
     }
-    await verify(target, probe);
+    if (probe) await verify(target, probe);
+    else await snapshot(target); // Batch restoration validates ownership, not obsolete runtime files.
   } catch (error) {
     let failed = false;
     for (const file of journal.reverse()) {
@@ -211,10 +213,14 @@ async function upgradeSkill(target, before, after, probe, checkpoint) {
 }
 
 export async function install(command, options, context = {}) {
-  if (!['setup', 'upgrade', 'verify', 'uninstall'].includes(command)) fail('ARGUMENT', 'Unknown command.');
+  if (!['setup', 'upgrade', 'verify', 'uninstall', 'rollback-upgrade'].includes(command)) fail('ARGUMENT', 'Unknown command.');
   const bindingCommand = ['setup', 'upgrade'].includes(command);
   if (!bindingCommand && options.manifest !== undefined) fail('ARGUMENT', '--manifest is only valid for setup/upgrade.');
   const { root, target } = destination(options, context.home, context.env);
+  const rollback = context.rollbackUpgrade;
+  if ((command === 'rollback-upgrade') !== !!rollback || (rollback && rollback.target !== target)) {
+    fail('ARGUMENT', 'Batch upgrade restoration requires its original in-memory target.');
+  }
   await safePath(target);
   if (!(await stat(root))?.isDirectory()) fail('ROOT', 'The project/user root must already exist.');
   const parent = path.dirname(target);
@@ -234,7 +240,7 @@ export async function install(command, options, context = {}) {
   const existing = await stat(target);
   if (existing && !existing.isDirectory()) fail('CONFLICT', 'Skill destination is not a directory.');
   const before = existing ? await snapshot(target) : undefined;
-  if (['verify', 'upgrade'].includes(command) && !existing) fail('NOT_INSTALLED', 'No managed installation exists.');
+  if (['verify', 'upgrade', 'rollback-upgrade'].includes(command) && !existing) fail('NOT_INSTALLED', 'No managed installation exists.');
   const result = { status: 'success', command, agent: options.agent, scope: options.scope, target,
     shared_with: options.agent === 'claude' ? [] : ['codex', 'opencode'],
     files: OWNED.map(file => path.join(target, file)), client_discovery: 'not_run',
@@ -252,6 +258,14 @@ export async function install(command, options, context = {}) {
     try { lock = await fs.open(lockPath, 'wx'); }
     catch (error) { if (error.code === 'EEXIST') fail('LOCKED', 'Another installer or an interrupted operation owns the lock: ' + lockPath); throw error; }
     await safePath(target);
+    if (rollback) {
+      const current = await snapshot(target);
+      const matches = tree => OWNED.every(file => current.tree[file].equals(tree[file]));
+      if (matches(rollback.before)) return { ...result, action: 'restored' };
+      if (!matches(rollback.after)) fail('CONCURRENT_EDIT', 'Skill changed after this batch upgrade; preserving it.');
+      await upgradeSkill(target, current.tree, rollback.before, undefined, async () => {});
+      return { ...result, action: 'restored' };
+    }
     if (bindingCommand) {
       const cli = await probe(executable);
       if (distribution) {
@@ -269,7 +283,7 @@ export async function install(command, options, context = {}) {
         // installer version change alone does not change the installed content.
         if (![...FILES, BINDING].every(file => current.tree[file].equals(tree[file]))) {
           if (command !== 'upgrade') fail('CONFLICT', 'A different managed version or CLI binding exists; use upgrade explicitly.');
-          await upgradeSkill(target, current.tree, tree, probe, checkpoint);
+          await upgradeSkill(target, current.tree, tree, probe, checkpoint, context.captureUpgrade);
           return { ...result, action: 'upgraded' };
         }
         if (options.verify || command === 'upgrade') await verify(target, probe);
