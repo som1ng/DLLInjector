@@ -200,10 +200,10 @@ test('MCP upgrade can rebind overwritten runtime bytes at the same paths', async
   assert.equal((await installMcp('verify', f.query, f.context)).action, 'verified');
 });
 
-test('upgrade CLI refuses auto/all and never dispatches batch writes', () => {
+test('upgrade CLI refuses auto and does not expose internal rollback', () => {
   const entry = fileURLToPath(new URL('../src/index.mjs', import.meta.url));
-  for (const agent of ['auto', 'all']) {
-    assert.throws(() => execFileSync(process.execPath, [entry, 'upgrade', '--agent', agent, '--scope', 'user'],
+  for (const [command, agent] of [['upgrade', 'auto'], ['rollback-upgrade', 'codex']]) {
+    assert.throws(() => execFileSync(process.execPath, [entry, command, '--agent', agent, '--scope', 'user'],
       { windowsHide: true, stdio: 'pipe' }), error => JSON.parse(error.stderr.toString()).code === 'ARGUMENT');
   }
 });

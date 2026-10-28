@@ -172,7 +172,7 @@ async function replace(file, before, after, made) {
 }
 
 export async function installMcp(command, options, context = {}) {
-  if (!['setup', 'upgrade', 'verify', 'uninstall'].includes(command) || !Object.hasOwn(versions, options.agent)
+  if (!['setup', 'upgrade', 'verify', 'uninstall', 'rollback-upgrade'].includes(command) || !Object.hasOwn(versions, options.agent)
       || !['project', 'user'].includes(options.scope)) fail('MCP_ARGUMENT', 'MCP mode requires a supported agent and --scope project|user.');
   const bindingCommand = ['setup', 'upgrade'].includes(command);
   if (!bindingCommand && (options.cli !== undefined || options.server !== undefined || options.client !== undefined
@@ -183,6 +183,11 @@ export async function installMcp(command, options, context = {}) {
   const { root, relative } = await location(options, context);
   const configPath = path.join(root, relative), stateDir = path.join(root, '.dll-doctor');
   const receiptPath = path.join(stateDir, 'mcp-' + (options.scope === 'user' ? 'user-' : '') + options.agent + '.json');
+  const upgradeRollback = context.rollbackUpgrade;
+  if ((command === 'rollback-upgrade') !== !!upgradeRollback || (upgradeRollback
+      && (upgradeRollback.config !== configPath || upgradeRollback.receipt !== receiptPath))) {
+    fail('MCP_ARGUMENT', 'Batch upgrade restoration requires its original in-memory configuration and receipt.');
+  }
   const rollback = context.rollbackState;
   if (rollback && (command !== 'uninstall' || rollback.config !== configPath || rollback.receipt !== receiptPath)) {
     fail('MCP_ARGUMENT', 'Batch rollback must match the original configuration and receipt paths.');
@@ -201,7 +206,7 @@ export async function installMcp(command, options, context = {}) {
         || !isDeepStrictEqual(record.entry, mcpEntry(options.agent, record.runtime))) fail('MCP_RECEIPT', 'MCP ownership receipt is invalid.');
     assertOwned(options.agent, source ?? '', record);
   } else if (parsed.entry !== undefined) fail('MCP_CONFLICT', 'The existing dll_doctor entry is not owned by this installer.');
-  if (command === 'upgrade' && !record) fail('MCP_NOT_INSTALLED', 'No managed MCP installation exists.');
+  if (['upgrade', 'rollback-upgrade'].includes(command) && !record) fail('MCP_NOT_INSTALLED', 'No managed MCP installation exists.');
   const result = { status: 'success', integration: 'mcp', command, agent: options.agent, scope: options.scope,
     config: configPath, receipt: receiptPath, client_discovery: 'not_run' };
   if (command === 'verify') {
@@ -211,7 +216,16 @@ export async function installMcp(command, options, context = {}) {
   }
   if (command === 'uninstall' && !record) return { ...result, action: options.dryRun ? 'preview' : 'absent' };
   let configAfter, receiptAfter, runtime;
-  if (bindingCommand) {
+  if (upgradeRollback) {
+    if (same(configBefore, upgradeRollback.configBefore) && same(receiptBefore, upgradeRollback.receiptBefore)) {
+      return { ...result, action: 'restored' };
+    }
+    if (!same(configBefore, upgradeRollback.configAfter) || !same(receiptBefore, upgradeRollback.receiptAfter)) {
+      fail('MCP_CONCURRENT', 'Configuration changed after this batch upgrade; preserving it.');
+    }
+    configAfter = upgradeRollback.configBefore;
+    receiptAfter = upgradeRollback.receiptBefore;
+  } else if (bindingCommand) {
     runtime = await runtimeInputs(options, context, options.dryRun);
     const entry = mcpEntry(options.agent, runtime);
     if (record && command === 'setup') {
@@ -247,6 +261,8 @@ export async function installMcp(command, options, context = {}) {
     catch (error) { if (error.code === 'EEXIST') fail('MCP_LOCKED', 'Another or interrupted MCP installation owns the local lock.'); throw error; }
     if (!same(await read(configPath), configBefore) || !same(await read(receiptPath), receiptBefore)) fail('MCP_CONCURRENT', 'Configuration changed during preflight.');
     if (rollback && !same(receiptBefore, rollback.receiptAfter)) fail('MCP_CONCURRENT', 'Another installation replaced the batch entry; preserving it.');
+    if (command === 'upgrade') await context.captureUpgrade?.({ config: configPath, receipt: receiptPath,
+      configBefore, receiptBefore, configAfter, receiptAfter });
     for (const [file, before, after] of [[configPath, configBefore, configAfter], [receiptPath, receiptBefore, receiptAfter]]) {
       journal.push({ file, before, after });
       await replace(file, before, after, made);
@@ -255,7 +271,7 @@ export async function installMcp(command, options, context = {}) {
           ? { config: configPath, receipt: receiptPath, configBefore, configAfter, receiptAfter } : undefined);
     }
     if (bindingCommand && (options.verify || command === 'upgrade')) await verifyRuntime(options.agent, runtime, context);
-    return { ...result, action: command === 'upgrade' ? 'upgraded' : command === 'setup' ? 'installed' : 'removed',
+    return { ...result, action: upgradeRollback ? 'restored' : command === 'upgrade' ? 'upgraded' : command === 'setup' ? 'installed' : 'removed',
       ...(bindingCommand ? { server_verification: 'handshake_and_tools' } : {}) };
   } catch (error) {
     let failed = false;

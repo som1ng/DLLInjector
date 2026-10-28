@@ -14,7 +14,7 @@ try {
   if (values.help) {
     console.log('Rondo Agent installer ' + VERSION + '\n'
       + 'setup --agent codex|claude|opencode --scope project|user --cli <absolute.exe> [--manifest <absolute.json>] [--project <dir>] [--dry-run] [--verify]\n'
-      + 'upgrade: use setup options with an explicit agent to update an owned installation; verifies the new runtime and rolls back caught failures.\n'
+      + 'upgrade: use setup options with an explicit agent or all to update owned installations; verifies new runtimes and rolls back caught failures.\n'
       + 'verify --agent <agent> --scope <scope> [--project <dir>]\n'
       + 'uninstall --agent <agent> --scope <scope> [--project <dir>] [--dry-run]\n'
       + 'MCP: add --integration mcp, --server <built.js> and --allow-root <dir> (repeatable); explicit-agent setup also requires --client <native.exe>.\n'
@@ -23,7 +23,7 @@ try {
       + 'setup --agent auto: choose one detected client interactively; scripts require --select <agent>.\n'
       + 'setup --agent all: install Skills for all three supported clients, deduplicating the shared directory.\n'
       + 'MCP all: add --integration mcp --codex-client <exe> --claude-client <exe> --opencode-client <exe> and MCP options.\n'
-      + 'Use explicit agents for upgrade/verify/uninstall.\n'
+      + 'upgrade --agent all requires every target to be managed already. Use explicit agents for verify/uninstall.\n'
       + 'Use --client <native.exe> with --select if several paths match. --dry-run never prompts.\n'
       + 'version\nPi: use integrations/pi. Local source installer; no downloads.');
   } else if (positionals.length === 1 && positionals[0] === 'version' && Object.keys(values).length === 0) {
@@ -41,11 +41,12 @@ try {
     const integration = values.integration ?? 'skill';
     const clients = Object.fromEntries(['codex', 'claude', 'opencode'].filter(agent => values[agent + '-client'] !== undefined)
       .map(agent => [agent, values[agent + '-client']]));
-    if (Object.keys(clients).length && (values.agent !== 'all' || integration !== 'mcp' || command !== 'setup')) {
-      throw new InstallError('ARGUMENT', 'Per-agent client paths are only valid for setup --integration mcp --agent all.');
+    if (Object.keys(clients).length && (values.agent !== 'all' || integration !== 'mcp' || !['setup', 'upgrade'].includes(command))) {
+      throw new InstallError('ARGUMENT', 'Per-agent client paths are only valid for setup/upgrade --integration mcp --agent all.');
     }
-    if ((['auto', 'all'].includes(values.agent) && command !== 'setup') || (values.select !== undefined && values.agent !== 'auto')) {
-      throw new InstallError('ARGUMENT', 'Auto/all selection is for setup only; upgrade/verify/uninstall require an explicit agent.');
+    if ((values.agent === 'auto' && command !== 'setup') || (values.agent === 'all' && !['setup', 'upgrade'].includes(command))
+        || (values.select !== undefined && values.agent !== 'auto')) {
+      throw new InstallError('ARGUMENT', 'Auto selection is for setup only; all supports setup/upgrade; verify/uninstall require an explicit agent.');
     }
     if (!['skill', 'mcp'].includes(integration) || (integration === 'skill'
         && ((values.client !== undefined && values.agent !== 'auto') || values.server !== undefined || values['allow-root'] !== undefined || values['allow-processes']))) {
@@ -55,6 +56,7 @@ try {
     const options = { ...values, clients, dryRun: values['dry-run'], allowRoot: values['allow-root'], allowProcesses: values['allow-processes'] };
     const result = values.agent === 'auto'
       ? await (await import('./agents.mjs')).setupAuto(options)
+      : values.agent === 'all' && command === 'upgrade' ? await (await import('./batch-upgrade.mjs')).upgradeAll(options)
       : values.agent === 'all' ? await (integration === 'mcp'
         ? (await import('./batch-mcp.mjs')).setupAllMcp : (await import('./batch.mjs')).setupAll)(options)
       : await (integration === 'mcp' ? (await import('./mcp.mjs')).installMcp : install)(command, options);

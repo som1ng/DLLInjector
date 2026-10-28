@@ -11,7 +11,7 @@ export const usage = `Rondo — Windows diagnostics and Agent setup
   rondo setup --agent auto --scope project --verify
   rondo setup --integration mcp --agent auto --scope project --allow-root <directory> --verify
   rondo setup --integration mcp --agent auto --scope user --allow-root <directory> --verify
-  rondo upgrade --agent <agent> --scope project [--dry-run]
+  rondo upgrade --agent <agent>|all --scope project [--dry-run]
   rondo verify|uninstall --agent <agent> --scope project [--integration mcp]
   rondo list-agents
   rondo mcp --allow-root <directory>

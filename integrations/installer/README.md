@@ -1,6 +1,6 @@
 # Rondo Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.9`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.10`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 Rondo CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级或用户级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
@@ -121,7 +121,7 @@ node integrations/installer/src/index.mjs uninstall --agent codex --scope projec
 ### 原地升级
 
 `upgrade` 支持单个 `codex` / `claude` / `opencode` 的 Skill 和 MCP，以及 project/user 范围。
-必须已有未被修改的受管安装；不接受 auto/all，不将手动条目接管为本工具资源。
+必须已有未被修改的受管安装；不接受 auto，不将手动条目接管为本工具资源。all 批量升级见下节。
 更新 npm 包后，由以下命令重新绑定包内运行文件并更新 Skill：
 
 ```powershell
@@ -137,8 +137,28 @@ MCP 必须重新明确客户端和完整的允许目录列表；只有传入 `--
 预览不执行程序或写入文件。实际升级先验证新运行文件，再修改受管内容，并在写入后校验；
 无需 `--verify` 开关。旧运行文件已经被替换或删除也可升级，前提是配置/Skill 与原收据一致。
 捕获到失败时恢复旧配置和收据；并发编辑会保留并报告 `ROLLBACK_INCOMPLETE`。
-这不会恢复已被 npm 删除/替换的旧二进制文件，也不提供批量升级、跨文件原子可见性或断电恢复。
+这不会恢复已被 npm 删除/替换的旧二进制文件，也不提供跨文件原子可见性或断电恢复。
 完整边界和测试记录见 [配置升级交付](../../docs/CONFIG_UPGRADE_DELIVERY.md)。
+
+### 批量升级
+
+`upgrade --agent all` 支持 Skill/MCP 的 project/user 范围，要求所有目标都已经是受管安装。
+Skill 的 Codex/OpenCode 共享目录只处理一次，MCP 分别处理三个客户端。
+
+```powershell
+rondo upgrade --agent all --scope project --project 'D:\work\my-app' --dry-run
+rondo upgrade --agent all --scope project --project 'D:\work\my-app'
+rondo upgrade --integration mcp --agent all --scope user --codex-client 'D:\tools\codex.exe' --claude-client 'D:\tools\claude.exe' --opencode-client 'D:\tools\opencode.exe' --allow-root 'D:\work'
+```
+
+MCP 必须提供三个原生客户端路径、完整允许目录及可选进程权限，不能混用 `--client` / `--select`。
+先对所有目标做不执行程序的文件/所有权预检；缺失安装、修改或损坏的收据会在首次写入前报错。
+实际升级按目标验证新运行文件并更新配置；后续目标失败时逆序恢复本批改动，保留无需升级的目标。
+错误 JSON 包含 `failed_agent`、`completed_targets`、`rollback` 和 `rollback_status`，不输出原配置。
+
+恢复配置和收据不依赖旧运行文件仍可执行。写入成功后清理锁文件的失败也纳入恢复检查。
+并发改动或锁/权限问题会保留现场并报告 `ROLLBACK_INCOMPLETE`；批量操作仍不是跨目标原子事务，
+也不能在进程强制结束后自动恢复。说明及验证记录见 [批量升级交付](../../docs/BATCH_UPGRADE_DELIVERY.md)。
 
 输出为 JSON，成功退出 `0`，失败退出 `1`。文件清单包含本机路径；安装目录与安装记录应保留在本机，
 请在目标项目的 Git 忽略规则中排除对应安装目录。本仓库已配置这些忽略规则。
@@ -270,5 +290,5 @@ node integrations/installer/src/index.mjs setup --integration mcp --agent all --
 工具发现/调用、重复安装及显式卸载；使用本地固定模型响应，与 `--auto` 互斥。
 
 CI 已提供 Rondo CLI ZIP 和完整 npm 归档、校验文件和安装前清单验证；用户级 MCP 已提供，源码安装器自动下载、
-公开 npm 分发、批量升级和断电恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
+公开 npm 分发和断电恢复仍待实现。目前公开 Release 只有旧 GUI 版本，
 不能作为现有 CLI 的自动下载来源；先继续使用可信 CI 归档或源码构建。
