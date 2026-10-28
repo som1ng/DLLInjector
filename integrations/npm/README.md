@@ -4,7 +4,7 @@
 以下是本地构建/CI 归档的可验证安装入口：
 
 ```powershell
-npm install -g .\som1ng-rondo-0.1.0-dev.4.tgz
+npm install -g .\som1ng-rondo-0.1.0-dev.5.tgz
 rondo --version --json
 rondo doctor 'D:\samples\example.dll' --json
 rondo setup --agent auto --scope project --verify
@@ -67,6 +67,17 @@ MCP 需要重新明确完整允许目录和可选 `--allow-processes`；不隐�
 [批量升级说明](https://github.com/som1ng/Rondo/blob/main/docs/BATCH_UPGRADE_DELIVERY.md)。
 旧二进制回退和断电恢复仍未实现，详见
 [升级边界](https://github.com/som1ng/Rondo/blob/main/docs/CONFIG_UPGRADE_DELIVERY.md)。
+
+新版 Skill 升级若被强制终止，可先预览再恢复本机记录：
+
+```powershell
+rondo recover --agent codex --scope project --project 'D:\work\my-app' --dry-run
+rondo recover --agent codex --scope project --project 'D:\work\my-app'
+```
+
+恢复不需要旧 CLI 仍存在，不执行 CLI/客户端；实际恢复需要 Windows PowerShell 获取排他文件锁。
+仅支持新版 Skill 升级的单目标记录，不能据此恢复 MCP、安装/卸载或整个批次，也不代表物理断电已验证，见
+[恢复边界](https://github.com/som1ng/Rondo/blob/main/docs/SKILL_RECOVERY_DELIVERY.md)。
 没有 postinstall 下载或自动运行脚本；依赖已打入归档，可使用 `--offline --ignore-scripts` 安装此归档。
 这不等于新机器已安装 Node/VC++ 运行库或已验证整个系统完全断网。
 
@@ -78,7 +89,7 @@ MCP 需要重新明确完整允许目录和可选 `--allow-processes`；不隐�
 python integrations/npm/scripts/package_npm.py --x64 build/msvc-x64/Release/cli/rondo.exe --x86 build/msvc-x86/Release/cli/rondo.exe --output build/npm/stage
 npm ci --prefix build/npm/stage --ignore-scripts --no-audit --no-fund
 npm pack ./build/npm/stage --pack-destination build/npm --ignore-scripts
-python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.4.tgz
+python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.5.tgz
 ```
 
 CI 提供实际 checkout SHA 给 `--revision`；本地复用构建时省略，避免伪造来源。

@@ -94,6 +94,23 @@ class PackageTests(unittest.TestCase):
             # Migrate a managed binding back to the npm runtime after the old executable disappears.
             previous_cli = project / 'previous rondo.exe'
             previous_cli.write_bytes(Path(binding['cli']['path']).read_bytes())
+            # An abrupt child exit bypasses finally blocks, leaving a durable Skill journal.
+            interrupted = r'''
+import { pathToFileURL } from 'node:url';
+const [entry, project, cli] = process.argv.slice(1);
+const { install } = await import(pathToFileURL(entry));
+await install('upgrade', { agent: 'codex', scope: 'project', project, cli }, {
+  checkpoint: stage => { if (stage === 'upgraded-file') process.exit(73); },
+});
+'''
+            self.run_command([NODE, '--input-type=module', '-e', interrupted,
+                              package / 'integrations/installer/src/installer.mjs', project, previous_cli], code=73)
+            recover = [shim, 'recover', '--agent', 'codex', '--scope', 'project', '--project', project]
+            self.assertEqual(json.loads(self.run_command([*recover, '--dry-run']).stdout)['action'], 'preview')
+            self.assertEqual(json.loads(self.run_command(recover).stdout)['action'], 'restored')
+            self.assertEqual(json.loads(self.run_command(recover).stdout)['action'], 'absent')
+            restored_binding = json.loads((project / '.agents/skills/windows-dll-doctor/references/installation.json').read_text(encoding='utf-8'))
+            self.assertEqual(restored_binding, binding)
             upgrade = [shim, 'upgrade', '--agent', 'all', '--scope', 'project', '--project', project]
             batch = json.loads(self.run_command([*upgrade, '--cli', previous_cli]).stdout)
             self.assertEqual(batch['action'], 'upgraded')

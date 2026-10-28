@@ -7,12 +7,12 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from './distribution.mjs';
 
-export const VERSION = '0.1.0-dev.10';
+export const VERSION = '0.1.0-dev.11';
 export const NAME = 'windows-dll-doctor';
 export const FILES = ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml'];
 const BINDING = 'references/installation.json';
 const RECEIPT = '.dll-doctor-install.json';
-const OWNED = [...FILES, BINDING, RECEIPT];
+export const OWNED = [...FILES, BINDING, RECEIPT];
 const SOURCE = fileURLToPath(new URL('../../skills/windows-dll-doctor/', import.meta.url));
 const execute = promisify(execFile);
 const digest = data => createHash('sha256').update(data).digest('hex');
@@ -77,7 +77,7 @@ export async function probeCli(file) {
     sha256: digest(await fs.readFile(file)) };
 }
 
-async function snapshot(target) {
+export async function readSkillTree(target, ignored = []) {
   const tree = {};
   async function walk(directory, prefix = '') {
     for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
@@ -85,11 +85,16 @@ async function snapshot(target) {
       const file = path.join(directory, entry.name);
       if (entry.isSymbolicLink()) fail('CONFLICT', 'Installation contains linked content; nothing was removed.');
       if (entry.isDirectory() && ['references', 'agents'].includes(relative)) await walk(file, relative + '/');
+      else if (entry.isFile() && ignored.includes(relative)) continue;
       else if (entry.isFile() && OWNED.includes(relative)) tree[relative] = await fs.readFile(file);
       else fail('CONFLICT', 'Installation contains extra content; nothing was removed.');
     }
   }
   await walk(target);
+  return tree;
+}
+
+export function validateSkillTree(tree) {
   if (Object.keys(tree).length !== OWNED.length) fail('CONFLICT', 'Installation is incomplete or unmanaged.');
   let receipt;
   try { receipt = JSON.parse(tree[RECEIPT]); }
@@ -103,6 +108,8 @@ async function snapshot(target) {
   }
   return { tree, receipt };
 }
+
+async function snapshot(target) { return validateSkillTree(await readSkillTree(target)); }
 
 async function expected(cli) {
   const tree = {};
@@ -168,13 +175,15 @@ async function restore(directory, tree) {
   }
 }
 
-async function replaceSkillFile(file, before, after) {
+export async function replaceSkillFile(file, before, after, temporaryPath, checkpoint) {
   await safePath(file);
   if (!(await fs.readFile(file)).equals(before)) fail('CONCURRENT_EDIT', 'Skill changed during upgrade; preserving it.');
-  const temporary = path.join(path.dirname(file), '.dll-doctor-upgrade-' + randomUUID() + '.tmp');
+  const temporary = temporaryPath ?? path.join(path.dirname(file), '.dll-doctor-upgrade-' + randomUUID() + '.tmp');
+  await safePath(temporary);
   const handle = await fs.open(temporary, 'wx', (await fs.stat(file)).mode & 0o777);
   try {
     await handle.writeFile(after);
+    await checkpoint?.('temporary-written', { file });
     await handle.close();
     await safePath(file);
     if (!(await fs.readFile(file)).equals(before)) fail('CONCURRENT_EDIT', 'Skill changed during upgrade; preserving it.');
@@ -185,26 +194,29 @@ async function replaceSkillFile(file, before, after) {
   }
 }
 
-async function upgradeSkill(target, before, after, probe, checkpoint, capture) {
+async function upgradeSkill(target, before, after, probe, checkpoint, capture, recovery, recoveryCheckpoint) {
   const journal = [];
   try {
     await capture?.({ target, before, after });
+    await recovery?.start();
     // Write the ownership receipt last, after the managed content and binding.
     for (const file of OWNED) {
       if (before[file].equals(after[file])) continue;
       journal.push(file);
-      await replaceSkillFile(path.join(target, file), before[file], after[file]);
+      await replaceSkillFile(path.join(target, file), before[file], after[file], recovery?.temporaryFor(file), recoveryCheckpoint);
       await checkpoint('upgraded-file', { file });
     }
     if (probe) await verify(target, probe);
     else await snapshot(target); // Batch restoration validates ownership, not obsolete runtime files.
+    await recovery?.complete();
+    await recoveryCheckpoint?.('committed');
   } catch (error) {
     let failed = false;
     for (const file of journal.reverse()) {
       try {
         const full = path.join(target, file);
         await safePath(full);
-        if (!(await fs.readFile(full)).equals(before[file])) await replaceSkillFile(full, after[file], before[file]);
+        if (!(await fs.readFile(full)).equals(before[file])) await replaceSkillFile(full, after[file], before[file], recovery?.temporaryFor(file));
       } catch { failed = true; }
     }
     if (failed) fail('ROLLBACK_INCOMPLETE', 'Skill upgrade rollback preserved concurrent edits or encountered an access error; inspect: ' + target);
@@ -213,7 +225,7 @@ async function upgradeSkill(target, before, after, probe, checkpoint, capture) {
 }
 
 export async function install(command, options, context = {}) {
-  if (!['setup', 'upgrade', 'verify', 'uninstall', 'rollback-upgrade'].includes(command)) fail('ARGUMENT', 'Unknown command.');
+  if (!['setup', 'upgrade', 'recover', 'verify', 'uninstall', 'rollback-upgrade'].includes(command)) fail('ARGUMENT', 'Unknown command.');
   const bindingCommand = ['setup', 'upgrade'].includes(command);
   if (!bindingCommand && options.manifest !== undefined) fail('ARGUMENT', '--manifest is only valid for setup/upgrade.');
   const { root, target } = destination(options, context.home, context.env);
@@ -223,6 +235,10 @@ export async function install(command, options, context = {}) {
   }
   await safePath(target);
   if (!(await stat(root))?.isDirectory()) fail('ROOT', 'The project/user root must already exist.');
+  if (command === 'recover') {
+    if (options.cli !== undefined || options.verify) fail('ARGUMENT', 'Recovery does not accept runtime options.');
+    return (await import('./skill-recovery.mjs')).recoverSkill(target, options, context);
+  }
   const parent = path.dirname(target);
   const probe = context.probe || probeCli;
   const checkpoint = context.checkpoint || (async () => {});
@@ -250,30 +266,42 @@ export async function install(command, options, context = {}) {
   if (command === 'uninstall' && !existing) return { ...result, action: 'absent' };
 
   const made = [];
-  let lock, stage, committed = false, tree, removed;
+  let lock, stage, committed = false, tree, removed, recovery, keepRecovery = false;
   const lockPath = path.join(parent, '.dll-doctor-installer.lock');
+  const runtimeTree = async () => {
+    const cli = await probe(executable);
+    if (distribution) {
+      if (cli.tool_version !== distribution.tool_version || cli.schema_version !== distribution.schema_version
+          || cli.sha256 !== distribution.sha256) fail('DISTRIBUTION_MISMATCH', 'CLI probe differs from the verified distribution.');
+      cli.distribution = distribution;
+    }
+    return expected(cli);
+  };
   try {
     await makeParents(parent, made);
     await safePath(parent);
-    try { lock = await fs.open(lockPath, 'wx'); }
-    catch (error) { if (error.code === 'EEXIST') fail('LOCKED', 'Another installer or an interrupted operation owns the lock: ' + lockPath); throw error; }
+    if (command === 'upgrade' || rollback) {
+      if (await stat(lockPath)) fail('LOCKED', 'Another installer or an interrupted operation owns the lock: ' + lockPath);
+      if (!rollback) tree = await runtimeTree();
+      const after = rollback ? rollback.before : [...FILES, BINDING].every(file => before.tree[file].equals(tree[file])) ? before.tree : tree;
+      recovery = await (await import('./skill-recovery.mjs')).acquireSkillUpgrade(target, before.tree, after);
+      lock = recovery.handle;
+      await context.recoveryCheckpoint?.('prepared');
+    } else {
+      try { lock = await fs.open(lockPath, 'wx'); }
+      catch (error) { if (error.code === 'EEXIST') fail('LOCKED', 'Another installer or an interrupted operation owns the lock: ' + lockPath); throw error; }
+    }
     await safePath(target);
     if (rollback) {
       const current = await snapshot(target);
       const matches = tree => OWNED.every(file => current.tree[file].equals(tree[file]));
-      if (matches(rollback.before)) return { ...result, action: 'restored' };
+      if (matches(rollback.before)) { await recovery.complete(); return { ...result, action: 'restored' }; }
       if (!matches(rollback.after)) fail('CONCURRENT_EDIT', 'Skill changed after this batch upgrade; preserving it.');
-      await upgradeSkill(target, current.tree, rollback.before, undefined, async () => {});
+      await upgradeSkill(target, current.tree, rollback.before, undefined, async () => {}, undefined, recovery, context.recoveryCheckpoint);
       return { ...result, action: 'restored' };
     }
     if (bindingCommand) {
-      const cli = await probe(executable);
-      if (distribution) {
-        if (cli.tool_version !== distribution.tool_version || cli.schema_version !== distribution.schema_version
-            || cli.sha256 !== distribution.sha256) fail('DISTRIBUTION_MISMATCH', 'CLI probe differs from the verified distribution.');
-        cli.distribution = distribution;
-      }
-      tree = await expected(cli);
+      tree ??= await runtimeTree();
       if (await stat(target)) {
         const current = await snapshot(target);
         if (command === 'upgrade' && !current.tree[RECEIPT].equals(before.tree[RECEIPT])) {
@@ -283,10 +311,11 @@ export async function install(command, options, context = {}) {
         // installer version change alone does not change the installed content.
         if (![...FILES, BINDING].every(file => current.tree[file].equals(tree[file]))) {
           if (command !== 'upgrade') fail('CONFLICT', 'A different managed version or CLI binding exists; use upgrade explicitly.');
-          await upgradeSkill(target, current.tree, tree, probe, checkpoint, context.captureUpgrade);
+          await upgradeSkill(target, current.tree, tree, probe, checkpoint, context.captureUpgrade, recovery, context.recoveryCheckpoint);
           return { ...result, action: 'upgraded' };
         }
         if (options.verify || command === 'upgrade') await verify(target, probe);
+        await recovery?.complete();
         return { ...result, action: 'unchanged' };
       }
       if (command === 'upgrade') fail('CONCURRENT_EDIT', 'Skill installation disappeared during upgrade preflight.');
@@ -315,6 +344,7 @@ export async function install(command, options, context = {}) {
     await removeTree(target, removed, checkpoint);
     return { ...result, action: 'removed' };
   } catch (error) {
+    keepRecovery = !!recovery && error.code === 'ROLLBACK_INCOMPLETE';
     try {
       if (removed) await restore(target, removed);
       if (committed) await removeTree(target, tree);
@@ -334,7 +364,7 @@ export async function install(command, options, context = {}) {
     } catch { fail('ROLLBACK_INCOMPLETE', 'Operation failed and rollback could not complete; preserve and inspect: ' + target + (stage ? ' ; ' + stage : '')); }
     throw error;
   } finally {
-    if (lock) { await lock.close(); await fs.unlink(lockPath); }
+    if (lock) { await lock.close(); if (!keepRecovery) await fs.unlink(lockPath); }
     for (const directory of made.reverse()) {
       try { await fs.rmdir(directory); }
       catch (error) { if (!['ENOTEMPTY', 'EEXIST', 'ENOENT'].includes(error.code)) throw error; }

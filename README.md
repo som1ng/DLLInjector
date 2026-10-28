@@ -59,7 +59,7 @@ Schema 在构建时嵌入二进制，部署 CLI 无需旁置 Schema 或依赖源
 从成功 CI 的 `rondo-npm` 产物取得 `.tgz` 后，可本地全局安装：
 
 ```powershell
-npm install -g .\som1ng-rondo-0.1.0-dev.4.tgz
+npm install -g .\som1ng-rondo-0.1.0-dev.5.tgz
 rondo --version --json
 rondo setup --agent auto --scope project --verify
 ```
@@ -164,6 +164,7 @@ MCP 已支持 `--scope user`，单客户端、auto 和 all 均可使用；配置
 更新 npm 包后可用 `rondo upgrade` 原地更新已有 Skill/MCP 配置，支持项目和用户范围，
 捕获失败时恢复旧配置和收据；用法及限制见 [配置升级](docs/CONFIG_UPGRADE_DELIVERY.md)。
 `upgrade --agent all` 还可批量升级已有安装，失败时恢复本批改动，见 [批量升级](docs/BATCH_UPGRADE_DELIVERY.md)。
+新版 Skill 升级被强制终止后，可用 `rondo recover` 检查并恢复单个目标，见 [中断恢复](docs/SKILL_RECOVERY_DELIVERY.md)。
 
 需要独立 CLI 时，可下载成功 Windows CI 的 `rondo-cli-msvc-x64` / `rondo-cli-msvc-x86` 产物。
 归档附带 SHA-256 与版本/架构清单，安装器支持 `--manifest` 在启动 CLI 前核对文件。
@@ -233,7 +234,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 原计划尚未全部完成。当前阶段状态、暂缓项和验证缺口见 [路线图状态](docs/ROADMAP_STATUS.md)；各交付记录中的“下一步”是当时快照。
 
 1. P4：Rondo npm 归档已包含 CLI/MCP/Skill，由 npm 管理全局文件与命令；补齐来源/许可和公开发布，才能通过 registry 包名下载安装。
-2. P4：用户级 MCP、单客户端与批量配置升级已实现；继续断电恢复和新机器验收。本地归档的离线 npm 安装不等于全新离线系统验收。
+2. P4：用户级 MCP、配置升级和 Skill 升级进程中断恢复已实现；继续 MCP/整批恢复、物理断电与新机器验收。本地归档离线安装不等于全新离线系统验收。
 3. P2/P3 与发布收尾：补真实客户端发现、模型触发与回答评测、GUI 遗留及发布文档；已有实现和测试边界见状态表。
 4. P5：自有测试程序的 DLL 生命周期实验与结果对比，尚未开发。
 
