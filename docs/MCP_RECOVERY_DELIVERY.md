@@ -53,6 +53,15 @@ rondo recover --integration mcp --agent claude --scope user
 `RECOVERY_JOURNAL` / `RECOVERY_CONFLICT` 表示记录或现状无法确认；
 `MCP_RECOVERY_LAYOUT` / `MCP_RECOVERY_RECEIPT` 表示不能安全生成受限记录。失败时保留现场。
 
+并发编辑可能使自动回滚返回 `ROLLBACK_INCOMPLETE`，保留的锁也可能持续触发 `RECOVERY_CONFLICT`。
+此时不能靠反复重试或仅删除锁修复配置。手动处理顺序：
+
+1. 停止相关安装器、恢复进程及会写配置的客户端，确认没有操作仍持有锁；不能用此流程抢占活跃锁。
+2. 将配置、收据、该目标的锁/恢复记录及临时文件备份到可信本地位置，保留原始证据。
+3. 核对并协调受管条目与收据，保留用户后来编辑的内容；无法确认一致状态时继续保留现场。
+   只有确认状态一致后，才把错误中明确列出的 `.dll-doctor/mcp-<agent>.lock` 移到备份位置，再重试所需操作。
+   不批量删除 `.dll-doctor`，不处理其他客户端的锁；空 guard 文件可以保留。
+
 ## 验证
 
 - `npm test --prefix integrations/installer`：196 项通过、0 跳过，提供本地 CLI/MCP 路径。

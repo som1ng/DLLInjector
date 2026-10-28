@@ -302,7 +302,8 @@ export async function installMcp(command, options, context = {}) {
     }
     if (failed) {
       keepRecovery = !!recovery;
-      fail('ROLLBACK_INCOMPLETE', 'MCP rollback preserved concurrent edits or encountered an access error; inspect the reported configuration and .dll-doctor state.');
+      fail('ROLLBACK_INCOMPLETE', 'MCP rollback preserved concurrent edits or encountered an access error; inspect the reported configuration and .dll-doctor state.'
+        + (keepRecovery ? ' Recovery journal retained at ' + lockPath + '. If recover reports RECOVERY_CONFLICT: stop installers and clients, back up the configuration, receipt, journal and temporary files, reconcile the managed entry with its receipt, then move only this lock to the backup before retrying. Removing the lock alone does not repair configuration.' : ''));
     }
     throw error;
   } finally {
