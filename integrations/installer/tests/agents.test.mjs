@@ -110,7 +110,7 @@ test('no matches, an absent choice, ambiguous paths and invalid options never st
   await fs.mkdir(second, { recursive: true });
   await fs.writeFile(path.join(second, 'codex.exe'), 'never execute');
   await assert.rejects(setupAuto({ scope: 'project', select: 'codex' }, context), { code: 'AGENT_SELECTION' });
-  for (const options of [{ scope: 'invalid' }, { scope: 'user', integration: 'mcp' },
+  for (const options of [{ scope: 'invalid' }, { scope: 'user', integration: 'mcp', project: f.home },
     { scope: 'project', select: 'all' }, { scope: 'project', client: 'fake.exe' }]) {
     await assert.rejects(setupAuto(options, context), { code: 'ARGUMENT' });
   }
@@ -137,6 +137,9 @@ test('explicit selection and terminal choices dispatch exactly one client with t
   assert.equal(calls.length, 2);
   assert.equal(calls[1].options.agent, 'claude');
   assert.equal(calls[1].options.client, claude);
+  await setupAuto({ scope: 'user', integration: 'mcp', select: 'codex', client: codex, dryRun: true }, context);
+  assert.equal(calls[2].options.scope, 'user');
+  assert.equal(calls[2].options.agent, 'codex');
 });
 
 test('cancelled or invalid terminal choices leave every client untouched', async t => {

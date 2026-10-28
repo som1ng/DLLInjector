@@ -87,9 +87,8 @@ async function promptCandidate(candidates) {
 export async function setupAuto(options, context = {}) {
   const integration = options.integration ?? 'skill';
   if (!['skill', 'mcp'].includes(integration) || !['user', 'project'].includes(options.scope)
-      || (integration === 'mcp' && options.scope !== 'project')
       || (options.scope === 'user' && options.project !== undefined)) {
-    fail('ARGUMENT', 'Choose a supported scope; MCP supports project scope only.');
+    fail('ARGUMENT', 'Choose project/user scope; --project is not valid for user scope.');
   }
   if (options.select !== undefined && !names.includes(options.select)) fail('ARGUMENT', '--select must name codex, claude or opencode.');
   if (options.client !== undefined && options.select === undefined) fail('ARGUMENT', 'Use --select with --client to disambiguate a detected client.');

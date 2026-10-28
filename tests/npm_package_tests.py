@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,9 +17,9 @@ NODE = shutil.which('node')
 
 
 class PackageTests(unittest.TestCase):
-    def run_command(self, args, *, code=0, cwd=None, timeout=120):
+    def run_command(self, args, *, code=0, cwd=None, timeout=120, env=None):
         result = subprocess.run([str(arg) for arg in args], cwd=cwd, capture_output=True,
-                                encoding='utf-8', errors='strict', timeout=timeout)
+                                encoding='utf-8', errors='strict', timeout=timeout, env=env)
         self.assertEqual(result.returncode, code, result.stderr[-3000:] + result.stdout[-1000:])
         return result
 
@@ -90,12 +91,33 @@ class PackageTests(unittest.TestCase):
             self.assertTrue(Path(binding['cli']['path']).is_relative_to(package))
             for agent in ('codex', 'claude'):
                 self.run_command([shim, 'verify', '--agent', agent, '--scope', 'project', '--project', project])
+            isolated_profile = base / '临时 user profile'
+            isolated_profile.mkdir()
+            env = {key: value for key, value in os.environ.items()
+                   if key.upper() in ('PATH', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP')}
+            env.update(USERPROFILE=str(isolated_profile), APPDATA=str(isolated_profile / 'AppData/Roaming'),
+                       LOCALAPPDATA=str(isolated_profile / 'AppData/Local'))
+            observed = self.run_command([NODE, '-p', 'JSON.stringify(require("node:os").homedir())'], env=env)
+            self.assertEqual(Path(json.loads(observed.stdout)), isolated_profile)
+            # Preview never executes this placeholder client and runs in CI without Codex installed.
+            preview = json.loads(self.run_command([shim, 'setup', '--integration', 'mcp', '--agent', 'codex',
+                '--scope', 'user', '--client', package / 'runtime/x64/rondo.exe', '--allow-root', project,
+                '--dry-run'], env=env).stdout)
+            self.assertEqual(preview['scope'], 'user')
+            self.assertEqual(Path(preview['config']), isolated_profile / '.codex/config.toml')
+            self.assertFalse((isolated_profile / '.codex').exists())
             if CODEX:
                 self.run_command([shim, 'setup', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project',
                                   '--project', project, '--client', CODEX, '--allow-root', project, '--verify'])
                 self.run_command([shim, 'verify', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project', '--project', project])
                 self.run_command([shim, 'uninstall', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project', '--project', project])
                 self.assertFalse((project / '.codex/config.toml').exists())
+                self.run_command([shim, 'setup', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user',
+                                  '--client', CODEX, '--allow-root', project, '--verify'], env=env)
+                self.assertTrue((isolated_profile / '.codex/config.toml').is_file())
+                self.run_command([shim, 'verify', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user'], env=env)
+                self.run_command([shim, 'uninstall', '--integration', 'mcp', '--agent', 'codex', '--scope', 'user'], env=env)
+                self.assertFalse((isolated_profile / '.codex/config.toml').exists())
             # Use the SDK installed inside the archive; there is no repository dependency fallback.
             script = r'''
 import { Client } from '@modelcontextprotocol/client';

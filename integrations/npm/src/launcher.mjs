@@ -10,6 +10,7 @@ export const usage = `Rondo — Windows diagnostics and Agent setup
   rondo doctor <file.dll> --json
   rondo setup --agent auto --scope project --verify
   rondo setup --integration mcp --agent auto --scope project --allow-root <directory> --verify
+  rondo setup --integration mcp --agent auto --scope user --allow-root <directory> --verify
   rondo verify|uninstall --agent <agent> --scope project [--integration mcp]
   rondo list-agents
   rondo mcp --allow-root <directory>

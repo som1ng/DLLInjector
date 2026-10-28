@@ -17,11 +17,11 @@ try {
       + 'verify --agent <agent> --scope <scope> [--project <dir>]\n'
       + 'uninstall --agent <agent> --scope <scope> [--project <dir>] [--dry-run]\n'
       + 'MCP: add --integration mcp, --server <built.js> and --allow-root <dir> (repeatable); explicit-agent setup also requires --client <native.exe>.\n'
-      + 'MCP supports project scope only; --allow-processes is optional. Skill is the default integration.\n'
+      + 'MCP supports project/user scope; --allow-processes is optional. Skill is the default integration.\n'
       + 'list-agents: find native client candidates without starting them.\n'
       + 'setup --agent auto: choose one detected client interactively; scripts require --select <agent>.\n'
       + 'setup --agent all: install Skills for all three supported clients, deduplicating the shared directory.\n'
-      + 'MCP all: add --integration mcp --codex-client <exe> --claude-client <exe> --opencode-client <exe> and project MCP options.\n'
+      + 'MCP all: add --integration mcp --codex-client <exe> --claude-client <exe> --opencode-client <exe> and MCP options.\n'
       + 'Use explicit agents for verify/uninstall.\n'
       + 'Use --client <native.exe> with --select if several paths match. --dry-run never prompts.\n'
       + 'version\nPi: use integrations/pi. Local source installer; no downloads.');

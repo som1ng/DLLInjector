@@ -198,7 +198,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm pack ./build/npm/stage --pack-destination build/npm --ignore-scripts
       - name: Verify offline global install and uninstall
-        run: python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.1.tgz
+        run: python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.2.tgz
       - name: Upload Rondo npm archive
         uses: actions/upload-artifact@v4
         with:
