@@ -1,10 +1,10 @@
 {
   "name": "@som1ng/rondo-installer",
-  "version": "0.1.0-dev.8",
+  "version": "0.1.0-dev.9",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
-  "description": "Local Windows DLL Doctor Skill and project MCP installer",
+  "description": "Rondo Skill and MCP setup, upgrade and verification for Windows",
   "engines": {
     "node": ">=22.19.0"
   },

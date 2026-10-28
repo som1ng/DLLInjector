@@ -4,13 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from '../../installer/src/distribution.mjs';
 
 const packageRoot = fileURLToPath(new URL('../../../', import.meta.url));
-const installerCommands = new Set(['setup', 'verify', 'uninstall', 'list-agents']);
+const installerCommands = new Set(['setup', 'upgrade', 'verify', 'uninstall', 'list-agents']);
 export const usage = `Rondo — Windows diagnostics and Agent setup
   rondo --version --json
   rondo doctor <file.dll> --json
   rondo setup --agent auto --scope project --verify
   rondo setup --integration mcp --agent auto --scope project --allow-root <directory> --verify
   rondo setup --integration mcp --agent auto --scope user --allow-root <directory> --verify
+  rondo upgrade --agent <agent> --scope project [--dry-run]
   rondo verify|uninstall --agent <agent> --scope project [--integration mcp]
   rondo list-agents
   rondo mcp --allow-root <directory>
@@ -45,7 +46,7 @@ export async function command(args, context = {}) {
   };
   if (installerCommands.has(args[0])) {
     const forwarded = [...args];
-    if (args[0] === 'setup' && !has(args, '--help')) {
+    if (['setup', 'upgrade'].includes(args[0]) && !has(args, '--help')) {
       if (!has(args, '--cli')) {
         // Let the installer validate supplied options before it executes anything.
         forwarded.push('--cli', cli);

@@ -8,7 +8,7 @@ import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { InstallError, safePath, stat, makeParents, cliPath, probeCli } from './installer.mjs';
 import { verifyDistribution } from './distribution.mjs';
-import { SERVER_NAME, hash, inspectConfig, addEntry, removeEntry, assertOwned, mcpEntry } from './mcp-config.mjs';
+import { SERVER_NAME, hash, inspectConfig, addEntry, updateEntry, removeEntry, assertOwned, mcpEntry } from './mcp-config.mjs';
 
 const execute = promisify(execFile);
 const versions = { codex: '0.164.0', claude: '2.1.310', opencode: '1.19.4' };
@@ -172,11 +172,12 @@ async function replace(file, before, after, made) {
 }
 
 export async function installMcp(command, options, context = {}) {
-  if (!['setup', 'verify', 'uninstall'].includes(command) || !Object.hasOwn(versions, options.agent)
+  if (!['setup', 'upgrade', 'verify', 'uninstall'].includes(command) || !Object.hasOwn(versions, options.agent)
       || !['project', 'user'].includes(options.scope)) fail('MCP_ARGUMENT', 'MCP mode requires a supported agent and --scope project|user.');
-  if (command !== 'setup' && (options.cli !== undefined || options.server !== undefined || options.client !== undefined
+  const bindingCommand = ['setup', 'upgrade'].includes(command);
+  if (!bindingCommand && (options.cli !== undefined || options.server !== undefined || options.client !== undefined
       || options.manifest !== undefined || options.allowRoot !== undefined || options.allowProcesses || options.verify)) {
-    fail('MCP_ARGUMENT', 'Runtime arguments are only valid for setup.');
+    fail('MCP_ARGUMENT', 'Runtime arguments are only valid for setup/upgrade.');
   }
   if (command === 'verify' && options.dryRun) fail('MCP_ARGUMENT', 'verify does not accept --dry-run.');
   const { root, relative } = await location(options, context);
@@ -200,6 +201,7 @@ export async function installMcp(command, options, context = {}) {
         || !isDeepStrictEqual(record.entry, mcpEntry(options.agent, record.runtime))) fail('MCP_RECEIPT', 'MCP ownership receipt is invalid.');
     assertOwned(options.agent, source ?? '', record);
   } else if (parsed.entry !== undefined) fail('MCP_CONFLICT', 'The existing dll_doctor entry is not owned by this installer.');
+  if (command === 'upgrade' && !record) fail('MCP_NOT_INSTALLED', 'No managed MCP installation exists.');
   const result = { status: 'success', integration: 'mcp', command, agent: options.agent, scope: options.scope,
     config: configPath, receipt: receiptPath, client_discovery: 'not_run' };
   if (command === 'verify') {
@@ -209,16 +211,19 @@ export async function installMcp(command, options, context = {}) {
   }
   if (command === 'uninstall' && !record) return { ...result, action: options.dryRun ? 'preview' : 'absent' };
   let configAfter, receiptAfter, runtime;
-  if (command === 'setup') {
+  if (bindingCommand) {
     runtime = await runtimeInputs(options, context, options.dryRun);
     const entry = mcpEntry(options.agent, runtime);
-    if (record) {
+    if (record && command === 'setup') {
       if (!isDeepStrictEqual(entry, record.entry) || (!options.dryRun && !isDeepStrictEqual(runtime, record.runtime))) {
-        fail('MCP_CONFLICT', 'A different managed runtime/policy exists; uninstall explicitly before setup.');
+        fail('MCP_CONFLICT', 'A different managed runtime/policy exists; use upgrade explicitly.');
       }
       return { ...result, action: options.dryRun ? 'preview' : 'unchanged', managed_entry: entry };
     }
-    const added = addEntry(options.agent, source, entry);
+    if (record && !options.dryRun && isDeepStrictEqual(runtime, record.runtime)) {
+      return { ...result, action: 'unchanged', managed_entry: entry, server_verification: 'handshake_and_tools' };
+    }
+    const added = record ? updateEntry(options.agent, source, record, entry) : addEntry(options.agent, source, entry);
     configAfter = Buffer.from(added.text);
     receiptAfter = json({ owner: 'dll-doctor-installer', format: 1, agent: options.agent, scope: options.scope, config: relative,
       entry, runtime, ownership: added.ownership });
@@ -249,9 +254,9 @@ export async function installMcp(command, options, context = {}) {
         command === 'setup' && file === receiptPath
           ? { config: configPath, receipt: receiptPath, configBefore, configAfter, receiptAfter } : undefined);
     }
-    if (command === 'setup' && options.verify) await verifyRuntime(options.agent, runtime, context);
-    return { ...result, action: command === 'setup' ? 'installed' : 'removed',
-      ...(command === 'setup' ? { server_verification: 'handshake_and_tools' } : {}) };
+    if (bindingCommand && (options.verify || command === 'upgrade')) await verifyRuntime(options.agent, runtime, context);
+    return { ...result, action: command === 'upgrade' ? 'upgraded' : command === 'setup' ? 'installed' : 'removed',
+      ...(bindingCommand ? { server_verification: 'handshake_and_tools' } : {}) };
   } catch (error) {
     let failed = false;
     for (const step of journal.reverse()) {

@@ -22,6 +22,14 @@ test('setup supplies bundled CLI, manifest and MCP paths without executing or wr
   }
   assert.ok(result.args.includes(path.join(context.root, 'runtime/x64/rondo.exe')));
 });
+test('upgrade delegates with packaged runtime paths and preserves explicit runtime options', async () => {
+  const upgraded = await command(['upgrade', '--agent', 'codex', '--scope', 'user', '--integration', 'mcp'], context);
+  assert.equal(upgraded.args[1], 'upgrade');
+  for (const flag of ['--cli', '--manifest', '--server']) assert.ok(upgraded.args.includes(flag));
+  const explicit = ['upgrade', '--cli=C:\\own\\rondo.exe', '--server=C:\\own\\mcp.js', '--integration=mcp'];
+  assert.deepEqual((await command(explicit, context)).args.slice(1), explicit);
+  assert.deepEqual((await command(['upgrade', '--help'], context)).args.slice(1), ['upgrade', '--help']);
+});
 test('explicit source runtime paths are preserved without silently attaching another manifest', async () => {
   const args = ['setup', '--cli=C:\own\rondo.exe', '--server=C:\own\mcp.js', '--integration', 'mcp'];
   const result = await command(args, context);
