@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from mcp_hosts import JsonProcess, NAME, NO_WINDOW, clean_environment, native_executable, toml
@@ -185,6 +186,19 @@ def run(argv, cwd, timeout=120):
     return result.stdout.decode('utf-8')
 
 
+def emit_summary(summary, output_path):
+    text = json.dumps(summary, ensure_ascii=False, indent=2)
+    print(text, flush=True)
+    if output_path:
+        try:
+            with output_path.open('x', encoding='utf-8') as output:
+                output.write(text + '\n')
+        except OSError:
+            print('Could not write the summary file; the JSON result remains available on stdout.', file=sys.stderr)
+            return 1
+    return 0 if summary['status'] == 'passed' else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--archive', required=True, type=Path, help='trusted local Rondo npm .tgz; no registry download')
@@ -200,6 +214,8 @@ def main():
         parser.error('provide a model identifier, not a provider URL or credentials')
     if args.output and args.output.exists():
         parser.error('output already exists; choose a new file')
+    if args.output and not args.output.resolve().parent.is_dir():
+        parser.error('output directory does not exist')
     stage = 'inputs'
     summary = {'status': 'failed', 'client': 'codex', 'live_model': {'status': 'not_run'}, 'checks': []}
     try:
@@ -290,12 +306,7 @@ def main():
         # Provider errors, transcripts, credentials and user paths never enter the report.
         summary.update(stage=stage, message=str(error) if isinstance(error, HostCheckError)
                        else 'Acceptance failed at the recorded stage; no success is inferred for later checks.')
-    text = json.dumps(summary, ensure_ascii=False, indent=2)
-    if args.output:
-        with args.output.open('x', encoding='utf-8') as output:
-            output.write(text + '\n')
-    print(text)
-    return 0 if summary['status'] == 'passed' else 1
+    return emit_summary(summary, args.output)
 
 
 if __name__ == '__main__':

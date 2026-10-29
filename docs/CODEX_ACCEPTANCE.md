@@ -49,7 +49,9 @@ python tests/codex_acceptance.py `
 - 客户端自身可能访问服务端配置、刷新登录或写日志/缓存；这不是全系统断网或零落盘测试。
 - Codex 0.164.0 在模型侧 Schema 中省略数值上下限。本脚本检查 7 个名称、对象参数结构及
   `additionalProperties: false`；服务端原始 Schema 和约束另由 MCP 协议/宿主测试覆盖，不能声称模型侧完整保留了上下限。
-- 失败退出码为 1，参数错误为 2；输出文件使用独占新建，拒绝覆盖。一次通过只证明该客户端版本和该场景，
+- 失败退出码为 1，参数错误为 2；提前校验输出父目录，输出文件使用独占新建，拒绝覆盖。
+  运行结束先输出 JSON 到 stdout，随后文件写入即使失败，摘要和用量仍保留在 stdout，退出码为 1。
+  一次通过只证明该客户端版本和该场景，
   不代表全部 22 条 Skill 场景、其他客户端、用户级自动发现或全新 Windows 已验收。
 
 Codex 项目配置与信任行为依据 [官方配置说明](https://learn.chatgpt.com/docs/config-file/config-basic)，
@@ -61,8 +63,8 @@ CI 只运行 [离线证据检查](../tests/codex_acceptance_tests.py)，不运�
 验证日期：2026-10-29。npm 归档 `0.1.0-dev.8`，CLI `2.0.0-dev.9` / Schema `1.6`，Codex `0.164.0`。
 产品版本不因新增验收脚本而升级。
 
-- `python tests/codex_acceptance_tests.py`：7 项通过；错误目标/工具、缺少或伪造证据、错误答案/类型、
-  错称可加载、额外活动、缺失/重复工具目录都不能被误判通过。
+- `python tests/codex_acceptance_tests.py`：9 项通过；错误目标/工具、缺少或伪造证据、错误答案/类型、
+  错称可加载、额外活动、缺失/重复工具目录都不能被误判通过；输出失败不丢失摘要、不覆盖已有文件。
 - `python tests/mcp_hosts_tests.py`：既有 14 项通过。
 - 上述归档验收命令添加 `--live-model gpt-6-astra`：通过。实际执行离线 npm 全局安装、8 项自检、
   四种项目配置发现状态、一个真实模型回合以及 MCP/npm 卸载。

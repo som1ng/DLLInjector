@@ -1,10 +1,14 @@
 """Offline checks of acceptance evidence; never starts a real client or model."""
 import copy
+from contextlib import redirect_stderr, redirect_stdout
+import io
 import json
 from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
-from codex_acceptance import DiscoveryModel, command, expected_answer, verify_live, verify_model_catalog
+from codex_acceptance import DiscoveryModel, command, emit_summary, expected_answer, main, verify_live, verify_model_catalog
 from mcp_model_fixture import HostCheckError, TOOLS
 
 
@@ -109,6 +113,30 @@ class AcceptanceTests(unittest.TestCase):
             isolated = command('codex.exe', SAMPLE.parent, False, 'fixture', fixture)
             self.assertIn('model_provider="fixture"', isolated)
             self.assertTrue(any(fixture.url in arg for arg in isolated))
+
+    def test_output_failure_retains_summary_and_usage_without_overwriting(self):
+        summary = {'status': 'passed', 'live_model': {'usage': {'input_tokens': 123}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'existing.json'
+            output.write_text('keep', encoding='utf-8')
+            for target in [output, Path(tmp) / 'missing-parent' / 'summary.json']:
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    self.assertEqual(emit_summary(summary, target), 1)
+                self.assertEqual(json.loads(stdout.getvalue()), summary)
+                self.assertNotIn(tmp, stderr.getvalue())
+                self.assertNotIn('Traceback', stderr.getvalue())
+            self.assertEqual(output.read_text(encoding='utf-8'), 'keep')
+
+    def test_missing_output_parent_is_rejected_before_client_or_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = ['codex_acceptance.py', '--archive', 'archive.tgz', '--codex', 'codex.exe',
+                    '--dll', 'fixture.dll', '--live-model', 'model', '--output', str(Path(tmp) / 'missing' / 'out.json')]
+            with patch('sys.argv', argv), patch('codex_acceptance.native_executable') as native, redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as error:
+                    main()
+                self.assertEqual(error.exception.code, 2)
+                native.assert_not_called()
 
 
 if __name__ == '__main__':
