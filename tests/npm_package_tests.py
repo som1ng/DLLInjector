@@ -65,6 +65,27 @@ class PackageTests(unittest.TestCase):
             package = prefix / 'node_modules/@som1ng/rondo'
             shim = prefix / 'rondo.cmd'
             self.assertTrue(shim.is_file())
+            readiness = json.loads(self.run_command([shim, 'self-check', '--json']).stdout)
+            self.assertEqual(readiness['status'], 'success')
+            self.assertEqual(readiness['runtime_verification'], 'passed')
+            self.assertEqual(readiness['client_discovery'], 'not_run')
+            self.assertTrue(all(check['status'] == 'passed' for check in readiness['checks']))
+            self.assertEqual(list(project.iterdir()), [marker])
+            self.assertIn('Rondo npm self-check: success', self.run_command([shim, 'self-check']).stdout)
+            for relative, check_id, replacement in [('integrations/mcp/dist/schemas/cli-v1.6.json', 'mcp_modules', None),
+                                                    ('integrations/installer/src/distribution.mjs', 'cli_distribution', None),
+                                                    ('integrations/mcp/dist/index.js', 'mcp_modules', b'import {')]:
+                missing = package / relative
+                original_file = missing.read_bytes()
+                if replacement is None:
+                    missing.unlink()
+                else:
+                    missing.write_bytes(replacement)
+                try:
+                    diagnosis = json.loads(self.run_command([shim, 'self-check', '--json'], code=1).stdout)
+                    self.assertEqual(next(check for check in diagnosis['checks'] if check['id'] == check_id)['status'], 'failed')
+                finally:
+                    missing.write_bytes(original_file)
             version = json.loads(self.run_command([shim, '--version', '--json']).stdout)
             self.assertEqual(version['tool_version'], '2.0.0-dev.9')
             help_text = json.loads(self.run_command([shim, '--help', '--json']).stdout)['data']['text']
@@ -267,6 +288,9 @@ try {
             cli = Path(binding['cli']['path'])
             original = cli.read_bytes()
             cli.write_bytes(original + b'tampered')
+            diagnosis = json.loads(self.run_command([shim, 'self-check', '--json'], code=1).stdout)
+            self.assertEqual(diagnosis['runtime_verification'], 'not_run')
+            self.assertEqual(next(check for check in diagnosis['checks'] if check['id'] == 'cli_runtime')['status'], 'skipped')
             failure = self.run_command([shim, '--version', '--json'], code=1)
             self.assertEqual(failure.stdout, '')
             self.assertEqual(json.loads(failure.stderr)['code'], 'DISTRIBUTION_INVALID')
