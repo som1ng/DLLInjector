@@ -42,16 +42,19 @@ async function fixture(t, integration = 'skill', scope = 'project') {
   const journal = path.join(root, '.dll-doctor', 'batch-upgrade-' + integration + '-' + scope + '.lock'), children = [];
   const lock = target => target.target ? path.join(path.dirname(target.target), '.dll-doctor-installer.lock')
     : path.join(path.dirname(target.receipt), 'mcp-' + target.agent + '.lock');
+  let ownerPid;
   const start = async (command, pause, extra = {}) => {
     const child = spawn(process.execPath, [childFile, JSON.stringify({ command, pause, home: root,
       options: command === 'upgrade' ? next : query, ...extra })], { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+    if (command === 'upgrade') ownerPid = child.pid;
     let ended = false, timer;
     const closed = new Promise(resolve => child.once('close', () => { ended = true; resolve(); }));
     const stop = async () => { if (!ended) child.kill('SIGKILL'); await closed; }; children.push(stop);
     try {
       await Promise.race([new Promise((resolve, reject) => {
         child.once('error', reject);
-        child.once('message', message => message.ready ? resolve() : reject(Object.assign(new Error('Fixture failed'), { code: message.error })));
+        child.once('message', message => message.ready ? resolve() : reject(Object.assign(
+          new Error(`Fixture failed at ${command}/${pause}; child PID ${child.pid}, upgrade owner PID ${ownerPid}`), { code: message.error })));
       }), closed.then(() => { throw new Error('Fixture ended before checkpoint'); }),
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Fixture timeout')), 20000); })]);
     } catch (error) { await stop(); throw error; }
