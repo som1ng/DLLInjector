@@ -55,6 +55,9 @@ jobs:
       - name: Test MCP host validation fixtures
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         run: python tests/mcp_hosts_tests.py
+      - name: Test Codex acceptance evidence checks (no model calls)
+        if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
+        run: python tests/codex_acceptance_tests.py
       - name: Install GUI test dependencies
         if: matrix.architecture == 'msvc-x64' && matrix.configuration == 'release'
         working-directory: tests/gui
