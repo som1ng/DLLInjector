@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { verifyDistribution } from './distribution.mjs';
 
-export const VERSION = '0.1.0-dev.12';
+export const VERSION = '0.1.0-dev.13';
 export const NAME = 'windows-dll-doctor';
 export const FILES = ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml'];
 const BINDING = 'references/installation.json';
@@ -284,7 +284,7 @@ export async function install(command, options, context = {}) {
       if (await stat(lockPath)) fail('LOCKED', 'Another installer or an interrupted operation owns the lock: ' + lockPath);
       if (!rollback) tree = await runtimeTree();
       const after = rollback ? rollback.before : [...FILES, BINDING].every(file => before.tree[file].equals(tree[file])) ? before.tree : tree;
-      recovery = await (await import('./skill-recovery.mjs')).acquireSkillUpgrade(target, before.tree, after);
+      recovery = await (await import('./skill-recovery.mjs')).acquireSkillUpgrade(target, before.tree, after, context.batchUpgrade);
       lock = recovery.handle;
       await context.recoveryCheckpoint?.('prepared');
     } else {
@@ -364,7 +364,7 @@ export async function install(command, options, context = {}) {
     } catch { fail('ROLLBACK_INCOMPLETE', 'Operation failed and rollback could not complete; preserve and inspect: ' + target + (stage ? ' ; ' + stage : '')); }
     throw error;
   } finally {
-    if (lock) { await lock.close(); if (!keepRecovery) await fs.unlink(lockPath); }
+    if (lock) { await lock.close(); if (!keepRecovery && !context.batchUpgrade) await fs.unlink(lockPath); }
     for (const directory of made.reverse()) {
       try { await fs.rmdir(directory); }
       catch (error) { if (!['ENOTEMPTY', 'EEXIST', 'ENOENT'].includes(error.code)) throw error; }

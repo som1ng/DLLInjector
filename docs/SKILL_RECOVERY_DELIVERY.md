@@ -1,5 +1,7 @@
 # Skill 升级进程中断恢复
 
+后续补充：新版 `upgrade --agent all` 使用 [整批恢复](BATCH_RECOVERY_DELIVERY.md)，不能逐个接管其中的目标。
+
 后续补充：[MCP 中断恢复](MCP_RECOVERY_DELIVERY.md) 已支持单客户端升级步骤；本文保留 Skill 交付时的范围。
 
 日期：2026-10-28。安装器 `0.1.0-dev.11`，Rondo npm 包 `0.1.0-dev.5`。

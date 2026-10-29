@@ -124,6 +124,7 @@ ENV/
 **/.dll-doctor-stage-*/
 **/.dll-doctor-installer.lock
 **/.dll-doctor-recovery-*.tmp
+**/.dll-doctor-batch-*.journal
 **/.dll-doctor-recover.guard
 
 # --------------------------------------------------------------------

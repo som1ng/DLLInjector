@@ -1,5 +1,7 @@
 # Agent 批量配置升级
 
+后续补充：dev.13 已提供 [整批升级中断恢复](BATCH_RECOVERY_DELIVERY.md)，下文为原始交付时的事务范围。
+
 后续补充：[Skill 中断恢复](SKILL_RECOVERY_DELIVERY.md) 可恢复当前中断的单目标步骤，尚不恢复整个批次。
 同类的 [MCP 中断恢复](MCP_RECOVERY_DELIVERY.md) 现也已提供；同样不会撤回其他已完成的目标。
 

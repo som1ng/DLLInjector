@@ -4,7 +4,7 @@
 以下是本地构建/CI 归档的可验证安装入口：
 
 ```powershell
-npm install -g .\som1ng-rondo-0.1.0-dev.6.tgz
+npm install -g .\som1ng-rondo-0.1.0-dev.7.tgz
 rondo --version --json
 rondo doctor 'D:\samples\example.dll' --json
 rondo setup --agent auto --scope project --verify
@@ -88,6 +88,18 @@ rondo recover --integration mcp --agent codex --scope user
 MCP 恢复记录只保存受管条目、收据和配置摘要；后来编辑的设置会阻止恢复并原样保留。
 不运行 CLI、客户端或 MCP 服务；范围和限制见 [MCP 恢复说明](https://github.com/som1ng/Rondo/blob/main/docs/MCP_RECOVERY_DELIVERY.md)。
 
+从 npm 包 `0.1.0-dev.7` 起，新版整批升级可使用 `recover --agent all`，同样支持 Skill/MCP 和 project/user：
+
+```powershell
+rondo recover --agent all --scope project --dry-run
+rondo recover --agent all --scope project
+rondo recover --integration mcp --agent all --scope user --dry-run
+rondo recover --integration mcp --agent all --scope user
+```
+
+批次未提交时恢复参与目标，已提交时保留结果并完成清理；配置被后来修改时保留现场并报错。
+不运行 CLI/客户端/MCP 服务，也不恢复旧二进制或旧版批次；见 [整批恢复说明](https://github.com/som1ng/Rondo/blob/main/docs/BATCH_RECOVERY_DELIVERY.md)。
+
 没有 postinstall 下载或自动运行脚本；依赖已打入归档，可使用 `--offline --ignore-scripts` 安装此归档。
 这不等于新机器已安装 Node/VC++ 运行库或已验证整个系统完全断网。
 
@@ -99,7 +111,7 @@ MCP 恢复记录只保存受管条目、收据和配置摘要；后来编辑的�
 python integrations/npm/scripts/package_npm.py --x64 build/msvc-x64/Release/cli/rondo.exe --x86 build/msvc-x86/Release/cli/rondo.exe --output build/npm/stage
 npm ci --prefix build/npm/stage --ignore-scripts --no-audit --no-fund
 npm pack ./build/npm/stage --pack-destination build/npm --ignore-scripts
-python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.6.tgz
+python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.7.tgz
 ```
 
 CI 提供实际 checkout SHA 给 `--revision`；本地复用构建时省略，避免伪造来源。

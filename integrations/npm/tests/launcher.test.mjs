@@ -43,6 +43,8 @@ test('explicit source runtime paths are preserved without silently attaching ano
 test('verify, recover, uninstall, discovery and setup help do not depend on packaged executable bytes', async () => {
   for (const args of [['verify', '--agent', 'codex'], ['recover', '--agent', 'codex', '--dry-run'],
     ['recover', '--integration', 'mcp', '--agent', 'claude', '--scope', 'user'],
+    ['recover', '--agent', 'all', '--scope', 'project', '--dry-run'],
+    ['recover', '--integration', 'mcp', '--agent', 'all', '--scope', 'user'],
     ['uninstall', '--agent', 'codex'], ['list-agents'], ['setup', '--help']]) {
     assert.deepEqual((await command(args, context)).args.slice(1), args);
   }

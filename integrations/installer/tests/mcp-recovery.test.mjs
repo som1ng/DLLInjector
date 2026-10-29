@@ -206,14 +206,13 @@ test('MCP refuses to persist unsupported receipt fields and restores receipt-onl
   assert.equal((await installMcp('recover', f.query, f.context)).action, 'restored'); await unchanged(f.before);
 });
 
-test('CLI MCP recovery requires no runtime and rejects runtime options, auto and all', async t => {
+test('CLI MCP recovery requires no runtime and rejects runtime options and auto', async t => {
   const f = await fixture(t), child = await f.start('upgrade', 'config-written'); await child.stop();
   const args = ['recover', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project', '--project', f.root];
   const run = values => execFileSync(process.execPath, [entry, ...values], { windowsHide: true, encoding: 'utf8', stdio: 'pipe' });
   assert.equal(JSON.parse(run([...args, '--dry-run'])).action, 'preview');
   assert.equal(JSON.parse(run(args)).action, 'restored'); await unchanged(f.before);
-  for (const values of [['recover', '--integration', 'mcp', '--agent', 'all', '--scope', 'user'],
-    ['recover', '--integration', 'mcp', '--agent', 'auto', '--scope', 'user'], [...args, '--client', f.options.client],
+  for (const values of [['recover', '--integration', 'mcp', '--agent', 'auto', '--scope', 'user'], [...args, '--client', f.options.client],
     [...args, '--allow-root', f.root], [...args, '--cli', f.cli]]) {
     assert.throws(() => run(values), error => ['ARGUMENT', 'MCP_ARGUMENT'].includes(JSON.parse(error.stderr).code));
   }
