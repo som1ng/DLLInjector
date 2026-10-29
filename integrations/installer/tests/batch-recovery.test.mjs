@@ -148,15 +148,30 @@ for (const integration of ['skill', 'mcp']) {
     test(`${integration}: edits at ${phase} cannot be reported as a successful batch`, async t => {
       const f = await fixture(t, integration);
       const edited = f.targets[0].target ? path.join(f.targets[0].target, 'SKILL.md') : f.targets[0].config;
+      let preserved;
       await assert.rejects(upgradeAll(f.next, { ...f.context, batchCheckpoint: async (stage, data) => {
-        if (stage === phase && (phase === 'batch-committed' || data.agent === f.targets.at(-1).agent)) await fs.appendFile(edited, '\n# late edit');
+        if (stage === phase && (phase === 'batch-committed' || data.agent === f.targets.at(-1).agent)) {
+          await fs.appendFile(edited, '\n# late edit'); preserved = await snapshot(f.paths);
+        }
       } }), error => {
         assert.equal(error.code, phase === 'batch-committed' ? 'BATCH_CLEANUP_REQUIRED' : 'ROLLBACK_INCOMPLETE'); return true;
       });
       assert.ok((await fs.readFile(edited, 'utf8')).endsWith('# late edit'));
+      await unchanged(preserved);
       assert.equal((await fs.readFile(f.journal, 'utf8')).endsWith('committed\n'), phase === 'batch-committed');
     });
   }
+
+  test(`${integration}: a conflict appearing during restoration stops before the next participant`, async t => {
+    const f = await fixture(t, integration), child = await f.start('upgrade', 'target-completed', { agent: f.targets.at(-1).agent }); await child.stop();
+    const first = f.targets[0], last = f.targets.at(-1);
+    const preserved = await snapshot(first.files ?? [first.config, first.receipt]);
+    const edited = last.target ? path.join(last.target, 'SKILL.md') : last.config;
+    await assert.rejects(recoverAll(f.query, { ...f.context, recoveryCheckpoint: async stage => {
+      if (stage === 'guard-held') await fs.appendFile(edited, '\n# edit during restoration');
+    } }), { code: 'ROLLBACK_INCOMPLETE' });
+    await unchanged(preserved); assert.ok((await fs.readFile(edited, 'utf8')).includes('edit during restoration'));
+  });
 
   test(`${integration}: interrupted caught-failure rollback restores the batch on retry`, async t => {
     const f = await fixture(t, integration), child = await f.start('upgrade', 'target-restored', { fail: 'target-completed' }); await child.stop();

@@ -204,7 +204,7 @@ export async function recoverAll(options, context = {}) {
       try { await run('recover', { ...query(record), dryRun: true }, recoveryContext(record)); ready.push(record); }
       catch (error) { errors.push({ agent: record.agent, action: 'failed', code: error.code || 'INSTALL_FAILED' }); }
     }
-    if (errors.length && (!owner || options.dryRun)) {
+    if (errors.length) {
       const error = new InstallError('RECOVERY_CONFLICT', 'A batch target cannot be recovered; no target files were changed.');
       error.details = { targets: errors, journal: layout.journal }; throw error;
     }
@@ -222,7 +222,7 @@ export async function recoverAll(options, context = {}) {
         const restored = await run('recover', query(record), recoveryContext(record));
         if (record.listed) targets.push({ agent: record.agent, action: restored.action, target: record.target, config: record.config, receipt: record.receipt });
         await context.batchCheckpoint?.('target-restored', { agent: record.agent });
-      } catch (error) { errors.push({ agent: record.agent, action: 'failed', code: error.code || 'INSTALL_FAILED' }); }
+      } catch (error) { errors.push({ agent: record.agent, action: 'failed', code: error.code || 'INSTALL_FAILED' }); break; }
     }
     if (errors.length) {
       if (owner) return { ...result, action: 'incomplete', targets: [...targets, ...errors] };
