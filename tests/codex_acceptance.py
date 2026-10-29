@@ -188,15 +188,22 @@ def run(argv, cwd, timeout=120):
 
 def emit_summary(summary, output_path):
     text = json.dumps(summary, ensure_ascii=False, indent=2)
-    print(text, flush=True)
+    failed = False
+    try:
+        print(text, flush=True)
+    except OSError:
+        failed = True
     if output_path:
         try:
             with output_path.open('x', encoding='utf-8') as output:
                 output.write(text + '\n')
         except OSError:
-            print('Could not write the summary file; the JSON result remains available on stdout.', file=sys.stderr)
-            return 1
-    return 0 if summary['status'] == 'passed' else 1
+            failed = True
+            try:
+                print('Could not write the summary file; check stdout for the JSON result.', file=sys.stderr)
+            except OSError:
+                pass
+    return 0 if summary['status'] == 'passed' and not failed else 1
 
 
 def main():

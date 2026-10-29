@@ -4,6 +4,8 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -137,6 +139,30 @@ class AcceptanceTests(unittest.TestCase):
                     main()
                 self.assertEqual(error.exception.code, 2)
                 native.assert_not_called()
+
+    def test_broken_stdout_write_or_flush_still_saves_summary_file(self):
+        summary = {'status': 'passed', 'live_model': {'usage': {'input_tokens': 123}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            for method in ['write', 'flush']:
+                stream = io.StringIO()
+                output = Path(tmp) / (method + '.json')
+                with patch.object(stream, method, side_effect=BrokenPipeError), redirect_stdout(stream):
+                    self.assertEqual(emit_summary(summary, output), 1)
+                self.assertEqual(json.loads(output.read_text(encoding='utf-8')), summary)
+            output = Path(tmp) / 'closed-pipe.json'
+            code = ('import json,sys; from pathlib import Path; from codex_acceptance import emit_summary; '
+                    'sys.exit(emit_summary(json.loads(sys.argv[2]), Path(sys.argv[1])))')
+            proc = subprocess.Popen([sys.executable, '-c', code, str(output), json.dumps(summary)],
+                cwd=Path(__file__).resolve().parent, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            proc.stdout.close()
+            try:
+                self.assertNotEqual(proc.wait(timeout=10), 0)
+                self.assertEqual(json.loads(output.read_text(encoding='utf-8')), summary)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                    proc.wait(timeout=5)
 
 
 if __name__ == '__main__':
