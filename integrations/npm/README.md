@@ -4,7 +4,8 @@
 以下是本地构建/CI 归档的可验证安装入口：
 
 ```powershell
-npm install -g .\som1ng-rondo-0.1.0-dev.7.tgz
+npm install -g .\som1ng-rondo-0.1.0-dev.8.tgz
+rondo self-check
 rondo --version --json
 rondo doctor 'D:\samples\example.dll' --json
 rondo setup --agent auto --scope project --verify
@@ -16,6 +17,27 @@ Windows PowerShell 若限制 `.ps1` 执行，可使用 `npm.cmd` / `rondo.cmd`�
 需要 Windows x86/x64、Node.js 22.19+ 和匹配构建工具的 Microsoft Visual C++ v14 运行库。
 包内含 x64/x86 `rondo.exe`、各自校验清单、MCP 服务/Schema、权威 Skill、安装器和 Node 运行依赖。
 按宿主机器架构选择 CLI；ARM64 不支持。原生 CLI 版本仍为 `2.0.0-dev.9`，npm 包版本独立管理。
+
+## 安装后自检
+
+```powershell
+rondo self-check
+rondo self-check --json
+```
+
+检查宿主 Windows 架构、Node.js 最低版本、npm 包元数据、当前架构 CLI 的清单/哈希及实际版本启动，
+再启动安装器帮助入口、加载 MCP 模块/依赖/报告 Schema，检查四个必需 Skill 文件存在且非空。
+CLI 校验失败会跳过该二进制启动，其余独立资源检查继续；宿主或包元数据不满足前置条件则跳过全部运行探测。
+每个子进程限制为 10 秒及 1 MiB 输出，使用本地固定参数，不经 shell；原始子进程输出和异常内容不会复制到报告。
+
+退出码：`0` 全部通过，`1` 有检查失败，`2` 参数错误。JSON 输出到 stdout，独立使用 `format: 1`，
+包括 `checks` 中的 `passed` / `failed` / `skipped`、错误码和处理提示；不使用原生 CLI 的 Schema 版本。
+CLI 启动失败只能说明版本探测未完成或结果不匹配，不能仅凭它确认 VC++ 运行库缺失。
+
+自检不修改 Agent 配置、不发现/执行客户端、不启动 MCP 会话或调用模型 API。
+通过只说明本机 npm 包的上述检查通过；不验证 Skill 语义、全部安装操作、MCP 宿主发现、真实缺运行库机器或物理断电。
+这里只检查当前宿主选择的 CLI；另一位数的执行由发布 CI 验证。
+详情与验证记录见 [自检交付说明](https://github.com/som1ng/Rondo/blob/main/docs/NPM_SELF_CHECK_DELIVERY.md)。
 
 ## Agent 与 MCP
 
@@ -111,7 +133,7 @@ rondo recover --integration mcp --agent all --scope user
 python integrations/npm/scripts/package_npm.py --x64 build/msvc-x64/Release/cli/rondo.exe --x86 build/msvc-x86/Release/cli/rondo.exe --output build/npm/stage
 npm ci --prefix build/npm/stage --ignore-scripts --no-audit --no-fund
 npm pack ./build/npm/stage --pack-destination build/npm --ignore-scripts
-python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.7.tgz
+python tests/npm_package_tests.py --archive build/npm/som1ng-rondo-0.1.0-dev.8.tgz
 ```
 
 CI 提供实际 checkout SHA 给 `--revision`；本地复用构建时省略，避免伪造来源。

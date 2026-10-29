@@ -59,7 +59,8 @@ Schema 在构建时嵌入二进制，部署 CLI 无需旁置 Schema 或依赖源
 从成功 CI 的 `rondo-npm` 产物取得 `.tgz` 后，可本地全局安装：
 
 ```powershell
-npm install -g .\som1ng-rondo-0.1.0-dev.7.tgz
+npm install -g .\som1ng-rondo-0.1.0-dev.8.tgz
+rondo self-check
 rondo --version --json
 rondo setup --agent auto --scope project --verify
 ```
@@ -67,6 +68,7 @@ rondo setup --agent auto --scope project --verify
 公开发布后的目标下载命令为 `npm install -g @som1ng/rondo`，目前不要把它当成已发布入口。
 包内含 x64/x86 CLI、MCP、Skill 和 Node 依赖；安装时不需要另行构建 CLI 或 MCP。
 需要 Windows x86/x64、Node.js 22.19+ 和 VC++ v14 运行库。详见 [npm 包说明](integrations/npm/README.md)。
+`rondo self-check --json` 提供本机安装诊断；不会修改 Agent 配置，也不代表客户端发现或模型行为验收。
 
 ## CLI 快速开始
 

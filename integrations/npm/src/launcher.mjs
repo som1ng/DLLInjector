@@ -1,13 +1,13 @@
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { verifyDistribution } from '../../installer/src/distribution.mjs';
 
 const packageRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const installerCommands = new Set(['setup', 'upgrade', 'recover', 'verify', 'uninstall', 'list-agents']);
 export const usage = `Rondo — Windows diagnostics and Agent setup
   rondo --version --json
   rondo doctor <file.dll> --json
+  rondo self-check [--json]
   rondo setup --agent auto --scope project --verify
   rondo setup --integration mcp --agent auto --scope project --allow-root <directory> --verify
   rondo setup --integration mcp --agent auto --scope user --allow-root <directory> --verify
@@ -41,6 +41,7 @@ export async function command(args, context = {}) {
   const installer = path.join(root, 'integrations/installer/src/index.mjs');
   const server = path.join(root, 'integrations/mcp/dist/index.js');
   const verifyBundled = async () => {
+    const { verifyDistribution } = await import('../../installer/src/distribution.mjs');
     if ((await verifyDistribution(cli, manifest)).architecture !== arch) {
       throw Object.assign(new Error('Bundled CLI architecture does not match the selected runtime.'), { code: 'DISTRIBUTION_INVALID' });
     }
