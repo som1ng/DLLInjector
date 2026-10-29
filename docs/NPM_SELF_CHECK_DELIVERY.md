@@ -15,14 +15,14 @@
 | cli_distribution | 宿主架构 CLI 的 PE、大小、SHA-256 与清单一致；哈希不等于来源签名 |
 | cli_runtime | 已校验的 CLI 实际完成 `--version --json`，返回与清单一致的版本和协议字段 |
 | installer | Node 能启动安装器 `--help`；不代表所有安装操作已执行 |
-| mcp_modules | MCP server 与安装器 MCP 模块及其导入依赖、报告 Schema 能加载；不建立 MCP 会话 |
+| mcp_modules | MCP 入口通过 Node 语法检查，server 与安装器 MCP 模块及其导入依赖、报告 Schema 能加载；不执行服务入口或建立 MCP 会话 |
 | skill | 四个必需资源为非空普通文件；不评估 Skill 内容语义 |
 
 宿主/Node/包元数据失败后跳过后续探测。CLI 校验失败后禁止执行该二进制，但独立的安装器、MCP、Skill 检查继续。
 CLI 无法启动、超时、异常退出或输出契约错误，都只能说明版本探测失败；不能据此认定 VC++ 运行库缺失。
 恢复或重装的操作需要用户显式执行，自检不自动修复文件。
 
-三个子进程使用固定入口及参数、`shell: false`、隐藏窗口，各限制 10 秒和 1 MiB 输出。
+四个子进程使用固定入口及参数、`shell: false`、隐藏窗口，各限制 10 秒，stdout/stderr 各限 1 MiB。
 失败报告使用固定错误码/提示，不回显子进程 stdout/stderr、异常、环境变量、配置内容或用户目录。
 不扫描/执行 Agent 客户端、不修改 Agent 配置、不调用模型 API；CLI 只执行版本查询。
 
@@ -39,7 +39,7 @@ CLI 无法启动、超时、异常退出或输出契约错误，都只能说明�
 本地验证使用临时目录和既有可信 x64/x86 构建，运行文件未变化；打包不填伪造的 source revision。
 npm 归档版本升级不意味着发布到公开 registry。
 
-- `npm test --prefix integrations/npm`：27 项通过、0 跳过（原有 8 项启动器回归及 19 项自检测试）。
+- `npm test --prefix integrations/npm`：28 项通过、0 跳过（原有 8 项启动器回归及 20 项自检测试）。
 - `python tests/npm_package_tests.py --archive build/npm-self-check/som1ng-rondo-0.1.0-dev.8.tgz`：2 项通过。
   本轮未提供原生客户端路径；MCP 中断 fixture 使用本地客户端版本探测替身，包内 CLI/服务和 SDK 握手实际执行。
 - 从 staging 实际运行 `rondo self-check --json`：8 项检查通过，`client_discovery: not_run`。
@@ -48,7 +48,7 @@ npm 归档版本升级不意味着发布到公开 registry。
 验证覆盖不支持的平台/Node、错误元数据、CLI/清单损坏、宿主架构不匹配、启动/输出错误、模块缺失、
 空 Skill 文件、实际超时终止、输出上限、Unicode 路径、隐私输出，以及不依赖完整包的帮助和参数校验。
 归档回归在临时 npm 全局 prefix 和空缓存中执行离线安装，验证完整自检，并临时移除 Schema、
-移除分发校验模块及损坏 CLI，确认诊断仍可输出；随后执行原有 Skill/MCP 升级、恢复、卸载路径。
+移除分发校验模块、破坏 MCP 入口语法及损坏 CLI，确认诊断仍可输出；随后执行原有 Skill/MCP 升级、恢复、卸载路径。
 
 全新 Windows、真实 VC++ 运行库缺失、完全断网系统、真实 Agent 发现和模型行为尚未验收。
 本功能提供验收入口，不把这些遗留项视为已关闭。公开 npm 发布、项目许可及来源核实仍待完成。

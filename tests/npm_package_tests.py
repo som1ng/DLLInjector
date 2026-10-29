@@ -72,11 +72,15 @@ class PackageTests(unittest.TestCase):
             self.assertTrue(all(check['status'] == 'passed' for check in readiness['checks']))
             self.assertEqual(list(project.iterdir()), [marker])
             self.assertIn('Rondo npm self-check: success', self.run_command([shim, 'self-check']).stdout)
-            for relative, check_id in [('integrations/mcp/dist/schemas/cli-v1.6.json', 'mcp_modules'),
-                                       ('integrations/installer/src/distribution.mjs', 'cli_distribution')]:
+            for relative, check_id, replacement in [('integrations/mcp/dist/schemas/cli-v1.6.json', 'mcp_modules', None),
+                                                    ('integrations/installer/src/distribution.mjs', 'cli_distribution', None),
+                                                    ('integrations/mcp/dist/index.js', 'mcp_modules', b'import {')]:
                 missing = package / relative
                 original_file = missing.read_bytes()
-                missing.unlink()
+                if replacement is None:
+                    missing.unlink()
+                else:
+                    missing.write_bytes(replacement)
                 try:
                     diagnosis = json.loads(self.run_command([shim, 'self-check', '--json'], code=1).stdout)
                     self.assertEqual(next(check for check in diagnosis['checks'] if check['id'] == check_id)['status'], 'failed')

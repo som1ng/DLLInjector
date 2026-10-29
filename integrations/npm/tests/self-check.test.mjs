@@ -55,7 +55,7 @@ test('healthy package probes literal Unicode paths without changing files or sta
   assert.equal(report.runtime_verification, 'passed'); assert.equal(report.client_discovery, 'not_run');
   assert.equal(report.architecture, 'x64'); assert.ok(!JSON.stringify(report).includes(f.root));
   assert.deepEqual(await Promise.all(f.files.map(file => fs.readFile(file))), before);
-  assert.equal(f.calls.length, 3);
+  assert.equal(f.calls.length, 4);
   for (const { options } of f.calls) {
     assert.equal(options.shell, false); assert.equal(options.windowsHide, true);
     assert.equal(options.timeout, 10000); assert.equal(options.maxBuffer, 1024 * 1024);
@@ -130,6 +130,14 @@ test('missing MCP imports are caught without exposing child stderr', async t => 
   const report = await selfCheck(f.context);
   assert.equal(item(report, 'mcp_modules').code, 'RONDO_MCP_MODULES'); assert.equal(item(report, 'skill').status, 'passed');
   assert.ok(!JSON.stringify(report).includes('private-fixture-value'));
+});
+
+test('invalid MCP entry syntax fails without executing the entry or importing its modules', async t => {
+  const f = await fixture(t); await f.write('integrations/mcp/dist/index.js', 'import {');
+  const report = await selfCheck(f.context);
+  assert.equal(item(report, 'mcp_modules').code, 'RONDO_MCP_MODULES');
+  assert.ok(f.calls.some(call => call.args[0] === '--check'));
+  assert.ok(!f.calls.some(call => call.args[0] === '--input-type=module'));
 });
 
 test('an empty required Skill resource fails instead of reporting ready', async t => {

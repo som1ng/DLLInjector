@@ -74,14 +74,15 @@ export async function selfCheck(context = {}) {
     if (!(await probe(process.execPath, [entry, '--help'])).stdout.startsWith('Rondo Agent installer ')) throw new Error('Installer help mismatch');
   }, 'RONDO_INSTALLER', 'The installer help entry could not start.', repair);
   await check('mcp_modules', async () => {
-    await regular(path.join(root, 'integrations/mcp/dist/index.js'));
+    const entry = path.join(root, 'integrations/mcp/dist/index.js'); await regular(entry);
+    await probe(process.execPath, ['--check', entry]);
     const server = pathToFileURL(path.join(root, 'integrations/mcp/dist/server.js')).href;
     const adapter = pathToFileURL(path.join(root, 'integrations/installer/src/mcp.mjs')).href;
     const script = 'const a = await import(process.argv[1]); const b = await import(process.argv[2]); '
       + 'if (typeof a.createServer !== "function" || typeof b.installMcp !== "function") process.exit(1); '
       + 'console.log("rondo-mcp-modules-ok");';
     if ((await probe(process.execPath, ['--input-type=module', '-e', script, server, adapter])).stdout.trim() !== 'rondo-mcp-modules-ok') throw new Error('Module probe mismatch');
-  }, 'RONDO_MCP_MODULES', 'MCP modules, bundled dependencies or report schemas could not load.', repair);
+  }, 'RONDO_MCP_MODULES', 'MCP entry syntax, modules, bundled dependencies or report schemas could not be validated.', repair);
   await check('skill', async () => {
     for (const file of ['SKILL.md', 'references/commands.md', 'references/evidence.md', 'agents/openai.yaml']) {
       await regular(path.join(root, 'integrations/skills/windows-dll-doctor', file));
