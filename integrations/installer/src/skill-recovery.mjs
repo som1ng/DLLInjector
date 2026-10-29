@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { InstallError, OWNED, safePath, stat, readSkillTree, validateSkillTree, replaceSkillFile } from './installer.mjs';
 import { acquireRecoveryGuard } from './recovery-lock.mjs';
+import { batchDecision } from './batch-recovery.mjs';
 
 const hash = data => createHash('sha256').update(data).digest('hex');
 const MAX_JOURNAL = 4 * 1024 * 1024;
@@ -13,9 +14,9 @@ const temporaryFor = (target, nonce, file) => path.join(path.dirname(path.join(t
 const aliasFor = (target, nonce) => path.join(path.dirname(target), '.dll-doctor-recovery-' + nonce + '.tmp');
 const encode = tree => Object.fromEntries(OWNED.map(file => [file, tree[file].toString('base64')]));
 
-export async function acquireSkillUpgrade(target, before, after) {
-  const payload = { owner: 'rondo-skill-upgrade', format: 1, pid: process.pid, nonce: randomUUID(), target,
-    before: encode(before), after: encode(after) };
+export async function acquireSkillUpgrade(target, before, after, batch) {
+  const payload = { owner: 'rondo-skill-upgrade', format: batch ? 2 : 1, pid: process.pid, nonce: randomUUID(), target,
+    before: encode(before), after: encode(after), ...(batch ? { batch } : {}) };
   const bytes = Buffer.from(JSON.stringify({ payload, sha256: hash(JSON.stringify(payload)) }) + '\n');
   if (bytes.length > MAX_JOURNAL) fail('RECOVERY_LIMIT', 'Managed Skill content is too large for a recovery record.');
   const alias = aliasFor(target, payload.nonce), lock = lockFor(target);
@@ -57,18 +58,18 @@ function decode(tree) {
   validateSkillTree(decoded);
   return decoded;
 }
-async function journal(target) {
-  const raw = await bounded(lockFor(target));
+async function journal(target, recordPath = lockFor(target)) {
+  const raw = await bounded(recordPath);
   try {
     const text = new TextDecoder('utf-8', { fatal: true }).decode(raw), end = text.indexOf('\n');
     if (end < 0) throw new Error();
     const { payload, sha256 } = JSON.parse(text.slice(0, end)), marker = text.slice(end + 1);
-    if (!payload || payload.owner !== 'rondo-skill-upgrade' || payload.format !== 1 || payload.target !== target
+    if (!payload || payload.owner !== 'rondo-skill-upgrade' || payload.format !== (payload.batch ? 2 : 1) || payload.target !== target
         || !Number.isInteger(payload.pid) || payload.pid <= 0 || payload.pid > 0x7fffffff
         || typeof payload.nonce !== 'string' || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(payload.nonce)
         || sha256 !== hash(JSON.stringify(payload))
         || !['started\ncommitted\n', 'committed\n'].some(sequence => sequence.startsWith(marker))) throw new Error();
-    return { raw, pid: payload.pid, nonce: payload.nonce, before: decode(payload.before), after: decode(payload.after),
+    return { raw, pid: payload.pid, nonce: payload.nonce, batch: payload.batch, before: decode(payload.before), after: decode(payload.after),
       started: marker.startsWith('started\n'), committed: marker.endsWith('committed\n') };
   } catch { fail('RECOVERY_JOURNAL', 'Skill recovery record is missing, legacy, damaged or for another target; preserve it for inspection.'); }
 }
@@ -78,9 +79,9 @@ function requireExited(pid) {
   fail('RECOVERY_ACTIVE', 'The recorded owner is still running or cannot be checked; recovery will not take its lock.');
 }
 
-async function plan(target) {
-  const state = await journal(target);
-  requireExited(state.pid);
+async function plan(target, batch) {
+  const state = await journal(target, batch?.recordPath);
+  if (!batchDecision(state, batch)) requireExited(state.pid);
   const temporary = OWNED.map(file => temporaryFor(target, state.nonce, file));
   const ignored = temporary.map(file => path.relative(target, file).split(path.sep).join('/'));
   for (const file of OWNED) await bounded(path.join(target, file), Math.max(state.before[file].length, state.after[file].length));
@@ -90,6 +91,7 @@ async function plan(target) {
       fail('RECOVERY_CONFLICT', 'Skill content changed outside the interrupted upgrade; preserving it.');
     }
     if (state.committed && !current[file].equals(state.after[file])) fail('RECOVERY_CONFLICT', 'Committed Skill content changed; preserving it.');
+    if (state.expectBefore && !current[file].equals(state.before[file])) fail('RECOVERY_CONFLICT', 'Restored batch content changed; preserving it.');
     if (!state.started && !state.committed && !current[file].equals(state.before[file])) {
       fail('RECOVERY_CONFLICT', 'Skill changed before this operation began writing; preserving it.');
     }
@@ -105,7 +107,7 @@ async function plan(target) {
   }
   const alias = aliasFor(target, state.nonce);
   if (await stat(alias)) {
-    const bytes = await bounded(alias), a = await fs.stat(alias, { bigint: true }), b = await fs.stat(lockFor(target), { bigint: true });
+    const bytes = await bounded(alias), a = await fs.stat(alias, { bigint: true }), b = await fs.stat(batch?.recordPath ?? lockFor(target), { bigint: true });
     if (!bytes.equals(state.raw) || a.ino !== b.ino || a.dev !== b.dev) fail('RECOVERY_CONFLICT', 'The journal alias is not owned by this operation.');
     leftovers.push([alias, bytes]);
   }
@@ -114,23 +116,24 @@ async function plan(target) {
 
 export async function recoverSkill(target, options, context = {}) {
   const lock = lockFor(target);
+  const batch = context.batchRecovery, recordPath = batch?.recordPath ?? lock;
   const result = { status: 'success', command: 'recover', integration: 'skill', agent: options.agent, scope: options.scope,
     target, journal: lock, runtime_verification: 'not_run' };
-  if (!await stat(lock)) return { ...result, action: 'absent' };
-  const inspected = await plan(target);
+  if (!await stat(recordPath)) return { ...result, action: 'absent' };
+  const inspected = await plan(target, batch);
   if (options.dryRun) return { ...result, action: 'preview', recovery_action: inspected.committed ? 'keep_committed' : 'restore_previous',
     files: OWNED.map(file => path.join(target, file)), temporary_files: inspected.leftovers.map(([file]) => file) };
   const guardPath = path.join(path.dirname(target), '.dll-doctor-recover.guard');
   await safePath(guardPath);
   let guard;
-  try { guard = await acquireRecoveryGuard(guardPath); }
+  try { guard = batch?.guard ?? await acquireRecoveryGuard(guardPath); }
   catch { fail('RECOVERY_BUSY', 'Another recovery holds the guard, or Windows PowerShell/file locking is unavailable.'); }
   try {
-    const state = await plan(target);
+    const state = await plan(target, batch);
     if (!state.raw.equals(inspected.raw)) fail('RECOVERY_CONFLICT', 'Recovery record changed; preserving it.');
     const check = async () => {
       try { guard.check(); } catch { fail('RECOVERY_BUSY', 'Recovery guard was lost; the recovery record has been preserved.'); }
-      if (!(await bounded(lock)).equals(state.raw)) fail('RECOVERY_CONFLICT', 'Recovery record changed during restoration.');
+      if (!(await bounded(recordPath)).equals(state.raw)) fail('RECOVERY_CONFLICT', 'Recovery record changed during restoration.');
     };
     await context.recoveryCheckpoint?.('guard-held');
     for (const [file, bytes] of state.leftovers) {
@@ -148,7 +151,7 @@ export async function recoverSkill(target, options, context = {}) {
     const restored = validateSkillTree(await readSkillTree(target)).tree;
     const expected = state.committed ? state.after : state.before;
     if (!OWNED.every(file => restored[file].equals(expected[file]))) fail('RECOVERY_CONFLICT', 'Skill changed during recovery.');
-    await check(); await fs.unlink(lock);
+    await check(); if (!batch) await fs.unlink(lock);
     return { ...result, action: state.committed ? 'completed' : 'restored' };
-  } finally { await guard.release(); }
+  } finally { if (!batch) await guard.release(); }
 }

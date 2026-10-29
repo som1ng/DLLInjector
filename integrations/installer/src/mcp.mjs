@@ -17,7 +17,7 @@ const json = value => Buffer.from(JSON.stringify(value, null, 2) + '\n');
 const same = (left, right) => left === null || right === null ? left === right : left.equals(right);
 const fail = (code, message) => { throw new InstallError(code, message); };
 
-async function location(options, context) {
+export async function location(options, context) {
   let root = path.resolve(options.project || process.cwd());
   let relative = options.agent === 'codex' ? '.codex/config.toml' : options.agent === 'claude' ? '.mcp.json' : 'opencode.json';
   if (options.scope === 'user') {
@@ -269,7 +269,7 @@ export async function installMcp(command, options, context = {}) {
     await safePath(lockPath);
     if (command === 'upgrade' || upgradeRollback) {
       recovery = await (await import('./mcp-recovery.mjs')).acquireMcpUpgrade(recoveryLocation, options,
-        { config: configBefore, receipt: receiptBefore }, { config: configAfter, receipt: receiptAfter });
+        { config: configBefore, receipt: receiptBefore }, { config: configAfter, receipt: receiptAfter }, context.batchUpgrade);
       lock = recovery.handle;
       await context.recoveryCheckpoint?.('prepared');
     } else {
@@ -307,7 +307,7 @@ export async function installMcp(command, options, context = {}) {
     }
     throw error;
   } finally {
-    if (lock) { await lock.close(); if (!keepRecovery) await fs.unlink(lockPath); }
+    if (lock) { await lock.close(); if (!keepRecovery && !context.batchUpgrade) await fs.unlink(lockPath); }
     for (const directory of made.reverse()) {
       try { await fs.rmdir(directory); }
       catch (error) { if (!['ENOTEMPTY', 'EEXIST', 'ENOENT'].includes(error.code)) throw error; }

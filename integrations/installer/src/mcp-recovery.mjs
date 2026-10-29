@@ -5,6 +5,7 @@ import { InstallError, safePath, stat } from './installer.mjs';
 import { read, text, replace, parseReceipt } from './mcp.mjs';
 import { hash, ownedSlice } from './mcp-config.mjs';
 import { acquireRecoveryGuard } from './recovery-lock.mjs';
+import { batchDecision } from './batch-recovery.mjs';
 
 const MAX_JOURNAL = 512 * 1024;
 const fail = (code, message) => { throw new InstallError(code, message); };
@@ -39,7 +40,7 @@ function receipt(bytes, options, relative) {
   return record;
 }
 
-export async function acquireMcpUpgrade(location, options, before, after) {
+export async function acquireMcpUpgrade(location, options, before, after, batch) {
   const snapshots = [before, after].map(state => {
     if (!state.config || state.config.length > 1048576) fail('RECOVERY_LIMIT', 'MCP configuration exceeds the recoverable file limit.');
     const record = receipt(state.receipt, options, location.relative);
@@ -49,9 +50,9 @@ export async function acquireMcpUpgrade(location, options, before, after) {
   if (snapshots[0].slice.prefix !== snapshots[1].slice.prefix || snapshots[0].slice.suffix !== snapshots[1].slice.suffix) {
     fail('MCP_RECOVERY_LAYOUT', 'This update changes text outside the managed entry; preserving configuration.');
   }
-  const payload = { owner: 'rondo-mcp-upgrade', format: 1, pid: process.pid, nonce: randomUUID(),
+  const payload = { owner: 'rondo-mcp-upgrade', format: batch ? 2 : 1, pid: process.pid, nonce: randomUUID(),
     agent: options.agent, scope: options.scope, config: location.config, receipt: location.receipt,
-    before: snapshots[0].state, after: snapshots[1].state };
+    before: snapshots[0].state, after: snapshots[1].state, ...(batch ? { batch } : {}) };
   const bytes = Buffer.from(JSON.stringify({ payload, sha256: hash(JSON.stringify(payload)) }) + '\n');
   if (bytes.length > MAX_JOURNAL - 32) fail('RECOVERY_LIMIT', 'Managed MCP state exceeds the recovery record limit.');
   const alias = aliasFor(location, payload.nonce);
@@ -74,13 +75,13 @@ export async function acquireMcpUpgrade(location, options, before, after) {
   }
 }
 
-async function journal(location, options) {
-  const raw = await read(location.lock, MAX_JOURNAL);
+async function journal(location, options, recordPath = location.lock) {
+  const raw = await read(recordPath, MAX_JOURNAL);
   try {
     const source = text(raw), end = source.indexOf('\n');
     if (end < 0) throw new Error();
     const { payload, sha256 } = JSON.parse(source.slice(0, end)), marker = source.slice(end + 1);
-    if (!payload || payload.owner !== 'rondo-mcp-upgrade' || payload.format !== 1
+    if (!payload || payload.owner !== 'rondo-mcp-upgrade' || payload.format !== (payload.batch ? 2 : 1)
         || payload.agent !== options.agent || payload.scope !== options.scope
         || payload.config !== location.config || payload.receipt !== location.receipt
         || !Number.isInteger(payload.pid) || payload.pid <= 0 || payload.pid > 0x7fffffff
@@ -98,10 +99,10 @@ async function journal(location, options) {
   } catch { fail('RECOVERY_JOURNAL', 'MCP recovery record is legacy, damaged or for another target; preserve it for inspection.'); }
 }
 
-async function plan(location, options) {
-  const state = await journal(location, options);
-  let exited = false;
-  try { process.kill(state.pid, 0); } catch (error) { exited = error.code === 'ESRCH'; }
+async function plan(location, options, batch) {
+  const state = await journal(location, options, batch?.recordPath);
+  let exited = batchDecision(state, batch);
+  if (!exited) try { process.kill(state.pid, 0); } catch (error) { exited = error.code === 'ESRCH'; }
   if (!exited) fail('RECOVERY_ACTIVE', 'The recorded owner is still running or cannot be checked; preserving its lock.');
   const config = await read(location.config), currentReceipt = await read(location.receipt, 65536);
   if (!config || !currentReceipt) fail('RECOVERY_CONFLICT', 'Configuration or receipt is missing; preserving the local state.');
@@ -117,7 +118,7 @@ async function plan(location, options) {
     ownedSlice(options.agent, text(value.config), value.record);
   }
   const matches = value => config.equals(value.config) && currentReceipt.equals(value.bytes);
-  if ((state.committed && !matches(state.after)) || (!state.started && !matches(state.before))) {
+  if ((state.committed && !matches(state.after)) || ((state.expectBefore || !state.started) && !matches(state.before))) {
     fail('RECOVERY_CONFLICT', 'MCP files do not match the recorded write phase; preserving them.');
   }
   const leftovers = [];
@@ -134,7 +135,7 @@ async function plan(location, options) {
   }
   const alias = aliasFor(location, state.nonce), aliasBytes = await read(alias, MAX_JOURNAL);
   if (aliasBytes !== null) {
-    const a = await fs.stat(alias, { bigint: true }), b = await fs.stat(location.lock, { bigint: true });
+    const a = await fs.stat(alias, { bigint: true }), b = await fs.stat(batch?.recordPath ?? location.lock, { bigint: true });
     if (!aliasBytes.equals(state.raw) || a.ino !== b.ino || a.dev !== b.dev) fail('RECOVERY_CONFLICT', 'Journal alias is not owned by this operation.');
     leftovers.push([alias, aliasBytes]);
   }
@@ -142,24 +143,25 @@ async function plan(location, options) {
 }
 
 export async function recoverMcp(location, options, context = {}) {
+  const batch = context.batchRecovery, recordPath = batch?.recordPath ?? location.lock;
   const result = { status: 'success', command: 'recover', integration: 'mcp', agent: options.agent, scope: options.scope,
     config: location.config, receipt: location.receipt, journal: location.lock,
     runtime_verification: 'not_run', client_discovery: 'not_run' };
-  if (!await stat(location.lock)) return { ...result, action: 'absent' };
-  const inspected = await plan(location, options);
+  if (!await stat(recordPath)) return { ...result, action: 'absent' };
+  const inspected = await plan(location, options, batch);
   if (options.dryRun) return { ...result, action: 'preview', recovery_action: inspected.committed ? 'keep_committed' : 'restore_previous',
     files: [location.config, location.receipt], temporary_files: inspected.leftovers.map(([file]) => file) };
   const guardPath = location.lock + '.recover.guard';
   await safePath(guardPath);
   let guard;
-  try { guard = await acquireRecoveryGuard(guardPath); }
+  try { guard = batch?.guard ?? await acquireRecoveryGuard(guardPath); }
   catch { fail('RECOVERY_BUSY', 'Another recovery holds the guard, or Windows PowerShell/file locking is unavailable.'); }
   try {
-    const state = await plan(location, options);
+    const state = await plan(location, options, batch);
     if (!state.raw.equals(inspected.raw)) fail('RECOVERY_CONFLICT', 'Recovery record changed; preserving it.');
     const check = async () => {
       try { guard.check(); } catch { fail('RECOVERY_BUSY', 'Recovery guard was lost; the record has been preserved.'); }
-      if (!(await read(location.lock, MAX_JOURNAL))?.equals(state.raw)) fail('RECOVERY_CONFLICT', 'MCP recovery record changed during restoration.');
+      if (!(await read(recordPath, MAX_JOURNAL))?.equals(state.raw)) fail('RECOVERY_CONFLICT', 'MCP recovery record changed during restoration.');
     };
     await context.recoveryCheckpoint?.('guard-held');
     for (const [file, bytes] of state.leftovers) {
@@ -180,7 +182,7 @@ export async function recoverMcp(location, options, context = {}) {
     if (!(await read(location.config))?.equals(expected.config) || !(await read(location.receipt, 65536))?.equals(expected.bytes)) {
       fail('RECOVERY_CONFLICT', 'MCP files changed during recovery.');
     }
-    await check(); await fs.unlink(location.lock);
+    await check(); if (!batch) await fs.unlink(location.lock);
     return { ...result, action: state.committed ? 'completed' : 'restored' };
-  } finally { await guard.release(); }
+  } finally { if (!batch) await guard.release(); }
 }

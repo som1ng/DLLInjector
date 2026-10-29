@@ -111,6 +111,21 @@ await install('upgrade', { agent: 'codex', scope: 'project', project, cli }, {
             self.assertEqual(json.loads(self.run_command(recover).stdout)['action'], 'absent')
             restored_binding = json.loads((project / '.agents/skills/windows-dll-doctor/references/installation.json').read_text(encoding='utf-8'))
             self.assertEqual(restored_binding, binding)
+            interrupted_batch = r'''
+import { pathToFileURL } from 'node:url';
+const [entry, project, cli] = process.argv.slice(1);
+const { upgradeAll } = await import(pathToFileURL(entry));
+await upgradeAll({ agent: 'all', scope: 'project', project, cli }, {
+  batchCheckpoint: (stage, data) => { if (stage === 'target-completed' && data.agent === 'codex') process.exit(75); },
+});
+'''
+            self.run_command([NODE, '--input-type=module', '-e', interrupted_batch,
+                              package / 'integrations/installer/src/batch-upgrade.mjs', project, previous_cli], code=75)
+            recover_all = [shim, 'recover', '--agent', 'all', '--scope', 'project', '--project', project]
+            self.assertEqual(json.loads(self.run_command([*recover_all, '--dry-run']).stdout)['action'], 'preview')
+            self.assertEqual(json.loads(self.run_command(recover_all).stdout)['action'], 'restored')
+            self.assertEqual(json.loads(self.run_command(recover_all).stdout)['action'], 'absent')
+            self.assertEqual(json.loads((project / '.agents/skills/windows-dll-doctor/references/installation.json').read_text(encoding='utf-8')), binding)
             upgrade = [shim, 'upgrade', '--agent', 'all', '--scope', 'project', '--project', project]
             batch = json.loads(self.run_command([*upgrade, '--cli', previous_cli]).stdout)
             self.assertEqual(batch['action'], 'upgraded')
@@ -168,6 +183,33 @@ await installMcp('upgrade', { ...options, cli: nextCli }, { ...context,
             self.run_command([shim, 'uninstall', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project',
                               '--project', mcp_recovery_project])
             self.assertFalse((mcp_recovery_project / '.codex/config.toml').exists())
+            interrupted_mcp_batch = r'''
+import { pathToFileURL } from 'node:url';
+const [directory, project, cli, nextCli, server] = process.argv.slice(1);
+const { setupAllMcp } = await import(pathToFileURL(directory + '/batch-mcp.mjs'));
+const { upgradeAll } = await import(pathToFileURL(directory + '/batch-upgrade.mjs'));
+const agents = ['codex', 'claude', 'opencode'];
+const options = { agent: 'all', integration: 'mcp', scope: 'project', project, cli, server,
+  clients: Object.fromEntries(agents.map(agent => [agent, cli])), allowRoot: [project] };
+const context = { probeClient: async (agent, file) => ({ path: file,
+  version: { codex: '0.164.0', claude: '2.1.310', opencode: '1.19.4' }[agent] }) };
+await setupAllMcp(options, context);
+await upgradeAll({ ...options, cli: nextCli }, { ...context,
+  batchCheckpoint: (stage, data) => { if (stage === 'target-completed' && data.agent === 'codex') process.exit(76); },
+});
+'''
+            self.run_command([NODE, '--input-type=module', '-e', interrupted_mcp_batch,
+                              package / 'integrations/installer/src', mcp_recovery_project,
+                              packaged_cli, previous_cli, package / 'integrations/mcp/dist/index.js'], code=76)
+            recover_mcp_all = [shim, 'recover', '--integration', 'mcp', '--agent', 'all', '--scope', 'project',
+                               '--project', mcp_recovery_project]
+            self.assertEqual(json.loads(self.run_command([*recover_mcp_all, '--dry-run']).stdout)['action'], 'preview')
+            self.assertEqual(json.loads(self.run_command(recover_mcp_all).stdout)['action'], 'restored')
+            for agent in ('codex', 'claude', 'opencode'):
+                receipt = json.loads((mcp_recovery_project / f'.dll-doctor/mcp-{agent}.json').read_text(encoding='utf-8'))
+                self.assertEqual(Path(receipt['runtime']['cli']['path']), packaged_cli)
+                self.run_command([shim, 'uninstall', '--integration', 'mcp', '--agent', agent, '--scope', 'project',
+                                  '--project', mcp_recovery_project])
             previous_cli.unlink()
             if CODEX:
                 self.run_command([shim, 'setup', '--integration', 'mcp', '--agent', 'codex', '--scope', 'project',

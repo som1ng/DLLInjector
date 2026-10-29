@@ -1,5 +1,7 @@
 # MCP 升级进程中断恢复
 
+后续补充：新版 `upgrade --agent all` 使用 [整批恢复](BATCH_RECOVERY_DELIVERY.md)，不能逐个接管其中的目标。
+
 日期：2026-10-28。安装器 `0.1.0-dev.12`，Rondo npm 包 `0.1.0-dev.6`。
 延续 [Skill 恢复](SKILL_RECOVERY_DELIVERY.md)，补齐 MCP 单目标升级与内部回滚步骤的进程中断恢复。
 本轮不改 GUI、原生 CLI 或 MCP 工具协议。

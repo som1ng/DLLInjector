@@ -199,14 +199,14 @@ test('unknown temporary contents and linked files are preserved', async t => {
   assert.ok((await fs.lstat(linked)).isSymbolicLink());
 });
 
-test('CLI Skill recovery works without native runtime arguments and rejects all/auto recovery', async t => {
+test('CLI Skill recovery works without native runtime arguments and rejects auto recovery', async t => {
   const f = await fixture(t), child = await f.start('upgrade', 'upgraded-file');
   await child.stop();
   const args = ['recover', '--agent', 'codex', '--scope', 'project', '--project', f.root];
   const run = values => execFileSync(process.execPath, [entry, ...values], { windowsHide: true, encoding: 'utf8', stdio: 'pipe' });
   assert.equal(JSON.parse(run([...args, '--dry-run'])).action, 'preview');
   assert.equal(JSON.parse(run(args)).action, 'restored'); await unchanged(f.before);
-  for (const values of [['recover', '--agent', 'all', '--scope', 'project'], ['recover', '--agent', 'auto', '--scope', 'user'],
+  for (const values of [['recover', '--agent', 'auto', '--scope', 'user'],
     [...args, '--cli', f.nextCli]]) {
     assert.throws(() => run(values), error => JSON.parse(error.stderr).code === 'ARGUMENT');
   }

@@ -1,6 +1,6 @@
 # Rondo Skill / MCP 安装器
 
-Windows 源码运行版本 `0.1.0-dev.12`，支持 Codex、Claude Code、OpenCode。
+Windows 源码运行版本 `0.1.0-dev.13`，支持 Codex、Claude Code、OpenCode。
 准备 Node.js 22.19+ 和可信的 Rondo CLI `2.0.0-dev.8` 或 `dev.9`（Schema 1.6）。
 默认 Skill 模式无需安装 npm 依赖。包尚未发布；当前从本仓库运行。
 项目级或用户级 MCP 配置使用 `--integration mcp`，需要安装本目录依赖，见下文。
@@ -158,7 +158,7 @@ MCP 必须提供三个原生客户端路径、完整允许目录及可选进程�
 
 恢复配置和收据不依赖旧运行文件仍可执行。写入成功后清理锁文件的失败也纳入恢复检查。
 并发改动或锁/权限问题会保留现场并报告 `ROLLBACK_INCOMPLETE`；批量操作仍不是跨目标原子事务，
-也不能在进程强制结束后自动恢复。说明及验证记录见 [批量升级交付](../../docs/BATCH_UPGRADE_DELIVERY.md)。
+新版整批升级被强制结束后，可用下文 `recover --agent all` 显式恢复。原始说明见 [批量升级交付](../../docs/BATCH_UPGRADE_DELIVERY.md)。
 
 ### Skill 升级中断恢复
 
@@ -177,7 +177,7 @@ rondo recover --agent codex --scope project --project 'D:\work\my-app'
 
 恢复记录仅含受管 Skill/绑定/收据，不备份 MCP 配置。记录、临时文件和 guard 必须留在本地，已加入本仓库 gitignore。
 需要支持硬链接的本地文件系统；`.dll-doctor-recover.guard` 可作为空文件保留，存在本身不表示仍被占用。
-当前不支持安装/卸载、旧版记录或整批升级的进程中断恢复；批量升级中已完成的其他目标不会一并撤回。
+此单目标入口不处理安装/卸载、旧版记录或整批升级；属于新版批次的目标须使用 `recover --agent all`。
 物理断电、存储损坏及旧运行文件回退仍未验收。行为、错误码和测试见 [Skill 恢复交付](../../docs/SKILL_RECOVERY_DELIVERY.md)。
 
 ### MCP 升级中断恢复
@@ -195,10 +195,32 @@ rondo recover --integration mcp --agent claude --scope user
 若中断后配置或收据被改动（包括无关设置）、删除或链接替换，会保留文件并拒绝恢复。
 预览不启动任何进程；实际恢复使用与 Skill 相同的 Windows PowerShell 排他锁，不运行 CLI、客户端或 MCP 服务。
 
-仅处理当前升级/内部回滚步骤；支持恢复中再次被终止后重试，不恢复整个批次或旧二进制。
+此单目标入口仅处理独立升级/内部回滚步骤；支持恢复中再次被终止后重试，不恢复旧二进制。
+属于新版批次的记录须使用下文 `recover --agent all`。
 记录位于 `.dll-doctor/mcp-<agent>.lock`；同目录 guard 可保留为空文件。
 替换配置时的临时文件仍含完整配置，只用于原子替换，不作为长期备份；仅清理可确认属于本次操作的临时文件。
 更多行为、限制和验证见 [MCP 恢复交付](../../docs/MCP_RECOVERY_DELIVERY.md)。
+
+### 整批升级中断恢复
+
+从安装器 `0.1.0-dev.13` 起，`upgrade --agent all` 会保留批次及各参与目标的恢复记录：
+
+```powershell
+rondo recover --agent all --scope project --project 'D:\work\my-app' --dry-run
+rondo recover --agent all --scope project --project 'D:\work\my-app'
+rondo recover --integration mcp --agent all --scope user --dry-run
+rondo recover --integration mcp --agent all --scope user
+```
+
+支持 Skill/MCP 和 project/user，不需要运行文件或客户端路径。没有完整批次提交标记时恢复参与目标原始状态，
+已有完整标记时保留整批结果；未变化或尚未执行的目标保留原状。恢复前先检查全部参与目标，冲突时不开始恢复写入。
+各目标的锁保持到批次结束；恢复过程再次终止、终态记录清理中断均可重试。
+
+`BATCH_RECOVERY_REQUIRED` 表示须按同一集成和 scope 恢复整批，不能单独接管其中的目标。
+`BATCH_CLEANUP_REQUIRED` 表示整批已提交但清理未完成，运行 recover 保留结果并完成清理。
+这不提供跨目标原子可见性、真实断电保证、安装/卸载恢复或旧二进制回退。
+批次目标记录采用格式 2，需要 dev.13 或更新安装器；旧安装器会拒绝，独立目标格式 1 仍受支持。
+记录位置、错误处理及验证见 [整批恢复交付](../../docs/BATCH_RECOVERY_DELIVERY.md)。
 
 输出为 JSON，成功退出 `0`，失败退出 `1`。文件清单包含本机路径；安装目录与安装记录应保留在本机，
 请在目标项目的 Git 忽略规则中排除对应安装目录。本仓库已配置这些忽略规则。
