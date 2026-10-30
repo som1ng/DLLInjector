@@ -151,18 +151,22 @@ class AcceptanceTests(unittest.TestCase):
                 self.assertEqual(json.loads(output.read_text(encoding='utf-8')), summary)
             output = Path(tmp) / 'closed-pipe.json'
             code = ('import json,sys; from pathlib import Path; from codex_acceptance import emit_summary; '
-                    'sys.exit(emit_summary(json.loads(sys.argv[2]), Path(sys.argv[1])))')
+                    'sys.stdin.buffer.read(1); sys.exit(emit_summary(json.loads(sys.argv[2]), Path(sys.argv[1])))')
             proc = subprocess.Popen([sys.executable, '-c', code, str(output), json.dumps(summary)],
-                cwd=Path(__file__).resolve().parent, stdin=subprocess.DEVNULL,
+                cwd=Path(__file__).resolve().parent, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            proc.stdout.close()
             try:
+                proc.stdout.close()
+                # EOF releases the child only after its output pipe is closed.
+                proc.stdin.close()
                 self.assertNotEqual(proc.wait(timeout=10), 0)
                 self.assertEqual(json.loads(output.read_text(encoding='utf-8')), summary)
             finally:
                 if proc.poll() is None:
                     proc.kill()
                     proc.wait(timeout=5)
+                proc.stdout.close()
+                proc.stdin.close()
 
 
 if __name__ == '__main__':
