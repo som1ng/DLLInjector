@@ -80,3 +80,12 @@ CI 只运行 [离线证据检查](../tests/codex_acceptance_tests.py)，不运�
 
 此轮只关闭 Codex 0.164.0 的项目级安装/发现和单个真实 PE 问答场景。
 Claude/OpenCode 的真实模型行为、用户级自动发现、全部 Skill 场景、新机器验收和公开 npm 发布仍待完成。
+
+2026-10-30 CI 补充：既有批量恢复并发测试在原升级进程已关闭、前两次恢复已启动后，
+第三次恢复仍偶发返回 `RECOVERY_ACTIVE`。新增失败阶段/PID 诊断，并仅在确认原进程已退出的测试步骤中，
+对 `RECOVERY_BUSY` / `RECOVERY_ACTIVE` 最多重试 20 次、间隔 100 ms。
+原进程活跃及并发恢复必须被拒绝的断言仍保留，运行时保护未修改。
+这避免测试依赖“旧 PID 此后始终空闲”的假设，不证明已确定哪一个进程复用了 PID。
+[Windows 的进程标识保证限于进程生命周期](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentprocessid)，
+[Node 的 signal 0 仅检查当前存在性](https://nodejs.org/docs/latest-v22.x/api/process.html#processkillpid-signal)。
+修改后运行 `npm test --prefix integrations/installer`：224 项通过、7 项跳过、0 失败；跳过项未计为通过。
