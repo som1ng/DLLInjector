@@ -239,7 +239,7 @@ cmake/                 固定构建依赖与 Schema 嵌入配置
 
 1. P4：Rondo npm 归档已包含 CLI/MCP/Skill，由 npm 管理全局文件与命令；补齐来源/许可和公开发布，才能通过 registry 包名下载安装。
 2. P4：用户级 MCP、配置升级和 Skill/MCP 单目标及整批升级进程中断恢复已实现；继续物理断电与新机器验收。本地归档离线安装不等于全新离线系统验收。
-3. P2/P3 与发布收尾：[Codex 项目发现和单个真实模型场景](docs/CODEX_ACCEPTANCE.md) 已验收；继续其他客户端、用户级发现、完整场景评测、GUI 遗留及发布文档。
+3. P2/P3 与发布收尾：[Codex 项目发现与 PE 问答](docs/CODEX_ACCEPTANCE.md)、[架构冲突/126 诊断](docs/CODEX_DIAGNOSTIC_ACCEPTANCE.md) 已验收；继续其他客户端、用户级发现、完整场景评测、GUI 遗留及发布文档。
 4. P5：自有测试程序的 DLL 生命周期实验与结果对比，尚未开发。
 
 旧 README 中的 `-t`、`-m`、`-d`、`-s` 参数没有实现，已移除。未来命令在实现并通过测试前不会作为可用功能展示。
