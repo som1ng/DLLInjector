@@ -42,16 +42,19 @@ async function fixture(t, integration = 'skill', scope = 'project') {
   const journal = path.join(root, '.dll-doctor', 'batch-upgrade-' + integration + '-' + scope + '.lock'), children = [];
   const lock = target => target.target ? path.join(path.dirname(target.target), '.dll-doctor-installer.lock')
     : path.join(path.dirname(target.receipt), 'mcp-' + target.agent + '.lock');
+  let ownerPid;
   const start = async (command, pause, extra = {}) => {
     const child = spawn(process.execPath, [childFile, JSON.stringify({ command, pause, home: root,
       options: command === 'upgrade' ? next : query, ...extra })], { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+    if (command === 'upgrade') ownerPid = child.pid;
     let ended = false, timer;
     const closed = new Promise(resolve => child.once('close', () => { ended = true; resolve(); }));
     const stop = async () => { if (!ended) child.kill('SIGKILL'); await closed; }; children.push(stop);
     try {
       await Promise.race([new Promise((resolve, reject) => {
         child.once('error', reject);
-        child.once('message', message => message.ready ? resolve() : reject(Object.assign(new Error('Fixture failed'), { code: message.error })));
+        child.once('message', message => message.ready ? resolve() : reject(Object.assign(
+          new Error(`Fixture failed at ${command}/${pause}; child PID ${child.pid}, upgrade owner PID ${ownerPid}`), { code: message.error })));
       }), closed.then(() => { throw new Error('Fixture ended before checkpoint'); }),
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Fixture timeout')), 20000); })]);
     } catch (error) { await stop(); throw error; }
@@ -66,9 +69,11 @@ async function fixture(t, integration = 'skill', scope = 'project') {
   return { root, cli, server, query, next, options, context, targets, paths, before, journal, start, lock,
     run: integration === 'skill' ? install : installMcp };
 }
-async function retry(operation) {
+async function retryAfterOwnerExit(operation) {
+  // Call only after stop() has awaited the original upgrader's close. Another
+  // parallel fixture may reuse that PID; the runtime must still fail closed.
   for (let n = 0; ; n++) try { return await operation(); }
-  catch (error) { if (error.code !== 'RECOVERY_BUSY' || n >= 20) throw error; await new Promise(resolve => setTimeout(resolve, 100)); }
+  catch (error) { if (!['RECOVERY_BUSY', 'RECOVERY_ACTIVE'].includes(error.code) || n >= 20) throw error; await new Promise(resolve => setTimeout(resolve, 100)); }
 }
 
 for (const integration of ['skill', 'mcp']) {
@@ -111,11 +116,11 @@ for (const integration of ['skill', 'mcp']) {
     await assert.rejects(recoverAll(f.query, f.context), { code: 'RECOVERY_ACTIVE' });
     await assert.rejects(f.run('upgrade', { ...f.options, agent: 'codex', client: f.options.clients?.codex }, f.context));
     await child.stop();
-    const first = await f.start('recover', 'recovery-guard-held');
+    const first = await retryAfterOwnerExit(() => f.start('recover', 'recovery-guard-held'));
     await assert.rejects(recoverAll(f.query, f.context), { code: 'RECOVERY_BUSY' }); await first.stop();
-    const second = await retry(() => f.start('recover', 'target-restored')); await second.stop();
-    const third = await retry(() => f.start('recover', 'target-cleaned')); await third.stop();
-    assert.equal((await retry(() => recoverAll(f.query, f.context))).action, 'restored'); await unchanged(f.before);
+    const second = await retryAfterOwnerExit(() => f.start('recover', 'target-restored')); await second.stop();
+    const third = await retryAfterOwnerExit(() => f.start('recover', 'target-cleaned')); await third.stop();
+    assert.equal((await retryAfterOwnerExit(() => recoverAll(f.query, f.context))).action, 'restored'); await unchanged(f.before);
   });
 
   test(`${integration}: all-target conflict preflight preserves even otherwise recoverable targets`, async t => {
