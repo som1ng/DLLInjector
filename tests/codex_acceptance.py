@@ -12,6 +12,7 @@ import tempfile
 
 from mcp_hosts import JsonProcess, NAME, NO_WINDOW, clean_environment, native_executable, toml
 from mcp_model_fixture import HostCheckError, ModelFixture, TOOLS, decode_content, same_json, verify_result
+from codex_diagnostics import answer_matches, diagnostic_call, prepare_diagnostic
 
 ANSWER_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
@@ -133,8 +134,9 @@ def execute(argv, cwd, timeout):
     return events
 
 
-def verify_live(events, sample, baseline):
+def verify_live(events, sample, baseline, diagnostic=None):
     calls, messages, usage = [], [], None
+    diagnosed = False
     for event in events:
         if event.get('type') == 'turn.completed':
             usage = event.get('usage')
@@ -146,42 +148,52 @@ def verify_live(events, sample, baseline):
             messages.append(item.get('text'))
         elif kind == 'mcp_tool_call':
             args = item.get('arguments', {})
-            if (item.get('server') != NAME or item.get('tool') != 'inspect_pe'
+            if (item.get('server') != NAME
                     or item.get('status') != 'completed' or item.get('error') is not None
-                    or not isinstance(args, dict) or set(args) - {'path', 'timeout_ms'}
+                    or not isinstance(args, dict)
                     or not isinstance(args.get('path'), str) or not Path(args['path']).is_absolute()
                     or Path(args['path']).resolve() != sample.resolve()):
-                raise HostCheckError('model did not call inspect_pe on the requested fixture')
+                raise HostCheckError('model did not call a successful tool on the requested fixture')
+            if diagnostic:
+                expected, is_diagnostic = diagnostic_call(item.get('tool'), args, diagnostic, baseline)
+                diagnosed = diagnosed or is_diagnostic
+            else:
+                if item.get('tool') != 'inspect_pe' or set(args) - {'path', 'timeout_ms', 'max_output_bytes'}:
+                    raise HostCheckError('model did not call inspect_pe on the requested fixture')
+                expected = {'source': 'live_cli', 'report': baseline}
             result = item.get('result')
             if not isinstance(result, dict):
                 raise HostCheckError('model tool call has no result')
             content = decode_content(result.get('content'))
             if not same_json(content, result.get('structured_content')):
                 raise HostCheckError('model tool result lost structured evidence')
-            verify_result(content, {'label': 'inspect_pe', 'expected': {'source': 'live_cli', 'report': baseline}})
+            verify_result(content, {'label': 'diagnostic' if diagnostic else 'inspect_pe', 'expected': expected})
             calls.append(item)
         elif kind not in ('reasoning',):
             raise HostCheckError('client reported a diagnostic in the model turn' if kind == 'error'
                                  else 'unexpected tool or activity in the model turn')
     if not 1 <= len(calls) <= 3 or not messages:
         raise HostCheckError('model did not produce bounded tool evidence and an answer')
+    if diagnostic and not diagnosed:
+        raise HostCheckError('model answered without the required Doctor evidence')
     try:
         answer = json.loads(messages[-1])
     except (ValueError, TypeError):
         raise HostCheckError('model did not return the requested structured answer') from None
-    expected = expected_answer(baseline)
-    if not same_json(answer, expected):
+    expected = diagnostic['answer'] if diagnostic else expected_answer(baseline)
+    if not answer_matches(answer, expected):
         raise HostCheckError('model answer disagrees with native static evidence')
     if not isinstance(usage, dict) or any(type(v) is not int or v < 0 for v in usage.values()):
         raise HostCheckError('invalid model usage counters')
-    return {'status': 'passed', 'turns': 1, 'tool_calls': len(calls), 'tool': 'inspect_pe',
+    return {'status': 'passed', 'turns': 1, 'tool_calls': len(calls), 'tools': sorted({call['tool'] for call in calls}),
+            **({'tool': 'inspect_pe'} if not diagnostic else {}),
             'native_evidence': 'matched', 'answer': expected, 'usage': usage}
 
 
-def run(argv, cwd, timeout=120):
+def run(argv, cwd, timeout=120, *, expected_code=0):
     result = subprocess.run([str(arg) for arg in argv], cwd=cwd, stdin=subprocess.DEVNULL,
         capture_output=True, timeout=timeout, creationflags=NO_WINDOW)
-    if result.returncode or len(result.stdout) > 4 * 1024 * 1024:
+    if result.returncode != expected_code or len(result.stdout) > 4 * 1024 * 1024:
         raise HostCheckError('acceptance prerequisite failed; subprocess output is withheld')
     return result.stdout.decode('utf-8')
 
@@ -211,6 +223,8 @@ def main():
     parser.add_argument('--archive', required=True, type=Path, help='trusted local Rondo npm .tgz; no registry download')
     parser.add_argument('--codex', required=True, help='installed native Codex .exe, tested with 0.164.0')
     parser.add_argument('--dll', required=True, type=Path, help='repository-built inert noop_fixture.dll (never loaded)')
+    parser.add_argument('--scenario', choices=['pe', 'mismatch', 'error-126'], default='pe',
+                        help='one scenario per invocation; mismatch requires the x86 fixture')
     parser.add_argument('--live-model', help='explicit opt-in: ONE real OpenAI turn using existing Codex login; consumes quota')
     parser.add_argument('--timeout', type=int, default=180, help='per Codex run deadline, seconds (30-300)')
     parser.add_argument('--output', type=Path, help='new sanitized summary file; refuses overwrite')
@@ -224,7 +238,8 @@ def main():
     if args.output and not args.output.resolve().parent.is_dir():
         parser.error('output directory does not exist')
     stage = 'inputs'
-    summary = {'status': 'failed', 'client': 'codex', 'live_model': {'status': 'not_run'}, 'checks': []}
+    summary = {'status': 'failed', 'client': 'codex', 'scenario': args.scenario,
+               'live_model': {'status': 'not_run'}, 'checks': []}
     try:
         exe = native_executable(args.codex)
         archive, dll = args.archive.resolve(strict=True), args.dll.resolve(strict=True)
@@ -257,6 +272,13 @@ def main():
             baseline = json.loads(run([shim, 'pe', 'inspect', sample, '--json'], project))
             if baseline['status'] != 'success' or not expected_answer(baseline)['is_dll']:
                 raise HostCheckError('provide a successfully inspectable x86/x64 DLL fixture')
+            stage = 'native diagnostic preflight'
+            def invoke(arguments, expected_code=0):
+                return json.loads(run([shim, *arguments, '--json'], project, expected_code=expected_code))
+            diagnostic = prepare_diagnostic(args.scenario, sample, baseline, invoke)
+            if diagnostic:
+                summary['native_preflight'] = {'status': 'passed', 'cli_exit_code': diagnostic['exit_code'],
+                                               'answer': diagnostic['answer']}
 
             def discovery(label, present, trusted):
                 nonlocal stage
@@ -287,16 +309,18 @@ def main():
                 stage = 'live model'
                 summary['live_model'] = {'status': 'attempted', 'model': args.live_model}
                 schema = base / 'answer-schema.json'
-                schema.write_text(json.dumps(ANSWER_SCHEMA), encoding='utf-8')
+                schema.write_text(json.dumps(diagnostic['schema'] if diagnostic else ANSWER_SCHEMA), encoding='utf-8')
                 prompt = (f'请检查这个文件的架构、是否为 DLL、映像大小（字节）、导出函数数量，以及是否已验证可以加载：{sample}。'
                           '只做静态只读检查，不加载或执行 DLL，使用给定 JSON 格式回答。')
+                if diagnostic:
+                    prompt = diagnostic['prompt']
                 events = execute(command(exe, project, True, args.live_model, schema=schema) + [prompt], project, args.timeout)
                 # Keep bounded numeric usage even if evidence validation fails afterwards.
                 usage = next(event.get('usage', {}) for event in events if event.get('type') == 'turn.completed')
                 summary['live_model']['usage'] = {key: value for key, value in usage.items()
                     if key in ('input_tokens', 'cached_input_tokens', 'cache_write_input_tokens',
                                'output_tokens', 'reasoning_output_tokens') and type(value) is int and value >= 0}
-                summary['live_model'] = dict(verify_live(events, sample, baseline), model=args.live_model)
+                summary['live_model'] = dict(verify_live(events, sample, baseline, diagnostic), model=args.live_model)
             stage = 'uninstall'
             if config_path.read_bytes() != config_before:
                 raise HostCheckError('client changed the managed project configuration')

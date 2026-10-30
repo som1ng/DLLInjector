@@ -62,7 +62,8 @@ def verify_result(actual, case):
             raise HostCheckError('policy failure was not preserved')
         return
     expected = case['expected']
-    if (actual['source'] != expected['source'] or type(actual['cli_exit_code']) is not int or actual['cli_exit_code'] != 0
+    if (actual['source'] != expected['source'] or type(actual['cli_exit_code']) is not int
+            or actual['cli_exit_code'] != expected.get('cli_exit_code', 0)
             or actual['error'] is not None or not isinstance(actual['report'], dict)):
         raise HostCheckError('successful report envelope differs from native result')
     report = dict(actual['report'])

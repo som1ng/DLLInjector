@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from codex_acceptance import DiscoveryModel, command, emit_summary, expected_answer, main, verify_live, verify_model_catalog
+from codex_diagnostics import diagnostic_answer, prepare_diagnostic
 from mcp_model_fixture import HostCheckError, TOOLS
 
 
@@ -167,6 +168,117 @@ class AcceptanceTests(unittest.TestCase):
                     proc.wait(timeout=5)
                 proc.stdout.close()
                 proc.stdin.close()
+
+
+def doctor_case(name):
+    source = 'doctor-mismatch.json' if name == 'mismatch' else 'doctor-dependencies.json'
+    report = json.loads((Path(__file__).parent / 'fixtures/json' / source).read_text(encoding='utf-8'))
+    case = {'name': name, 'report': report, 'exit_code': 1 if name == 'mismatch' else 0}
+    if name == 'error-126':
+        case['search_dir'] = SAMPLE.parent / 'deps'
+        dependencies = report['data']['dependencies']
+        dependencies['libraries'] = dependencies['libraries'][:3]
+        dependencies['libraries'][0]['name'] = 'VCRUNTIME140.dll'
+        dependencies['search_directories'] = [str(case['search_dir'])]
+    case['answer'] = diagnostic_answer(name, report)
+    return case
+
+
+def diagnostic_events(case, tool='diagnose_dll'):
+    result = events()
+    item = result[0]['item']
+    item['tool'] = tool
+    item['arguments'].update({'target_arch': 'x64'} if case['name'] == 'mismatch'
+                             else {'search_directories': [str(case['search_dir'])]})
+    envelope = {'source': 'live_cli', 'cli_exit_code': case['exit_code'],
+                'report': copy.deepcopy(case['report']), 'error': None}
+    item['result'] = {'content': [{'type': 'text', 'text': json.dumps(envelope)}], 'structured_content': envelope}
+    result[1]['item']['text'] = json.dumps(case['answer'])
+    return result
+
+
+class DiagnosticAcceptanceTests(unittest.TestCase):
+    def test_blocking_finding_is_completed_diagnosis_with_exit_one(self):
+        case = doctor_case('mismatch')
+        result = verify_live(diagnostic_events(case), SAMPLE, REPORT, case)
+        self.assertEqual(result['answer']['diagnostic_exit_code'], 1)
+        self.assertTrue(result['answer']['diagnosis_completed'])
+        for code in [0, True, 2]:
+            changed = diagnostic_events(case)
+            envelope = changed[0]['item']['result']['structured_content']
+            envelope['cli_exit_code'] = code
+            changed[0]['item']['result']['content'][0]['text'] = json.dumps(envelope)
+            with self.subTest(code=code), self.assertRaises(HostCheckError):
+                verify_live(changed, SAMPLE, REPORT, case)
+
+    def test_declared_target_cannot_become_a_process_observation(self):
+        case = doctor_case('mismatch')
+        for key, value in [('target_architecture_source', 'process_observation'), ('architecture_matches', True),
+                           ('loadability_verified', True), ('diagnosis_completed', False)]:
+            changed = diagnostic_events(case)
+            changed[1]['item']['text'] = json.dumps(dict(case['answer'], **{key: value}))
+            with self.subTest(key=key), self.assertRaises(HostCheckError):
+                verify_live(changed, SAMPLE, REPORT, case)
+        for target in ['x86', None]:
+            changed = diagnostic_events(case)
+            changed[0]['item']['arguments']['target_arch'] = target
+            with self.assertRaises(HostCheckError):
+                verify_live(changed, SAMPLE, REPORT, case)
+
+    def test_both_dependency_tools_can_supply_evidence_and_names_ignore_case(self):
+        case = doctor_case('error-126')
+        for tool in ['diagnose_dll', 'analyze_dependencies']:
+            changed = diagnostic_events(case, tool)
+            answer = dict(case['answer'], candidate_names=['vcruntime140.DLL'])
+            changed[1]['item']['text'] = json.dumps(answer)
+            self.assertEqual(verify_live(changed, SAMPLE, REPORT, case)['tools'], [tool])
+
+    def test_dependency_answer_preserves_scope_confidence_and_runtime_uncertainty(self):
+        case = doctor_case('error-126')
+        for key, value in [('root_cause_confirmed', True), ('candidate_loadability_verified', True),
+                           ('loadability_verified', True), ('possible_missing_confidence', 'high'),
+                           ('error_code_source', 'native_observation'), ('search_scope', 'windows_loader'),
+                           ('api_set_names', []), ('missing_in_search_dirs', ['api-ms-win-core-file-l1-1-0.dll']),
+                           ('candidate_names', ['VCRUNTIME140.dll', 'vcruntime140.dll'])]:
+            changed = diagnostic_events(case)
+            changed[1]['item']['text'] = json.dumps(dict(case['answer'], **{key: value}))
+            with self.subTest(key=key), self.assertRaises(HostCheckError):
+                verify_live(changed, SAMPLE, REPORT, case)
+
+    def test_search_scope_cannot_expand_or_guess_target_architecture(self):
+        case = doctor_case('error-126')
+        for args in [{'search_directories': []}, {'search_directories': ['relative']},
+                     {'search_directories': [str(SAMPLE.parent)]},
+                     {'search_directories': [str(case['search_dir'])] * 2}, {'target_arch': 'x64'}]:
+            changed = diagnostic_events(case)
+            changed[0]['item']['arguments'].update(args)
+            with self.subTest(args=args), self.assertRaises(HostCheckError):
+                verify_live(changed, SAMPLE, REPORT, case)
+
+    def test_pe_preflight_is_allowed_but_not_a_substitute_for_doctor(self):
+        for name in ['mismatch', 'error-126']:
+            case = doctor_case(name)
+            sequence = [events()[0], *diagnostic_events(case)]
+            self.assertEqual(verify_live(sequence, SAMPLE, REPORT, case)['tool_calls'], 2)
+            guessed = [events()[0], *diagnostic_events(case)[1:]]
+            with self.assertRaises(HostCheckError):
+                verify_live(guessed, SAMPLE, REPORT, case)
+            changed = diagnostic_events(case)
+            envelope = changed[0]['item']['result']['structured_content']
+            envelope['report']['execution']['outcome_verified'] = True
+            changed[0]['item']['result']['content'][0]['text'] = json.dumps(envelope)
+            with self.assertRaises(HostCheckError):
+                verify_live(changed, SAMPLE, REPORT, case)
+
+    def test_incompatible_fixture_fails_before_invoking_doctor(self):
+        invoke = unittest.mock.Mock()
+        with self.assertRaises(HostCheckError):
+            prepare_diagnostic('mismatch', SAMPLE, REPORT, invoke)
+        no_imports = copy.deepcopy(REPORT)
+        no_imports['data']['imports'] = []
+        with self.assertRaises(HostCheckError):
+            prepare_diagnostic('error-126', SAMPLE, no_imports, invoke)
+        invoke.assert_not_called()
 
 
 if __name__ == '__main__':

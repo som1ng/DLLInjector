@@ -4,6 +4,9 @@
 脚本为 [tests/codex_acceptance.py](../tests/codex_acceptance.py)，与使用直接 RPC/固定工具调用的
 [既有宿主测试](MCP_HOST_VALIDATION.md) 分开记录。
 
+2026-10-30 后续新增两个场景，见 [架构冲突与报错 126 诊断验收](CODEX_DIAGNOSTIC_ACCEPTANCE.md)。
+下文的单个 PE 场景和 10 项离线测试计数保留为本轮历史记录。
+
 ## 运行方式
 
 需要 Windows、已安装的 Node/npm、Python、Codex 原生 `.exe`、可信的本地 Rondo npm 归档，以及本仓库构建的
